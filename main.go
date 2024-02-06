@@ -36,14 +36,9 @@ func main() {
 		os.Getenv("DB_TABLE_WEBSITE"),
 		cfg,
 	)
-	initalLink := queue.NewMessage("https://alexcollie.com")
+	//initalLink := queue.NewMessage("https://alexcollie.com")
 
 	server := handler.New(dbClient, sqsClient)
-	err = server.Queue.Add(ctx, initalLink)
-	if err != nil {
-		log.Fatalf("Failed to add intial")
-		os.Exit(0)
-	}
 	server.Scan(ctx)
 
 }

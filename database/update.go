@@ -23,6 +23,7 @@ func (db *DB) UpdateWebsite(page site.Page, website site.Website) error {
 	log.Printf("%s", websiteDB.Links)
 	websiteDB.Links = append(websiteDB.Links, page.Url)
 	log.Printf("%s", websiteDB.Links)
+	websiteDB.ProminenceValue += 1
 	av, err := attributevalue.MarshalMap(websiteDB)
 	if err != nil {
 		return err

@@ -4,6 +4,7 @@ import (
 	"github.com/anaskhan96/soup"
 	"net/url"
 	"path"
+	"strings"
 	"webcrawler/queue"
 )
 
@@ -14,13 +15,16 @@ func GetLinks(fetchingURL string, body string) ([]queue.Message, error) {
 		link := resolveURL(fetchingURL, link.Attrs()["href"])
 		links = append(links, link)
 	}
+
 	links = removeAnchors(links)
 	links = removeDuplicates(links)
+	links = removeMailTo(links)
+	convertedLinks := convertLinksToQueueMessage(links)
 
-	return convertLinksToQueueMessage(links), nil
+	return convertedLinks, nil
 }
 func convertLinksToQueueMessage(links []string) []queue.Message {
-	var messages []queue.Message
+	messages := []queue.Message{}
 	for _, link := range links {
 		message := queue.Message{Url: link}
 		messages = append(messages, message)
@@ -29,6 +33,9 @@ func convertLinksToQueueMessage(links []string) []queue.Message {
 }
 
 func resolveURL(baseURL, relURL string) string {
+	if strings.Contains(relURL, "http") {
+		return relURL
+	}
 	u, err := url.Parse(baseURL)
 	if err != nil {
 		return ""
@@ -58,6 +65,21 @@ func removeAnchors(links []string) []string {
 			return nil
 		}
 		u.Fragment = ""
+		result = append(result, u.String())
+	}
+	return result
+}
+
+func removeMailTo(links []string) []string {
+	var result []string
+	for _, link := range links {
+		u, err := url.Parse(link)
+		if err != nil {
+			return nil
+		}
+		if u.Scheme == "mailto" {
+			continue
+		}
 		result = append(result, u.String())
 	}
 	return result

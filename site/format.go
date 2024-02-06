@@ -36,8 +36,9 @@ func NewPage(fetchURL string) (Page, string, error) {
 func NewWebsite(urlFull string, links []queue.Message) Website {
 	hostName, _ := url.Parse(urlFull)
 	return Website{
-		Url:   hostName.Hostname(),
-		Links: resolveMessageIntoLinks(links),
+		Url:             hostName.Hostname(),
+		Links:           resolveMessageIntoLinks(links),
+		ProminenceValue: 0,
 	}
 }
 func resolveMessageIntoLinks(messages []queue.Message) []string {
