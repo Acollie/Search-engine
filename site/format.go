@@ -5,6 +5,7 @@ import (
 	"github.com/anaskhan96/soup"
 	"net/http"
 	"net/url"
+	"webcrawler/queue"
 )
 
 func NewPage(fetchURL string) (Page, string, error) {
@@ -31,6 +32,20 @@ func NewPage(fetchURL string) (Page, string, error) {
 		Body:    text,
 		BaseURL: baseUrl.Hostname(),
 	}, resp, nil
+}
+func NewWebsite(urlFull string, links []queue.Message) Website {
+	hostName, _ := url.Parse(urlFull)
+	return Website{
+		Url:   hostName.Hostname(),
+		Links: resolveMessageIntoLinks(links),
+	}
+}
+func resolveMessageIntoLinks(messages []queue.Message) []string {
+	var links []string
+	for _, message := range messages {
+		links = append(links, message.Url)
+	}
+	return links
 }
 
 func CheckRobots(baseUrl string) (bool, error) {

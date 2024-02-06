@@ -2,30 +2,67 @@ package database
 
 import (
 	"context"
+	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"webcrawler/site"
 )
 
-func (db *DB) FetchWebsite(website site.Page) error {
+func (db *DB) FetchWebsite(website string) (site.Website, error) {
 	ctx := context.TODO()
-	_, err := db.session.GetItem(ctx, &dynamodb.GetItemInput{
+	resp, err := db.session.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &db.websiteNameTable,
 		Key: map[string]types.AttributeValue{
-			"BaseURL": &types.AttributeValueMemberS{Value: website.Url},
+			"BaseURL": &types.AttributeValueMemberS{Value: website},
 		},
 	})
-	return err
+	if err != nil {
+		return site.Website{}, err
+	}
+	if resp != nil {
+		return site.Website{}, nil
+	}
+	page, err := formatWebsite(resp)
+	return page, nil
 
 }
 
-func (db *DB) FetchPage(website site.Page) error {
+func (db *DB) FetchPage(website string) (site.Page, error) {
 	ctx := context.TODO()
-	_, err := db.session.GetItem(ctx, &dynamodb.GetItemInput{
+	resp, err := db.session.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &db.pageNameTable,
 		Key: map[string]types.AttributeValue{
-			"PageURL": &types.AttributeValueMemberS{Value: website.Url},
+			"PageURL": &types.AttributeValueMemberS{Value: website},
 		},
 	})
-	return err
+	if err != nil {
+		return site.Page{}, err
+	}
+	if resp != nil {
+		return site.Page{}, nil
+	}
+	page, err := formatPage(resp)
+	if err != nil {
+		return site.Page{}, err
+	}
+	return page, nil
+}
+
+func formatPage(input *dynamodb.GetItemOutput) (site.Page, error) {
+	var page site.Page
+	err := attributevalue.UnmarshalMap(input.Item, &page)
+	if err != nil {
+		return site.Page{}, err
+	}
+	return page, nil
+}
+
+func formatWebsite(input *dynamodb.GetItemOutput) (site.Website, error) {
+	var website site.Website
+	err := attributevalue.UnmarshalMap(input.Item, &website)
+	if err != nil {
+		return site.Website{}, err
+	}
+	return website, nil
+
 }
