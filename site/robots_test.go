@@ -12,7 +12,12 @@ func TestFetchRobots(t *testing.T) {
 		_, err := canVisitURL("https://__invalid_url")
 		require.Error(t, err)
 	})
+	t.Run("TestFetchRobots", func(t *testing.T) {
 
+		resp, err := canVisitURL("https://www.google.com/search/about/")
+		require.NoError(t, err)
+		require.Equal(t, resp, true)
+	})
 	t.Run("TestFetchRobots", func(t *testing.T) {
 		resp, err := canVisitURL("https://example.com")
 		require.NoError(t, err)

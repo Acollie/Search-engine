@@ -36,9 +36,10 @@ func main() {
 		os.Getenv("DB_TABLE_WEBSITE"),
 		cfg,
 	)
-	//initalLink := queue.NewMessage("https://alexcollie.com")
+	initalLink := queue.NewMessage("https://alexcollie.com")
 
 	server := handler.New(dbClient, sqsClient)
+	server.Queue.Add(ctx, initalLink)
 	server.Scan(ctx)
 
 }

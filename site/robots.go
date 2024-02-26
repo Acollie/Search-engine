@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"webcrawler/spider"
 
 	"github.com/temoto/robotstxt"
 )
@@ -23,13 +24,18 @@ func canVisitURL(targetURL string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	if resp.StatusCode == http.StatusNotFound {
+		return true, nil
+	}
+
 	defer resp.Body.Close()
 
 	robots, err := robotstxt.FromResponse(resp)
 	if err != nil {
 		return false, err
 	}
+	group := robots.FindGroup(spider.UserAgent)
 
-	return robots.TestAgent(parsedURL.Path, "webcrawler"), nil
+	return group.Test(parsedURL.Path), nil
 
 }

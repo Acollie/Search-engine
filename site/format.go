@@ -3,19 +3,33 @@ package site
 import (
 	"fmt"
 	"github.com/anaskhan96/soup"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"webcrawler/queue"
 )
 
 func NewPage(fetchURL string) (Page, string, error) {
-	resp, err := soup.Get(fetchURL)
+
+	resp, err := http.Get(fetchURL)
 	if err != nil {
 		return Page{}, "", err
 	}
-	doc := soup.HTMLParse(resp)
+
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return Page{}, "", fmt.Errorf("status code error: %d %s", resp.StatusCode, resp.Status)
+	}
+
+	// response into string
+	body, err := ioutil.ReadAll(resp.Body)
+
+	if err != nil {
+		return Page{}, "", err
+	}
+
+	doc := soup.HTMLParse(string(body))
 	titleTag := doc.Find("title")
-	// checking if title tag exists
 	title := ""
 	if titleTag.Error == nil {
 		// printing the title text
@@ -31,8 +45,9 @@ func NewPage(fetchURL string) (Page, string, error) {
 		Title:   title,
 		Body:    text,
 		BaseURL: baseUrl.Hostname(),
-	}, resp, nil
+	}, string(body), nil
 }
+
 func NewWebsite(urlFull string, links []queue.Message) Website {
 	hostName, _ := url.Parse(urlFull)
 	return Website{
@@ -41,35 +56,11 @@ func NewWebsite(urlFull string, links []queue.Message) Website {
 		ProminenceValue: 0,
 	}
 }
+
 func resolveMessageIntoLinks(messages []queue.Message) []string {
 	var links []string
 	for _, message := range messages {
 		links = append(links, message.Url)
 	}
 	return links
-}
-
-func CheckRobots(baseUrl string) (bool, error) {
-	fullUrl := baseUrl + "/robots.txt"
-
-	// Create a new GET request
-	req, err := http.NewRequest(http.MethodGet, fullUrl, nil)
-	if err != nil {
-		return false, err
-	}
-
-	// Send the request
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return false, fmt.Errorf("request error: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Check status code to determine whether robots.txt exists
-	if resp.StatusCode == 200 {
-		return true, nil
-	} else {
-		return false, nil
-	}
 }
