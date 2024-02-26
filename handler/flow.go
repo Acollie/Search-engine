@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"log"
+	"reflect"
 	"webcrawler/formating"
 	"webcrawler/site"
 )
@@ -10,7 +11,7 @@ import (
 func (h *Server) Scan(ctx context.Context) {
 
 	//Wait group
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 20; i++ {
 
 		links, err := h.Queue.Fetch(ctx)
 
@@ -20,8 +21,25 @@ func (h *Server) Scan(ctx context.Context) {
 		}
 
 		for _, link := range links {
+			item, err := h.Db.FetchWebsite(link.Url)
+			if err == nil && reflect.DeepEqual(item, site.Website{}) {
+				h.Queue.Remove(ctx, *link.Handler)
+				log.Printf("Skipping")
+				continue
+
+			}
 
 			log.Printf("Scanning %s", link.Url)
+			valid, err := site.FetchRobots(link.Url)
+			if err != nil {
+				log.Printf("fetching robots %v", err)
+			}
+			if !valid {
+				log.Printf("Robots disallowed")
+				h.Queue.Remove(ctx, *link.Handler)
+				continue
+			}
+
 			page, resp, err := site.NewPage(link.Url)
 			if err != nil {
 				log.Printf("creating page %v", err)
