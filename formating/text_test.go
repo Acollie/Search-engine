@@ -6,7 +6,7 @@ import (
 )
 
 func TestFetchLinks(t *testing.T) {
-	links, err := GetLinks("http://www.example.com/")
+	links, err := GetLinks("http://www.example.com/", "")
 	require.NoError(t, err)
 	require.Equal(t, len(links) > 0, true)
 
@@ -48,7 +48,7 @@ func TestRemoveAnchors(t *testing.T) {
 	require.Equal(t, len(links), 2, "Removing anchors failed")
 }
 func TestBadInvalidURL(t *testing.T) {
-	_, err := GetLinks("http://www.example_.com/invalid")
+	_, err := GetLinks("http://www.example_.com/invalid", "")
 	require.Error(t, err, "Invalid URL should return an error")
 
 }

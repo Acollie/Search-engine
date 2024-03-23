@@ -1,4 +1,4 @@
-package database
+package dynamoDBx
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 )
 
 func (db *DB) RemovePage(website site.Page) error {
-	ctx := context.TODO()
+	ctx := context.Background()
 	_, err := db.session.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &db.pageNameTable,
 		Key: map[string]types.AttributeValue{
@@ -18,8 +18,8 @@ func (db *DB) RemovePage(website site.Page) error {
 	return err
 }
 
-func (db *DB) RemoveWebsite(website site.Page) error {
-	ctx := context.TODO()
+func (db *DB) RemoveWebsite(website site.Website) error {
+	ctx := context.Background()
 	_, err := db.session.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &db.websiteNameTable,
 		Key: map[string]types.AttributeValue{

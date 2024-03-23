@@ -1,4 +1,4 @@
-package database
+package dynamoDBx
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"webcrawler/site"
 )
 
-func (db *DB) FetchWebsite(website string) (site.Website, error) {
+func (db *DB) FetchWebsite(website string) (*site.Website, error) {
 	ctx := context.TODO()
 	resp, err := db.session.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &db.websiteNameTable,
@@ -17,17 +17,17 @@ func (db *DB) FetchWebsite(website string) (site.Website, error) {
 		},
 	})
 	if err != nil {
-		return site.Website{}, err
+		return &site.Website{}, err
 	}
 	if resp != nil {
-		return site.Website{}, nil
+		return &site.Website{}, nil
 	}
 	page, err := formatWebsite(resp)
-	return page, nil
+	return &page, nil
 
 }
 
-func (db *DB) FetchPage(website string) (site.Page, error) {
+func (db *DB) FetchPage(website string) (*site.Page, error) {
 	ctx := context.TODO()
 	resp, err := db.session.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &db.pageNameTable,
@@ -36,16 +36,16 @@ func (db *DB) FetchPage(website string) (site.Page, error) {
 		},
 	})
 	if err != nil {
-		return site.Page{}, err
+		return nil, err
 	}
 	if resp != nil {
-		return site.Page{}, nil
+		return nil, nil
 	}
 	page, err := formatPage(resp)
 	if err != nil {
-		return site.Page{}, err
+		return nil, err
 	}
-	return page, nil
+	return &page, nil
 }
 
 func formatPage(input *dynamodb.GetItemOutput) (site.Page, error) {

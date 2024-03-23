@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 	"webcrawler/awsx"
-	"webcrawler/database"
+	"webcrawler/dynamoDBx"
 	"webcrawler/handler"
 	"webcrawler/queue"
 )
@@ -31,7 +31,7 @@ func main() {
 		os.Getenv("LINKS_QUEUE"),
 		cfg,
 	)
-	dbClient := database.New(
+	dbClient := dynamoDBx.New(
 		os.Getenv("DB_TABLE_PAGE"),
 		os.Getenv("DB_TABLE_WEBSITE"),
 		cfg,

@@ -11,7 +11,6 @@ import (
 
 func FetchRobots(baseUrl string) (bool, error) {
 	return canVisitURL(baseUrl)
-
 }
 
 func canVisitURL(targetURL string) (bool, error) {
