@@ -8,7 +8,6 @@ import (
 )
 
 func GetConfig(ctx context.Context) (aws.Config, error) {
-
 	cfg, err := config.LoadDefaultConfig(
 		ctx,
 		config.WithRegion(os.Getenv("AWS_REGION")), // Your AWS Region,

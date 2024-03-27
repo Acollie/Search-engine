@@ -21,6 +21,7 @@ func (db *DB) AddPage(website site.Page) error {
 	_, err = db.session.PutItem(ctx, input)
 	return err
 }
+
 func (db *DB) AddWebsite(website site.Website) error {
 	ctx := context.Background()
 	av, err := attributevalue.MarshalMap(website)

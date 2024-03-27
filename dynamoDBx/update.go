@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
-	"log"
 	"reflect"
 	"webcrawler/site"
 )
@@ -16,13 +15,11 @@ func (db *DB) UpdateWebsite(page site.Page, website site.Website) error {
 	if err != nil {
 		return err
 	}
-	if err == nil && reflect.DeepEqual(websiteDB, site.Website{}) {
+	if reflect.DeepEqual(websiteDB, site.Website{}) {
 		return db.AddWebsite(website)
 	}
 
-	log.Printf("%s", websiteDB.Links)
 	websiteDB.Links = append(websiteDB.Links, page.Url)
-	log.Printf("%s", websiteDB.Links)
 	websiteDB.ProminenceValue += 1
 	av, err := attributevalue.MarshalMap(websiteDB)
 	if err != nil {

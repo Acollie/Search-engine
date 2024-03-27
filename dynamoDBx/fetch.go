@@ -19,12 +19,14 @@ func (db *DB) FetchWebsite(website string) (*site.Website, error) {
 	if err != nil {
 		return &site.Website{}, err
 	}
-	if resp != nil {
+	if resp.Item == nil {
 		return &site.Website{}, nil
 	}
-	page, err := formatWebsite(resp)
-	return &page, nil
-
+	websiteFormat, err := formatWebsite(resp)
+	if err != nil {
+		return &site.Website{}, err
+	}
+	return &websiteFormat, nil
 }
 
 func (db *DB) FetchPage(website string) (*site.Page, error) {

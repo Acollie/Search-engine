@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"os"
 )
 
 type HandlerI interface {
@@ -23,6 +24,15 @@ type Message struct {
 }
 
 func New(url string, cfg aws.Config) *Handler {
+	if os.Getenv("ENVIRONMENT") == "local" {
+		cfg.EndpointResolver = aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
+			return aws.Endpoint{
+				PartitionID:   "aws",
+				URL:           "http://localhost:4570",
+				SigningRegion: "us-west-2",
+			}, nil
+		})
+	}
 	return &Handler{
 		url:    url,
 		client: sqs.NewFromConfig(cfg),
