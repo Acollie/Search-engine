@@ -1,4 +1,4 @@
-package dynamoDBx
+package dynamo_db_x
 
 import (
 	"github.com/aws/aws-sdk-go-v2/aws"
