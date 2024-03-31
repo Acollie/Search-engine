@@ -6,7 +6,7 @@ import (
 )
 
 type Server struct {
-	Queue *queue.Handler
+	Queue queue.HandlerI
 	Db    DBi
 }
 

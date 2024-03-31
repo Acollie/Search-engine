@@ -2,8 +2,10 @@ provider "aws" {
   region = "eu-west-1"
 }
 resource "aws_sqs_queue" "LinksQueue" {
-  name                      = "LinksQueue"
-  message_retention_seconds = 3600
+  name                        = "LinksQueue.fifo"
+  message_retention_seconds   = 3600
+  fifo_queue                  = true
+  content_based_deduplication = true
 }
 
 

@@ -1,4 +1,4 @@
-package sql_relational
+package sqlRelational
 
 const (
 	addWebsite      = `insert () values into websites`
