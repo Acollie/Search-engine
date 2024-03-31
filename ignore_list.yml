@@ -1,6 +1,8 @@
 websites:
   - "https://www.example.com"
   - "https://www.github.com"
+  - "https://docs.github.com"
+  - "https://partner.github.com"
   - "https://www.google.com"
   - "https://www.facebook.com"
   - "https://www.youtube.com"
