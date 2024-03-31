@@ -47,9 +47,9 @@ func resolveURL(baseURL, relURL string) string {
 func removeDuplicates(links []string) []string {
 	encountered := map[string]bool{}
 	var result []string
+
 	for v := range links {
-		if encountered[links[v]] == true {
-		} else {
+		if !encountered[links[v]] {
 			encountered[links[v]] = true
 			result = append(result, links[v])
 		}

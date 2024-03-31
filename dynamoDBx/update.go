@@ -15,13 +15,18 @@ func (db *DB) UpdateWebsite(page site.Page, website site.Website) error {
 	if err != nil {
 		return err
 	}
-	if reflect.DeepEqual(websiteDB, site.Website{}) {
-		return db.AddWebsite(website)
+	if reflect.DeepEqual(websiteDB, &site.Website{}) && err == nil {
+		println("Website not found")
+		websiteDB = &website
+	} else {
+		website.Links = append(websiteDB.Links, page.Url)
 	}
 
-	websiteDB.Links = append(websiteDB.Links, page.Url)
 	websiteDB.ProminenceValue += 1
-	av, err := attributevalue.MarshalMap(websiteDB)
+	websiteDB.Links = append(websiteDB.Links, page.Url)
+	website = *websiteDB
+
+	av, err := attributevalue.MarshalMap(website)
 	if err != nil {
 		return err
 	}
