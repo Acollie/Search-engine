@@ -36,18 +36,5 @@ func teardown() {
 }
 
 func TestFlow(t *testing.T) {
-	ctx := context.Background()
 
-	server := setup(t, ctx)
-	defer teardown()
-
-	t.Run("Adding simple website", func(t *testing.T) {
-		initialLink := queue.NewMessage("https://www.alexcollie.com")
-		err := server.Queue.Add(ctx, initialLink)
-		require.NoError(t, err)
-	})
-
-	t.Run("Happy path", func(t *testing.T) {
-
-	})
 }

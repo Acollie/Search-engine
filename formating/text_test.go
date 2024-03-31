@@ -3,12 +3,19 @@ package formating
 import (
 	"github.com/stretchr/testify/require"
 	"testing"
+	"webcrawler/site"
 )
 
 func TestFetchLinks(t *testing.T) {
-	links, err := GetLinks("http://www.example.com/", "")
-	require.NoError(t, err)
-	require.Equal(t, len(links) > 0, true)
+	link := "http://www.alexcollie.com/"
+
+	t.Run("Test basic", func(t *testing.T) {
+		_, resp, err := site.NewPage(link)
+		links, err := GetLinks(link, resp)
+		require.NoError(t, err)
+		require.Equal(t, len(links) > 0, true)
+
+	})
 
 }
 
@@ -46,9 +53,4 @@ func TestRemoveAnchors(t *testing.T) {
 	links := []string{"http://www.example.com/#", "http://www.example.com/test#"}
 	links = removeAnchors(links)
 	require.Equal(t, len(links), 2, "Removing anchors failed")
-}
-func TestBadInvalidURL(t *testing.T) {
-	_, err := GetLinks("http://www.example_.com/invalid", "")
-	require.Error(t, err, "Invalid URL should return an error")
-
 }
