@@ -25,8 +25,12 @@ func (h *Server) Scan(ctx context.Context) {
 
 			wg.Add(1)
 			go func() {
-
 				defer wg.Done()
+				if h.Config.Ignore(link.Url) {
+					log.Printf("skipping domain")
+					return
+				}
+
 				valid, err := site.FetchRobots(link.Url)
 				if err != nil {
 					log.Printf("fetching robots %v", err)

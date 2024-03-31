@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 	"webcrawler/awsx"
-	"webcrawler/dynamoDBx"
+	"webcrawler/dynamo_db_x"
 
 	"webcrawler/queue"
 )
@@ -19,7 +19,7 @@ func setup(t *testing.T, ctx context.Context) Server {
 		os.Getenv("LINKS_QUEUE"),
 		cfg,
 	)
-	dbClient := dynamoDBx.New(
+	dbClient := dynamo_db_x.New(
 		os.Getenv("DB_TABLE_PAGE"),
 		os.Getenv("DB_TABLE_WEBSITE"),
 		cfg,

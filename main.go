@@ -6,15 +6,16 @@ import (
 	"log"
 	"os"
 	"webcrawler/awsx"
-	"webcrawler/dynamoDBx"
+	"webcrawler/dynamo_db_x"
 	"webcrawler/handler"
+	"webcrawler/ignore_list"
 	"webcrawler/queue"
 )
 
 func main() {
-	// Load .env file
 	err := godotenv.Load()
 	ctx := context.Background()
+	conf := ignore_list.Fetch()
 	if err != nil {
 		log.Fatalf("Failed to load .env file with error: %v", err)
 	}
@@ -31,14 +32,14 @@ func main() {
 		os.Getenv("LINKS_QUEUE"),
 		cfg,
 	)
-	dbClient := dynamoDBx.New(
+	dbClient := dynamo_db_x.New(
 		os.Getenv("DB_TABLE_PAGE"),
 		os.Getenv("DB_TABLE_WEBSITE"),
 		cfg,
 	)
 	initalLink := queue.NewMessage("https://alexcollie.com")
 
-	server := handler.New(dbClient, sqsClient)
+	server := handler.New(dbClient, sqsClient, conf)
 	server.Queue.Add(ctx, initalLink)
 	server.Scan(ctx)
 

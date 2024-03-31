@@ -1,4 +1,4 @@
-package dynamoDBx
+package dynamo_db_x
 
 import (
 	"context"

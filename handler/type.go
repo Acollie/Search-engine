@@ -1,13 +1,15 @@
 package handler
 
 import (
+	"webcrawler/ignore_list"
 	"webcrawler/queue"
 	"webcrawler/site"
 )
 
 type Server struct {
-	Queue queue.HandlerI
-	Db    DBi
+	Queue  queue.HandlerI
+	Db     DBi
+	Config *ignore_list.IgnoreList
 }
 
 type DBi interface {
@@ -20,10 +22,11 @@ type DBi interface {
 	UpdateWebsite(page site.Page, website site.Website) error
 }
 
-func New(db DBi, queue *queue.Handler) Server {
+func New(db DBi, queue *queue.Handler, conf *ignore_list.IgnoreList) Server {
 	return Server{
-		Db:    db,
-		Queue: queue,
+		Db:     db,
+		Queue:  queue,
+		Config: conf,
 	}
 
 }
