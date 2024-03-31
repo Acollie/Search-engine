@@ -1,5 +1,6 @@
 # Go Webcrawler
 
+[![Go](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml/badge.svg)](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml)
 ## Description
 
 ## Testing
