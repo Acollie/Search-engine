@@ -1,3 +1,4 @@
+relational: true
 websites:
   - "https://www.example.com"
   - "https://www.github.com"

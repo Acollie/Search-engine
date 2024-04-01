@@ -22,3 +22,12 @@ services:
     volumes:
       - "./localstack-data:/tmp/localstack-data"
       - "/var/run/docker.sock:/var/run/docker.sock"
+  postgres:
+    container_name: webcrawler-postgres
+    image: postgres
+    ports:
+      - "5431:5432"
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: webcrawler

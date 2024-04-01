@@ -1,4 +1,4 @@
-package ignore_list
+package config
 
 import (
 	"gopkg.in/yaml.v3"
@@ -8,14 +8,16 @@ import (
 )
 
 type IgnoreList struct {
-	Website map[string]bool
+	Website    map[string]bool
+	Relational bool
 }
 type rawIgnoreList struct {
-	Websites []string `yaml:"websites"`
+	Websites   []string `yaml:"websites"`
+	Relational bool     `yaml:"relational"`
 }
 
 func Fetch() *IgnoreList {
-	yamlFile, err := ioutil.ReadFile("ignore_list.yml")
+	yamlFile, err := ioutil.ReadFile("config.yml")
 	if err != nil {
 		log.Printf("yamlFile.Get err #%v ", err)
 	}
@@ -26,7 +28,8 @@ func Fetch() *IgnoreList {
 	}
 
 	conf := &IgnoreList{
-		Website: make(map[string]bool),
+		Website:    make(map[string]bool),
+		Relational: raw.Relational,
 	}
 
 	for _, website := range raw.Websites {

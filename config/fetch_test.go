@@ -1,4 +1,4 @@
-package ignore_list
+package config
 
 import (
 	"github.com/stretchr/testify/require"
@@ -7,7 +7,7 @@ import (
 
 func TestIgnoreList(t *testing.T) {
 
-	t.Run("Fetch ignore list ", func(t *testing.T) {
+	t.Run("FetchDDB ignore list ", func(t *testing.T) {
 		conf := IgnoreList{
 			Website: map[string]bool{
 				"github.com": true,
