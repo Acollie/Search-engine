@@ -47,7 +47,7 @@ func TestDB(t *testing.T) {
 
 		websiteReturned, err := sqlDB.FetchWebsite(website.Url)
 		require.NoError(t, err)
-		require.Equal(t, website, websiteReturned)
+		require.Equal(t, &website, websiteReturned)
 	})
 
 	t.Run("AddPage", func(t *testing.T) {
@@ -63,21 +63,38 @@ func TestDB(t *testing.T) {
 
 		pageReturned, err := sqlDB.FetchPage(page.Url)
 		require.NoError(t, err)
-		require.Equal(t, page, pageReturned)
-
+		require.Equal(t, &page, pageReturned)
 	})
 
 	t.Run("Fetch page empty", func(t *testing.T) {
 		pageReturn, err := sqlDB.FetchPage("does not exist")
 		require.NoError(t, err)
-		require.Equal(t, reflect.DeepEqual(pageReturn, site.Page{}), true)
-
+		require.Equal(t, reflect.DeepEqual(pageReturn, &site.Page{}), true)
 	})
 
 	t.Run("Fetch website empty", func(t *testing.T) {
 		pageReturn, err := sqlDB.FetchWebsite("does not exist website")
 		require.NoError(t, err)
-		require.Equal(t, reflect.DeepEqual(pageReturn, site.Website{}), true)
+		require.Equal(t, reflect.DeepEqual(pageReturn, &site.Website{}), true)
+	})
+
+	t.Run("update website", func(t *testing.T) {
+		page := site.Page{
+			Url:     "http://www.google.com",
+			Title:   "Google",
+			Body:    "Search Engine",
+			BaseURL: "http://www.google.com",
+		}
+
+		website := site.Website{
+			Url:             "http://www.google.com",
+			ProminenceValue: 1,
+		}
+		err := sqlDB.UpdateWebsite(page, website)
+		require.NoError(t, err)
+		returnDB, err := sqlDB.FetchWebsite(website.Url)
+		require.NoError(t, err)
+		require.Equal(t, returnDB.ProminenceValue, website.ProminenceValue+1)
 
 	})
 }
