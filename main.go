@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/joho/godotenv"
 	"log"
 	"os"
@@ -48,8 +49,8 @@ func main() {
 	server := handler.New(dbClient, sqsClient, sqlClient, conf)
 	err = server.Queue.Add(ctx, initialLink)
 	if err != nil {
-		log.Printf("adding", err)
-		return
+		err = fmt.Errorf("add %s", err)
+		panic(err)
 	}
 	server.Scan(ctx)
 
