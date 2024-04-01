@@ -1,9 +1,10 @@
-package dynamo_db_x
+package dynamoDBx
 
 import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"os"
+	"webcrawler/awsx"
 )
 
 type DB struct {
@@ -13,7 +14,7 @@ type DB struct {
 }
 
 func New(pageName string, websiteName string, cfg aws.Config) *DB {
-	cfg.Region = "us-west-2"
+	cfg.Region = awsx.Region
 	sessionClient := dynamodb.NewFromConfig(cfg)
 
 	if os.Getenv("ENVIRONMENT") == "local" {
@@ -21,7 +22,7 @@ func New(pageName string, websiteName string, cfg aws.Config) *DB {
 			return aws.Endpoint{
 				PartitionID:   "aws",
 				URL:           "http://localhost:8000",
-				SigningRegion: "us-west-2",
+				SigningRegion: awsx.Region,
 			}, nil
 		})
 		sessionClient = dynamodb.NewFromConfig(cfg)

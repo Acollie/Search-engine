@@ -28,6 +28,7 @@ func (h *Server) Scan(ctx context.Context) {
 				defer wg.Done()
 				if h.Config.Ignore(link.Url) {
 					log.Printf("skipping domain")
+					h.Queue.Remove(ctx, *link.Handler)
 					return
 				}
 
