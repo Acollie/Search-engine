@@ -7,8 +7,7 @@ import (
 	"webcrawler/site"
 )
 
-func (db *DB) RemovePage(website site.Page) error {
-	ctx := context.Background()
+func (db *DB) RemovePage(ctx context.Context, website site.Page) error {
 	_, err := db.session.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &db.pageNameTable,
 		Key: map[string]types.AttributeValue{
@@ -18,8 +17,7 @@ func (db *DB) RemovePage(website site.Page) error {
 	return err
 }
 
-func (db *DB) RemoveWebsite(website site.Website) error {
-	ctx := context.Background()
+func (db *DB) RemoveWebsite(ctx context.Context, website site.Website) error {
 	_, err := db.session.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &db.websiteNameTable,
 		Key: map[string]types.AttributeValue{

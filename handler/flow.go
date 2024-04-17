@@ -41,7 +41,7 @@ func (h *Server) Scan(ctx context.Context) {
 				if err != nil {
 					return
 				}
-				if err := h.Db.AddPage(page); err != nil {
+				if err := h.Db.AddPage(ctx, page); err != nil {
 					log.Printf("adding page %v", err)
 					return
 				}
@@ -59,7 +59,7 @@ func (h *Server) Scan(ctx context.Context) {
 					return
 				}
 
-				err = h.Db.UpdateWebsite(page, website)
+				err = h.Db.UpdateWebsite(ctx, page, website)
 				if err != nil {
 					log.Printf("updating website %v", err)
 				}

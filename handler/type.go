@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"webcrawler/queue"
 	"webcrawler/site"
 )
@@ -11,13 +12,13 @@ type Server struct {
 }
 
 type DBi interface {
-	FetchWebsite(string) (*site.Website, error)
-	FetchPage(string) (*site.Page, error)
-	AddPage(page site.Page) error
-	AddWebsite(website site.Website) error
-	RemoveWebsite(site.Website) error
-	RemovePage(site.Page) error
-	UpdateWebsite(page site.Page, website site.Website) error
+	FetchWebsite(context.Context, string) (*site.Website, error)
+	FetchPage(context.Context, string) (*site.Page, error)
+	AddPage(context.Context, site.Page) error
+	AddWebsite(context.Context, site.Website) error
+	RemoveWebsite(context.Context, site.Website) error
+	RemovePage(context.Context, site.Page) error
+	UpdateWebsite(context.Context, site.Page, site.Website) error
 }
 
 func New(db DBi, queue *queue.Handler) Server {

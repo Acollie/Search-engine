@@ -8,8 +8,7 @@ import (
 	"webcrawler/site"
 )
 
-func (db *DB) AddPage(website site.Page) error {
-	ctx := context.Background()
+func (db *DB) AddPage(ctx context.Context, website site.Page) error {
 	av, err := attributevalue.MarshalMap(website)
 	if err != nil {
 		return err
@@ -22,8 +21,7 @@ func (db *DB) AddPage(website site.Page) error {
 	return err
 }
 
-func (db *DB) AddWebsite(website site.Website) error {
-	ctx := context.Background()
+func (db *DB) AddWebsite(ctx context.Context, website site.Website) error {
 	av, err := attributevalue.MarshalMap(website)
 	if err != nil {
 		return err
