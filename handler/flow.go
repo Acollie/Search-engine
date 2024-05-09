@@ -64,13 +64,13 @@ func (h *Server) Scan(ctx context.Context) {
 
 				err = h.Graph.AddLink(ctx, page)
 				if err != nil {
-					log.Printf("Adding links to graph", err)
+					log.Printf("Adding links to graph %s", err)
 					return
 				}
 
 				err = h.Graph.AddWebsite(ctx, website)
 				if err != nil {
-					log.Printf("add website to graph", err)
+					log.Printf("add website to graph %s", err)
 					return
 				}
 
