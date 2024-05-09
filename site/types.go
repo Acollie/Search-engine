@@ -13,6 +13,7 @@ type Page struct {
 	Title   string `dynamodbav:"title"`
 	Body    string `dynamodbav:"body"`
 	BaseURL string `dynamodbav:"BaseURL"`
+	Links   []string
 }
 
 type Website struct {

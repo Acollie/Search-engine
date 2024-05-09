@@ -18,6 +18,13 @@ func (h Handler) Add(ctx context.Context, message Message) error {
 	})
 	return err
 }
+func (h Handler) AddFromString(ctx context.Context, urls []string) error {
+	var message []Message
+	for _, msg := range urls {
+		message = append(message, NewMessage(msg))
+	}
+	return h.BatchAdd(ctx, message)
+}
 
 func (h Handler) BatchAdd(ctx context.Context, message []Message) error {
 	for _, msg := range message {

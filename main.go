@@ -7,6 +7,7 @@ import (
 	"os"
 	"webcrawler/awsx"
 	"webcrawler/dynamoDBx"
+	"webcrawler/graphx"
 	"webcrawler/handler"
 	"webcrawler/queue"
 )
@@ -36,10 +37,54 @@ func main() {
 		os.Getenv("DB_TABLE_WEBSITE"),
 		cfg,
 	)
-	initalLink := queue.NewMessage("https://alexcollie.com")
+	graphConn, err := graphx.Conn(ctx, os.Getenv("NEO4J_USER"), os.Getenv("NEO4J_PASSWORD"), os.Getenv("NEO4J_URL"))
+	if err != nil {
+		log.Fatalf("Cannot connect to the graph database: %s", err)
+	}
+	graph := graphx.New(graphConn)
 
-	server := handler.New(dbClient, sqsClient)
-	server.Queue.Add(ctx, initalLink)
+	server := handler.New(dbClient, sqsClient, graph)
+
+	initialLinks := []string{
+		"https://blog.alexcollie.com/",
+		"https://alexcollie.com",
+
+		"https://reddit.com",
+		"https://reddit.com/r/golang",
+		"https://reddit.com/r/technology",
+		"https://reddit.com/r/python",
+		"https://reddit.com/r/javascript",
+		"https://reddit.com/r/rust",
+		"https://reddit.com/r/java",
+
+		"https://bbc.co.uk",
+		"https://bbc.co.uk/news",
+		"https://bbc.co.uk/sport",
+		"https://bbc.co.uk/weather",
+		"https://bbc.co.uk/food",
+
+		"https://cnn.com",
+		"https://cnn.com/world",
+		"https://cnn.com/us",
+
+		"https://news.ycombinator.com",
+		"https://news.ycombinator.com/newest",
+
+		"https://hackernews.com",
+
+		"https://techcrunch.com",
+		"https://techcrunch.com/startups",
+
+		"https://waitbutwhy.com/",
+
+		"https://arstechnica.com/",
+
+		"https://www.wired.com/",
+
+		"https://www.theverge.com/",
+	}
+
+	server.Queue.AddFromString(ctx, initialLinks)
 	server.Scan(ctx)
 
 }

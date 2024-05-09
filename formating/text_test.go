@@ -43,6 +43,33 @@ func TestLinkResolve(t *testing.T) {
 
 }
 
+func TestRemoveDepthLinks(t *testing.T) {
+	tests := []struct {
+		url      string
+		expected bool
+	}{
+		{"http://www.example.com/", true},
+		{"http://www.example.com/test", true},
+		{"http://www.example.com/test/test", true},
+		{"http://www.example.com/test/test/test", true},
+		{"http://www.example.com/test/test/test/test", false},
+		{"http://www.example.com/test/test/test/test/test", false},
+	}
+	t.Run("Test basic", func(t *testing.T) {
+		for _, test := range tests {
+			result := testDepthLink(test.url)
+			require.Equalf(t, result, test.expected, "Removing depth links failed %s", test.url)
+		}
+
+	})
+}
+
+func TestRemoveLinksTooDeep(t *testing.T) {
+	links := []string{"http://www.example.com/", "http://www.example.com/test", "http://www.example.com/test/test", "http://www.example.com/test/test/test", "http://www.example.com/test/test/test/test", "http://www.example.com/test/test/test/test/test"}
+	links = removeDepthLinks(links)
+	require.Equal(t, len(links), 4, "Removing depth links failed")
+}
+
 func TestRemoveDuplicates(t *testing.T) {
 	links := []string{"http://www.example.com/", "http://www.example.com/", "http://www.example.com/test", "http://www.example.com/test"}
 	links = removeDuplicates(links)

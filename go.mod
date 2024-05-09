@@ -10,6 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.27.1
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.29.6
 	github.com/joho/godotenv v1.5.1
+	github.com/neo4j/neo4j-go-driver/v5 v5.20.0
 	github.com/stretchr/testify v1.6.1
 	github.com/temoto/robotstxt v1.1.2
 )

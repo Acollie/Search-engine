@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 	"webcrawler/spider"
 
 	"github.com/temoto/robotstxt"
@@ -19,7 +20,11 @@ func canVisitURL(targetURL string) (bool, error) {
 		return false, err
 	}
 
-	resp, err := http.Get(fmt.Sprintf("%s://%s/robots.txt", parsedURL.Scheme, parsedURL.Host))
+	client := &http.Client{
+		Timeout: time.Second * 10, // Set timeout to 10 seconds
+	}
+
+	resp, err := client.Get(fmt.Sprintf("%s://%s/robots.txt", parsedURL.Scheme, parsedURL.Host))
 	if err != nil {
 		return false, err
 	}
@@ -36,5 +41,4 @@ func canVisitURL(targetURL string) (bool, error) {
 	group := robots.FindGroup(spider.UserAgent)
 
 	return group.Test(parsedURL.Path), nil
-
 }

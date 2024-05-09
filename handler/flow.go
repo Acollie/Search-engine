@@ -25,8 +25,8 @@ func (h *Server) Scan(ctx context.Context) {
 
 			wg.Add(1)
 			go func() {
-
 				defer wg.Done()
+
 				valid, err := site.FetchRobots(link.Url)
 				if err != nil {
 					log.Printf("fetching robots %v", err)
@@ -38,34 +38,40 @@ func (h *Server) Scan(ctx context.Context) {
 				}
 
 				page, resp, err := site.NewPage(link.Url)
-				if err != nil {
-					return
-				}
-				if err := h.Db.AddPage(ctx, page); err != nil {
-					log.Printf("adding page %v", err)
-					return
-				}
 
-				linksNew, err := formating.GetLinks(link.Url, resp)
+				links, err := formating.GetLinks(link.Url, resp)
 				if err != nil {
-					log.Printf("getting links %v", err)
+					h.Queue.Remove(ctx, *link.Handler)
 					return
 				}
-				website := site.NewWebsite(link.Url, linksNew)
+				queueMessage := formating.ResolveLinkToQueueMessage(links)
 
-				err = h.Queue.BatchAdd(ctx, linksNew)
+				website := site.NewWebsite(link.Url, queueMessage)
+
+				err = h.Queue.BatchAdd(ctx, queueMessage)
 				if err != nil {
 					log.Printf("adding links to queue %v", err)
+					h.Queue.Remove(ctx, *link.Handler)
 					return
 				}
 
-				err = h.Db.UpdateWebsite(ctx, page, website)
-				if err != nil {
-					log.Printf("updating website %v", err)
-				}
+				page.Links = links
 
 				if err := h.Queue.Remove(ctx, *link.Handler); err != nil {
 					log.Printf("removing link from queue %v", err)
+					return
+				}
+
+				err = h.Graph.AddLink(ctx, page)
+				if err != nil {
+					log.Printf("Adding links to graph", err)
+					return
+				}
+
+				err = h.Graph.AddWebsite(ctx, website)
+				if err != nil {
+					log.Printf("add website to graph", err)
+					return
 				}
 
 			}()

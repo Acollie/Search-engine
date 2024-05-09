@@ -8,10 +8,8 @@ import (
 	"webcrawler/site"
 )
 
-func (db *DB) UpdateWebsite(page site.Page, website site.Website) error {
-
-	ctx := context.Background()
-	websiteDB, err := db.FetchWebsite(page.BaseURL)
+func (db *DB) UpdateWebsite(ctx context.Context, page site.Page, website site.Website) error {
+	websiteDB, err := db.FetchWebsite(ctx, page.BaseURL)
 	if err != nil {
 		return err
 	}
