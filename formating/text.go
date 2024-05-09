@@ -112,14 +112,23 @@ func removeMailTo(links []string) []string {
 }
 
 func removeLargeWebSites(links []string) []string {
-	largeWebsites := []string{"facebook.com", "twitter.com", "instagram.com", "youtube.com", "linkedin.com", "pinterest.com", "tumblr.com", "reddit.com", "snapchat.com", "whatsapp.com", "quora.com", "flickr.com", "vimeo.com", "medium.com", "vk.com", "soundcloud.com"}
+	largeWebsites := map[string]struct{}{
+		"facebook.com": {}, "twitter.com": {}, "instagram.com": {}, "youtube.com": {},
+		"linkedin.com": {}, "pinterest.com": {}, "tumblr.com": {}, "reddit.com": {},
+		"snapchat.com": {}, "whatsapp.com": {}, "quora.com": {}, "flickr.com": {},
+		"vimeo.com": {}, "medium.com": {}, "vk.com": {}, "soundcloud.com": {},
+	}
 
-	for _, link := range links {
-		for _, website := range largeWebsites {
-			if strings.Contains(link, website) {
-				continue
-			}
+	var result []string
+	for i, link := range links {
+		url, _ := url.Parse(link)
+		if _, ok := largeWebsites[url.Hostname()]; ok {
+			continue
+		}
+		result = append(result, links[i])
+		if len(result) == 100 {
+			break
 		}
 	}
-	return links
+	return result
 }

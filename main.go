@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"webcrawler/awsx"
+	localConfig "webcrawler/config"
 	"webcrawler/dynamoDBx"
 	"webcrawler/graphx"
 	"webcrawler/handler"
@@ -42,8 +43,9 @@ func main() {
 		log.Fatalf("Cannot connect to the graph database: %s", err)
 	}
 	graph := graphx.New(graphConn)
+	config := localConfig.Fetch()
 
-	server := handler.New(dbClient, sqsClient, graph)
+	server := handler.New(dbClient, sqsClient, graph, config)
 
 	initialLinks := []string{
 		"https://blog.alexcollie.com/",

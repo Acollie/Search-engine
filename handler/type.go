@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"webcrawler/config"
 	"webcrawler/dynamoDBx"
 	"webcrawler/graphx"
 	"webcrawler/queue"
@@ -9,9 +10,10 @@ import (
 )
 
 type Server struct {
-	Queue *queue.Handler
-	Db    *dynamoDBx.DB
-	Graph *graphx.Graph
+	Queue  *queue.Handler
+	Db     *dynamoDBx.DB
+	Graph  *graphx.Graph
+	Config *config.IgnoreList
 }
 
 type DBi interface {
@@ -24,11 +26,12 @@ type DBi interface {
 	UpdateWebsite(context.Context, site.Page, site.Website) error
 }
 
-func New(db *dynamoDBx.DB, queue *queue.Handler, graph *graphx.Graph) Server {
+func New(db *dynamoDBx.DB, queue *queue.Handler, graph *graphx.Graph, config *config.IgnoreList) Server {
 	return Server{
-		Db:    db,
-		Queue: queue,
-		Graph: graph,
+		Db:     db,
+		Queue:  queue,
+		Graph:  graph,
+		Config: config,
 	}
 
 }
