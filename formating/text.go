@@ -8,7 +8,11 @@ import (
 	"webcrawler/queue"
 )
 
-func GetLinks(fetchingURL string, body string) ([]queue.Message, error) {
+const (
+	MaxDepth = 8
+)
+
+func GetLinks(fetchingURL string, body string) ([]string, error) {
 	var links []string
 	doc := soup.HTMLParse(body)
 	for _, link := range doc.FindAll("a") {
@@ -16,13 +20,19 @@ func GetLinks(fetchingURL string, body string) ([]queue.Message, error) {
 		links = append(links, link)
 	}
 
+	links = removeLargeWebSites(links)
 	links = removeAnchors(links)
 	links = removeDuplicates(links)
 	links = removeMailTo(links)
-	convertedLinks := convertLinksToQueueMessage(links)
+	links = removeDepthLinks(links)
 
-	return convertedLinks, nil
+	return links, nil
 }
+
+func ResolveLinkToQueueMessage(links []string) []queue.Message {
+	return convertLinksToQueueMessage(links)
+}
+
 func convertLinksToQueueMessage(links []string) []queue.Message {
 	messages := []queue.Message{}
 	for _, link := range links {
@@ -57,6 +67,22 @@ func removeDuplicates(links []string) []string {
 	return result
 }
 
+func removeDepthLinks(links []string) []string {
+	var result []string
+	for _, link := range links {
+		if testDepthLink(link, MaxDepth) {
+			result = append(result, link)
+		}
+
+	}
+	return result
+}
+
+func testDepthLink(link string, maxDepth int) bool {
+	res := strings.Split(link, "/")
+	return len(res) <= maxDepth+3
+}
+
 func removeAnchors(links []string) []string {
 	var result []string
 	for _, link := range links {
@@ -83,4 +109,17 @@ func removeMailTo(links []string) []string {
 		result = append(result, u.String())
 	}
 	return result
+}
+
+func removeLargeWebSites(links []string) []string {
+	largeWebsites := []string{"facebook.com", "twitter.com", "instagram.com", "youtube.com", "linkedin.com", "pinterest.com", "tumblr.com", "reddit.com", "snapchat.com", "whatsapp.com", "quora.com", "flickr.com", "vimeo.com", "medium.com", "vk.com", "soundcloud.com"}
+
+	for _, link := range links {
+		for _, website := range largeWebsites {
+			if strings.Contains(link, website) {
+				continue
+			}
+		}
+	}
+	return links
 }

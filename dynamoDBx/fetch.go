@@ -8,8 +8,7 @@ import (
 	"webcrawler/site"
 )
 
-func (db *DB) FetchWebsite(website string) (*site.Website, error) {
-	ctx := context.TODO()
+func (db *DB) FetchWebsite(ctx context.Context, website string) (*site.Website, error) {
 	resp, err := db.session.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &db.websiteNameTable,
 		Key: map[string]types.AttributeValue{
@@ -29,8 +28,7 @@ func (db *DB) FetchWebsite(website string) (*site.Website, error) {
 	return &websiteFormat, nil
 }
 
-func (db *DB) FetchPage(website string) (*site.Page, error) {
-	ctx := context.TODO()
+func (db *DB) FetchPage(ctx context.Context, website string) (*site.Page, error) {
 	resp, err := db.session.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: &db.pageNameTable,
 		Key: map[string]types.AttributeValue{
@@ -43,14 +41,14 @@ func (db *DB) FetchPage(website string) (*site.Page, error) {
 	if resp != nil {
 		return nil, nil
 	}
-	page, err := formatPage(resp)
+	page, err := formatPage(ctx, resp)
 	if err != nil {
 		return nil, err
 	}
 	return &page, nil
 }
 
-func formatPage(input *dynamodb.GetItemOutput) (site.Page, error) {
+func formatPage(ctx context.Context, input *dynamodb.GetItemOutput) (site.Page, error) {
 	var page site.Page
 	err := attributevalue.UnmarshalMap(input.Item, &page)
 	if err != nil {

@@ -1,35 +1,34 @@
 package handler
 
 import (
-	"webcrawler/config"
+	"context"
+	"webcrawler/dynamoDBx"
+	"webcrawler/graphx"
 	"webcrawler/queue"
 	"webcrawler/site"
-	"webcrawler/sqlRelational"
 )
 
 type Server struct {
-	Queue  queue.HandlerI
-	Db     DBi
-	Config *config.IgnoreList
-	DB     *sqlRelational.SqlDB
+	Queue *queue.Handler
+	Db    *dynamoDBx.DB
+	Graph *graphx.Graph
 }
 
 type DBi interface {
-	FetchWebsite(string) (*site.Website, error)
-	FetchPage(string) (*site.Page, error)
-	AddPage(page site.Page) error
-	AddWebsite(website site.Website) error
-	RemoveWebsite(site.Website) error
-	RemovePage(site.Page) error
-	UpdateWebsite(page site.Page, website site.Website) error
+	FetchWebsite(context.Context, string) (*site.Website, error)
+	FetchPage(context.Context, string) (*site.Page, error)
+	AddPage(context.Context, site.Page) error
+	AddWebsite(context.Context, site.Website) error
+	RemoveWebsite(context.Context, site.Website) error
+	RemovePage(context.Context, site.Page) error
+	UpdateWebsite(context.Context, site.Page, site.Website) error
 }
 
-func New(db DBi, queue *queue.Handler, sqlDB *sqlRelational.SqlDB, conf *config.IgnoreList) Server {
+func New(db *dynamoDBx.DB, queue *queue.Handler, graph *graphx.Graph) Server {
 	return Server{
-		Db:     db,
-		Queue:  queue,
-		DB:     sqlDB,
-		Config: conf,
+		Db:    db,
+		Queue: queue,
+		Graph: graph,
 	}
 
 }

@@ -22,12 +22,18 @@ services:
     volumes:
       - "./localstack-data:/tmp/localstack-data"
       - "/var/run/docker.sock:/var/run/docker.sock"
-  postgres:
-    container_name: webcrawler-postgres
-    image: postgres
+  neo4j:
+    image: neo4j:latest
+    container_name: neo4j
     ports:
-      - "5431:5432"
+      - "7474:7474"
+      - "7687:7687"
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: root
-      POSTGRES_DB: webcrawler
+      - NEO4J_AUTH=neo4j/test
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_dbms_security_auth__minimum__password__length=4
+    volumes:
+      - "./docker/neo4j/data:/data"
+      - "./docker/neo4j/logs:/logs"
+      - "./docker/neo4j/import:/var/lib/neo4j/import"
+      - "./docker/neo4j/plugins:/plugins"

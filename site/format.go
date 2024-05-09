@@ -6,14 +6,18 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"time"
 	"webcrawler/queue"
 )
 
 func NewPage(fetchURL string) (Page, string, error) {
+	client := &http.Client{
+		Timeout: time.Second * 10, // Set timeout to 10 seconds
+	}
 
-	resp, err := http.Get(fetchURL)
+	resp, err := client.Get(fetchURL)
 	if err != nil {
-		return Page{}, "", err
+		return Page{}, "", fmt.Errorf("get %s", err)
 	}
 
 	defer resp.Body.Close()
