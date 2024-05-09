@@ -70,7 +70,7 @@ func removeDuplicates(links []string) []string {
 func removeDepthLinks(links []string) []string {
 	var result []string
 	for _, link := range links {
-		if testDepthLink(link) {
+		if testDepthLink(link, MaxDepth) {
 			result = append(result, link)
 		}
 
@@ -78,9 +78,9 @@ func removeDepthLinks(links []string) []string {
 	return result
 }
 
-func testDepthLink(link string) bool {
+func testDepthLink(link string, maxDepth int) bool {
 	res := strings.Split(link, "/")
-	return len(res) <= MaxDepth+3
+	return len(res) <= maxDepth+3
 }
 
 func removeAnchors(links []string) []string {
