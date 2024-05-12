@@ -6,8 +6,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strings"
 	"time"
 	"webcrawler/queue"
+)
+
+const (
+	MaxBodyLength = 10000
 )
 
 func NewPage(fetchURL string) (Page, string, error) {
@@ -36,20 +42,36 @@ func NewPage(fetchURL string) (Page, string, error) {
 	titleTag := doc.Find("title")
 	title := ""
 	if titleTag.Error == nil {
-		// printing the title text
 		title = titleTag.Text()
 	} else {
 		title = "title not found"
 	}
-	text := doc.FullText()
 
 	baseUrl, _ := url.Parse(fetchURL)
 	return Page{
-		Url:     fetchURL,
-		Title:   title,
-		Body:    text,
-		BaseURL: baseUrl.Hostname(),
+		Url:         fetchURL,
+		Title:       title,
+		Body:        fetchText(&doc),
+		BaseURL:     baseUrl.Hostname(),
+		CrawledDate: uint64(time.Now().Unix()),
+		Meta:        fetchMeta(&doc),
 	}, string(body), nil
+}
+
+func fetchMeta(root *soup.Root) map[string]string {
+	metaInformation := make(map[string]string)
+	meta := root.FindAll("meta")
+	for _, value := range meta {
+		name := value.Attrs()["name"]
+		content := value.Attrs()["content"]
+		if name != "" && content != "" {
+			metaInformation[name] = content
+		}
+	}
+	if len(metaInformation) == 0 {
+		return map[string]string{}
+	}
+	return metaInformation
 }
 
 func NewWebsite(urlFull string, links []queue.Message) Website {
@@ -59,6 +81,63 @@ func NewWebsite(urlFull string, links []queue.Message) Website {
 		Links:           resolveMessageIntoLinks(links),
 		ProminenceValue: 0,
 	}
+}
+
+// This function gets all of the text from a soup file
+func fetchText(root *soup.Root) string {
+	res := ""
+	for _, node := range root.FindAll("p") {
+		res += node.FullText()
+	}
+	for _, node := range root.FindAll("h1") {
+		res += node.FullText()
+	}
+	for _, node := range root.FindAll("h2") {
+		res += node.FullText()
+	}
+	for _, node := range root.FindAll("div") {
+		res += node.FullText()
+	}
+	for _, node := range root.FindAll("span") {
+		res += node.FullText()
+	}
+
+	res = strings.ReplaceAll(res, "\n", "")
+	res = strings.ReplaceAll(res, "\t", "")
+	res = strings.ReplaceAll(res, "\r", "")
+	res = strings.ReplaceAll(res, "  ", " ")
+	res = strings.ReplaceAll(res, "\u00A0", " ") // Non-breaking space
+	res = strings.ReplaceAll(res, "\f", "")      // Form feed
+	res = strings.ReplaceAll(res, "\v", "")      // Vertical tab
+	res = strings.ReplaceAll(res, "\u200B", "")  // Zero-width space
+	res = strings.TrimSpace(res)
+
+	if len(res) < MaxBodyLength {
+		return res
+	}
+	return res[:MaxBodyLength]
+}
+
+func stripHTML(text *string) {
+	re := regexp.MustCompile("<[^>]*>")
+	*text = re.ReplaceAllString(*text, "")
+
+}
+
+func scriptEmptyLines(text *string) {
+	re := regexp.MustCompile(`(?m)^\s*$[\r\n]*|<[^>]*>`)
+	*text = re.ReplaceAllString(*text, "")
+
+}
+
+func stripJavascript(text *string) {
+	re := regexp.MustCompile("(?i)<script[^>]*>(.*?)</script>")
+	*text = re.ReplaceAllString(*text, "")
+}
+
+func stripCSS(text *string) {
+	re := regexp.MustCompile("(?i)<style[^>]*>(.*?)</style>")
+	*text = re.ReplaceAllString(*text, "")
 }
 
 func resolveMessageIntoLinks(messages []queue.Message) []string {
