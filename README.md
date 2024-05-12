@@ -19,7 +19,6 @@ DynamoDB is used to store the URLs that have been crawled and the URLs that have
 Neptune is used to store the relationships between the URLs that have been found on the page.
 
 ### Tests
-
 The tests are written in Go and can be run using the following command:
 ```bash go test ./...```
 
