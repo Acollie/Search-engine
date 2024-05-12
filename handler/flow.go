@@ -38,6 +38,11 @@ func (h *Server) Scan(ctx context.Context) {
 				}
 
 				page, resp, err := site.NewPage(link.Url)
+				if err != nil {
+					log.Printf("fetching page %v", err)
+					h.Queue.Remove(ctx, *link.Handler)
+					return
+				}
 
 				links, err := formating.GetLinks(link.Url, resp)
 				if err != nil {
@@ -45,6 +50,7 @@ func (h *Server) Scan(ctx context.Context) {
 					return
 				}
 				queueMessage := formating.ResolveLinkToQueueMessage(links)
+				page.Links = links
 
 				website := site.NewWebsite(link.Url, queueMessage)
 
@@ -55,10 +61,14 @@ func (h *Server) Scan(ctx context.Context) {
 					return
 				}
 
-				page.Links = links
-
 				if err := h.Queue.Remove(ctx, *link.Handler); err != nil {
 					log.Printf("removing link from queue %v", err)
+					return
+				}
+
+				err = h.Db.AddPage(ctx, page)
+				if err != nil {
+					log.Printf("Adding page to db %s", err)
 					return
 				}
 

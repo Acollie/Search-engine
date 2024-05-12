@@ -8,8 +8,8 @@ import (
 	"webcrawler/site"
 )
 
-func (db *DB) AddPage(ctx context.Context, website site.Page) error {
-	av, err := attributevalue.MarshalMap(website)
+func (db *DB) AddPage(ctx context.Context, page site.Page) error {
+	av, err := attributevalue.MarshalMap(page)
 	if err != nil {
 		return err
 	}
