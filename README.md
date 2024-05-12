@@ -1,17 +1,25 @@
 # Go Webcrawler
 
 [![Go](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml/badge.svg)](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml)
-## Description
 
-## Testing
+## Overview
 
-### Unit Tests
+![Overview of architecture](/assets/overview.png "Overview")
 
+### SQS Queue
+
+The SQS queue is used to store the URLs that need to be crawled.
+
+### DynamoDB
+
+DynamoDB is used to store the URLs that have been crawled and the URLs that have been found on the page.
+
+### Neptune / Neo4k
+
+Neptune is used to store the relationships between the URLs that have been found on the page.
+
+### Tests
+
+The tests are written in Go and can be run using the following command:
 ```bash go test ./...```
 
-### Integration Tests
-
-1. ```docker-compose up -d```
-2. ``` aws --endpoint-url=http://localhost:4570 sqs create-queue --queue-name test-queue``` use the results from this to
-   add to the `.env`
-3. ```bash go test ./... -tags=integration```
