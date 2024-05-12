@@ -2,8 +2,8 @@
 
 [![Go](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml/badge.svg)](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml)
 
+![Example of a graph](/assets/example.png "Example of a graph")
 ## Overview
-
 ![Overview of architecture](/assets/overview.png "Overview")
 
 ### SQS Queue
