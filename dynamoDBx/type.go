@@ -87,7 +87,7 @@ func NewTestContainer(ctx context.Context) (*DB, error) {
 	}, nil
 }
 
-func (db *DB) CreateTable(ctx context.Context) error {
+func (db *DB) SetupTables(ctx context.Context) error {
 	tableInput := &dynamodb.CreateTableInput{
 		TableName: aws.String(db.pageNameTable),
 		// You need an AttributeDefinition for every key attribute
