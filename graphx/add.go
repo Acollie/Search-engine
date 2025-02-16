@@ -14,7 +14,6 @@ func (g *Graph) AddWebsite(ctx context.Context, web site.Website) error {
 				on create set w.prominence = 1
 on create set w.crawled_at = datetime()
 				on match set w.prominence = coalesce(w.prominence, 0) + 1
-				
 `, map[string]interface{}{
 			"url":             web.Url,
 			"prominenceValue": web.ProminenceValue,
@@ -26,7 +25,7 @@ on create set w.crawled_at = datetime()
 }
 
 func (g *Graph) AddLink(ctx context.Context, page site.Page) error {
-	ses := g.Neo4j.NewSession(ctx, neo4j.SessionConfig{})
+	ses := g.Neo4j.NewSession(ctx, Neo4kStdSession)
 	var err error
 	for _, link := range page.Links {
 		_, err = ses.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
@@ -54,7 +53,7 @@ func (g *Graph) AddLink(ctx context.Context, page site.Page) error {
 }
 
 func (g *Graph) AddPage(ctx context.Context, web site.Website, page site.Page) error {
-	ses := g.Neo4j.NewSession(ctx, neo4j.SessionConfig{})
+	ses := g.Neo4j.NewSession(ctx, Neo4kStdSession)
 	_, err := ses.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
 		_, err := tx.Run(ctx, `
 MERGE (page:Page {url:$url, title:$title})
