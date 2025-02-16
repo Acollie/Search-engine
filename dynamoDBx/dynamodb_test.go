@@ -13,7 +13,7 @@ func Test_DynamoDBx(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ddb)
 
-	err = ddb.CreateTable(ctx)
+	err = ddb.SetupTables(ctx)
 	require.NoError(t, err)
 
 	t.Run("Add a page to ddb", func(t *testing.T) {
