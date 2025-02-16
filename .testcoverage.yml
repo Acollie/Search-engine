@@ -1,2 +1,2 @@
-threshold: 80
+threshold: "80"
 fail_below_threshold: false
