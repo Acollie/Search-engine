@@ -1,3 +1,2 @@
-# .testcoverage.yml
 threshold: 80
 fail_below_threshold: false
