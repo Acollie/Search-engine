@@ -24,6 +24,7 @@ type DBi interface {
 	RemoveWebsite(context.Context, site.Website) error
 	RemovePage(context.Context, site.Page) error
 	UpdateWebsite(context.Context, site.Page, site.Website) error
+	SetupTables(context.Context) error
 }
 
 func New(db *dynamoDBx.DB, queue *queue.Handler, graph *graphx.Graph, config *config.IgnoreList) Server {
