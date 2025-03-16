@@ -1,0 +1,30 @@
+Spider:{
+    DB:{
+        SeenList
+    }
+    Cache(LRU):{
+       SeenWebsite
+    }
+    StackExploreList
+
+}
+
+Spider.DB->Conductor.OverallSeenList: "Poll seen pages"
+Conductor.OverallSeenList->CrawlDB.OverallSeenList: "Add Seen pages"
+Cartographer.GenerateWeights<-CrawlDB.OverallSeenList: "Get list of websites"
+Cartographer.GenerateWeights->CrawlDB.GraphWeights: "Build graph weights"
+Connectome->CrawlDB.OverallSeenList :"Search Results"
+Connectome->CrawlDB.GraphWeights :"Ranking"
+
+Conductor:{
+
+}
+Cartographer:{
+    GenerateWeights
+}
+
+CrawlDB:{
+   OverallSeenList
+   GraphWeights
+}
+

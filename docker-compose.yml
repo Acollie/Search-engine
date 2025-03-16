@@ -1,39 +1,12 @@
 version: '3.8'
+
+
 services:
-  dynamodb-local:
-    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
-    image: "amazon/dynamodb-local:latest"
-    volumes:
-      - "./docker/dynamodb:/home/dynamodblocal/data"
-    container_name: dynamodb-local
+  spider:
+    image: spider
+    container_name: spider
     ports:
-      - "8000:8000"
-    working_dir: /home/dynamodblocal
-  localstack:
-    image: localstack/localstack
-    container_name: localstack
-    ports:
-      - "4570:4566"
-      - "4571:4571"
-    environment:
-      - SERVICES=sqs
-      - DEBUG=1
-      - DATA_DIR=/tmp/localstack-data
-    volumes:
-      - "./localstack-data:/tmp/localstack-data"
-      - "/var/run/docker.sock:/var/run/docker.sock"
-  neo4j:
-    image: neo4j:latest
-    container_name: neo4j
-    ports:
-      - "7474:7474"
-      - "7687:7687"
-    environment:
-      - NEO4J_AUTH=neo4j/test
-      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
-      - NEO4J_dbms_security_auth__minimum__password__length=4
-    volumes:
-      - "./docker/neo4j/data:/data"
-      - "./docker/neo4j/logs:/logs"
-      - "./docker/neo4j/import:/var/lib/neo4j/import"
-      - "./docker/neo4j/plugins:/plugins"
+      - "8080:8080"
+  conductor:
+    image: conductor
+    container_name: conductor

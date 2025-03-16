@@ -1,0 +1,19 @@
+Spider: {
+    DB:{
+        Queue
+        SeenList
+    }
+    http:{
+        Seen:"/seen"
+        Health:"/health"
+    }
+
+    Crawler:{
+
+    }
+
+
+    http.Seen->DB.SeenList: "Show seen pages"
+    Crawler->DB.Queue: "Get Pages to explore"
+    Crawler->DB.SeenList: "Add pages seen"
+}

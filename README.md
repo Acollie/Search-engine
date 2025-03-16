@@ -1,4 +1,4 @@
-# Go Webcrawler 🕷️
+# Go SearchEngine 🕷️
 [![Go](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml/badge.svg)](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml)
 
 ![Example of a graph](/assets/example.png "Example of a graph")
@@ -6,19 +6,32 @@
 ## Overview 🌐
 ![Overview of architecture](/assets/overview.png "Overview")
 
-### SQS Queue 📥
+### 1. Spider
 
-The SQS queue is used to store the URLs that need to be crawled.
+This goes to websites and finds new ones it uses a local SqliteDB, LRU cache and a stack.
 
-### DynamoDB 📦
+### 2. Conductor
 
-DynamoDB is used to store the URLs that have been crawled and the URLs that have been found on the page.
+This polls the spiders to check if they significantly more websites.
 
-### Neptune / Neo4k 🌌
+Why use should the conductor poll the children. To avoid database contention, children all accessed the
 
-Neptune is used to store the relationships between the URLs that have been found on the page.
+### 3. Cartographer
 
-### Tests
-The tests are written in Go and can be run using the following command:
-```bash go test ./...```
+The role of this more complex. This is used to create a view of the pages and see which are linking to each other.
+Because the graph is so large we can not load the whole thing so in order to avoid this we load a section and traverse
+that.
+We can then use this list to generate list of the more important pages
+
+### 4. Connectome
+
+This front end which allows for the Database to be searched
+
+## Design considerations
+
+- Why Not use OS/Elastic search
+- 
+
+
+
 
