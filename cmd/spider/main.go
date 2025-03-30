@@ -4,11 +4,20 @@ import (
 	"context"
 	"fmt"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/sdk/metric"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 	"log"
+	"net"
 	"net/http"
 	"webcrawler/cmd/spider/handler"
 	"webcrawler/cmd/spider/pkg/db"
 	"webcrawler/pkg/config"
+	"webcrawler/pkg/generated/service/spider"
+	"webcrawler/pkg/health"
 )
 
 func main() {
@@ -66,15 +75,35 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	// Initialize OpenTelemetry
+	exporter, err := prometheus.New()
+	if err != nil {
+		log.Fatalf("Failed to create Prometheus exporter: %v", err)
+	}
+	meterProvider := metric.NewMeterProvider(metric.WithReader(exporter))
+	otel.SetMeterProvider(meterProvider)
 
+	// K8s health check
+	http.HandleFunc("/health", health.Ok)
+	http.Handle("/metrics", promhttp.Handler())
+
+	// Start HTTP server in a separate goroutine
+	go func() {
+		log.Fatal(http.ListenAndServe("0.0.0.0:8080", nil))
+	}()
 	go func() {
 		server.Scan(ctx)
 	}()
-	http.HandleFunc("/seen", func(writer http.ResponseWriter, request *http.Request) {
 
-	})
+	// GRPC server
+	var opts []grpc.ServerOption
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", 9090))
+	if err != nil {
+		panic(err)
+	}
+	grpcServer := grpc.NewServer(opts...)
+	spider.RegisterSpiderServer(grpcServer, handler.NewRPCServer(server.Db))
+	reflection.Register(grpcServer)
+	grpcServer.Serve(lis)
 
-	http.HandleFunc("/health", func(writer http.ResponseWriter, request *http.Request) {
-		fmt.Fprintf(writer, "OK")
-	})
 }
