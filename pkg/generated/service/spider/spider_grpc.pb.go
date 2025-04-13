@@ -27,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SpiderClient interface {
-	GetSeenList(ctx context.Context, in *SeenListRequest, opts ...grpc.CallOption) (*SeenListResponse, error)
+	GetSeenList(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SeenListRequest, SeenListResponse], error)
 	GetHealth(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
 }
 
@@ -39,15 +39,18 @@ func NewSpiderClient(cc grpc.ClientConnInterface) SpiderClient {
 	return &spiderClient{cc}
 }
 
-func (c *spiderClient) GetSeenList(ctx context.Context, in *SeenListRequest, opts ...grpc.CallOption) (*SeenListResponse, error) {
+func (c *spiderClient) GetSeenList(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[SeenListRequest, SeenListResponse], error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(SeenListResponse)
-	err := c.cc.Invoke(ctx, Spider_GetSeenList_FullMethodName, in, out, cOpts...)
+	stream, err := c.cc.NewStream(ctx, &Spider_ServiceDesc.Streams[0], Spider_GetSeenList_FullMethodName, cOpts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &grpc.GenericClientStream[SeenListRequest, SeenListResponse]{ClientStream: stream}
+	return x, nil
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Spider_GetSeenListClient = grpc.BidiStreamingClient[SeenListRequest, SeenListResponse]
 
 func (c *spiderClient) GetHealth(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
@@ -63,7 +66,7 @@ func (c *spiderClient) GetHealth(ctx context.Context, in *HealthRequest, opts ..
 // All implementations must embed UnimplementedSpiderServer
 // for forward compatibility.
 type SpiderServer interface {
-	GetSeenList(context.Context, *SeenListRequest) (*SeenListResponse, error)
+	GetSeenList(grpc.BidiStreamingServer[SeenListRequest, SeenListResponse]) error
 	GetHealth(context.Context, *HealthRequest) (*HealthResponse, error)
 	mustEmbedUnimplementedSpiderServer()
 }
@@ -75,8 +78,8 @@ type SpiderServer interface {
 // pointer dereference when methods are called.
 type UnimplementedSpiderServer struct{}
 
-func (UnimplementedSpiderServer) GetSeenList(context.Context, *SeenListRequest) (*SeenListResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetSeenList not implemented")
+func (UnimplementedSpiderServer) GetSeenList(grpc.BidiStreamingServer[SeenListRequest, SeenListResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method GetSeenList not implemented")
 }
 func (UnimplementedSpiderServer) GetHealth(context.Context, *HealthRequest) (*HealthResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetHealth not implemented")
@@ -102,23 +105,12 @@ func RegisterSpiderServer(s grpc.ServiceRegistrar, srv SpiderServer) {
 	s.RegisterService(&Spider_ServiceDesc, srv)
 }
 
-func _Spider_GetSeenList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(SeenListRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(SpiderServer).GetSeenList(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Spider_GetSeenList_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SpiderServer).GetSeenList(ctx, req.(*SeenListRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+func _Spider_GetSeenList_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(SpiderServer).GetSeenList(&grpc.GenericServerStream[SeenListRequest, SeenListResponse]{ServerStream: stream})
 }
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type Spider_GetSeenListServer = grpc.BidiStreamingServer[SeenListRequest, SeenListResponse]
 
 func _Spider_GetHealth_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(HealthRequest)
@@ -146,14 +138,17 @@ var Spider_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*SpiderServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetSeenList",
-			Handler:    _Spider_GetSeenList_Handler,
-		},
-		{
 			MethodName: "GetHealth",
 			Handler:    _Spider_GetHealth_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "GetSeenList",
+			Handler:       _Spider_GetSeenList_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "protos/service/spider.proto",
 }

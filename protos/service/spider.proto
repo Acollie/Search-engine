@@ -4,17 +4,23 @@ package service;
 option go_package = "service/spider";
 
 service Spider {
-  rpc GetSeenList(SeenListRequest) returns (SeenListResponse);
+  rpc GetSeenList(stream SeenListRequest) returns (stream SeenListResponse);
   rpc GetHealth(HealthRequest) returns (HealthResponse);
 }
 
 message SeenListRequest{
   // The number of sites to return default is 10
   int32 limit = 1;
+  repeated Error errors = 2;
 }
 
 message SeenListResponse{
   repeated Page seen_sites = 1;
+  repeated Error errors = 2;
+}
+message Error{
+  string message = 1;
+  int32 code = 2;
 }
 
 message HealthRequest{

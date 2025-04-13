@@ -1,0 +1,55 @@
+direction: right
+k8s.ingestion.conductor -> db.seenPages: "Save seen pages"
+
+k8s.ingestion.conductor -> sqs: "Add pages to be explored"
+k8s.ingestion.spider <- sqs: "Fetch pages to explore"
+externalTraffic -> k8s.lb
+k8s.lb -> k8s.monitoring.grafana
+k8s.evaluation.cartography <- db.seenPages: "Fetch pages for evaluation"
+k8s.evaluation.cartography -> db.IndexedPages: "Save pages with prominence value"
+k8s.lb->k8s.Search.front-end
+k8s.Search.front-end -> k8s.Search.searcher: "Prarse requests"
+k8s.Search.searcher -> db.IndexedPages: "Fetch requests from db"
+k8s: {
+  lb: {
+    icon: "https://icon.icepanel.io/Technology/svg/Traefik-Proxy.svg"
+    label: "Traefik"
+  }
+  monitoring: {
+    label: "Monitoring"
+    grafana: {
+      icon: "https://upload.wikimedia.org/wikipedia/commons/a/a1/Grafana_logo.svg"
+      label: "Grafana"
+    }
+    prometheus: {
+      icon: https://icon.icepanel.io/Technology/svg/Prometheus.svg
+        label: "Prometheus"
+    }
+  }
+  ingestion: {
+    label: "Ingestion"
+    spider
+    conductor
+    spider <-> conductor: "Get the explored sites"
+  }
+  evaluation: {
+    label: "Evaluation"
+  }
+  search: {
+    label: "Search"
+    searcher
+    front-end
+  }
+}
+db: {
+  icon: "https://icons.terrastruct.com/dev%2Fpostgresql.svg"
+  label: "Database"
+}
+k8s: {
+  icon: "https://icons.terrastruct.com/azure%2F_Companies%2FKubernetes.svg"
+  label: "Kubernetes"
+}
+sqs: {
+  icon: https://icons.terrastruct.com/aws%2FApplication%20Integration%2FAmazon-Simple-Queue-Service-SQS.svg
+  label: "Links queue"
+}
