@@ -1,0 +1,15 @@
+shape: sequence_diagram
+Conductor -> Spider: "Establish connection"
+Spider -> Conductor: "Stream sites visted"
+SeenPages
+SQS
+processMessages: {
+  label: "Process streamed messages"
+  Conductor -> SeenPages: "Put pages onto DB"
+  Conductor -> SQS: "Add pages to explore"
+}
+cantKeepUp: {
+  label: "Conductor can't keep up"
+  Conductor -> Spider: "Request back off"
+  Spider -> Conductor: "Tries again after back off"
+}

@@ -1,8 +1,7 @@
 # Go SearchEngine 🕷️
 [![Go](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml/badge.svg)](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml)
-
-![Example of a graph](/assets/example.png "Example of a graph")
-
+![full_system.png](assets/full_system.png "Overview of the search engine")
+![Example of a graph](assets/example.png "Example of a graph")
 ## Overview 🌐
 
 ### 1. Spider
@@ -22,7 +21,6 @@ Because the graph is so large we can not load the whole thing so in order to avo
 that.
 We can then use this list to generate list of the more important pages
 
-### 4. Connectome
-
+### 4. Front-end
 This front end which allows for the Database to be searched
 

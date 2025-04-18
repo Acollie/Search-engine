@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/prometheus"
@@ -17,16 +16,18 @@ import (
 	"webcrawler/cmd/spider/pkg/db"
 	"webcrawler/pkg/config"
 	"webcrawler/pkg/generated/service/spider"
+	"webcrawler/pkg/grpcx"
 	"webcrawler/pkg/health"
 )
 
 func main() {
 	// Load .env file
-	err := godotenv.Load()
+	//err := godotenv.Load()
 	ctx := context.Background()
-	if err != nil {
-		log.Fatalf("Failed to load .env file with error: %v", err)
-	}
+	//if err != nil {
+	//	log.Fatalf("Failed to load .env file with error: %v", err)
+	//}
+	var err error
 
 	config := config.Fetch()
 
@@ -91,13 +92,13 @@ func main() {
 	go func() {
 		log.Fatal(http.ListenAndServe("0.0.0.0:8080", nil))
 	}()
-	go func() {
-		server.Scan(ctx)
-	}()
+	//go func() {
+	//	server.Scan(ctx)
+	//}()
 
 	// GRPC server
 	var opts []grpc.ServerOption
-	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", 9090))
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", grpcx.SpiderPort))
 	if err != nil {
 		panic(err)
 	}

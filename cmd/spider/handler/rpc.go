@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"fmt"
+	"google.golang.org/grpc"
 	"webcrawler/cmd/spider/pkg/db"
 	"webcrawler/pkg/generated/service/spider"
 )
@@ -23,7 +25,7 @@ func NewRPCServer(db db.Db) *RpcServer {
 	}
 }
 
-func (c *RpcServer) GetSeenList(ctx context.Context, request *spider.SeenListRequest) (*spider.SeenListResponse, error) {
+func (c *RpcServer) _GetSeenList(ctx context.Context, request *spider.SeenListRequest) (*spider.SeenListResponse, error) {
 	pages, err := c.db.Page.GetAllPages(ctx)
 	if err != nil {
 		return nil, err
@@ -40,4 +42,24 @@ func (c *RpcServer) GetSeenList(ctx context.Context, request *spider.SeenListReq
 	return &spider.SeenListResponse{
 		SeenSites: response,
 	}, nil
+}
+
+func (c *RpcServer) GetSeenList(conn grpc.BidiStreamingServer[spider.SeenListRequest, spider.SeenListResponse]) error {
+	for {
+		request, err := conn.Recv()
+		if err != nil {
+			return err
+		}
+		request.GetLimit()
+		response, err := c._GetSeenList(conn.Context(), request)
+		if err != nil {
+			return err
+		}
+		if err := conn.Send(response); err != nil {
+			return err
+		}
+		fmt.Println("Sending response")
+	}
+
+	return nil
 }
