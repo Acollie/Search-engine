@@ -4,12 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	slitex "webcrawler/pkg/db"
 	"webcrawler/pkg/sqlx"
 )
 
 type Db struct {
-	Sql *sql.DB
+	Sql      *sql.DB
+	ConnType sqlx.ConnType
+}
+
+func New(sql *sql.DB, conn sqlx.ConnType) Db {
+	return Db{
+		Sql:      sql,
+		ConnType: conn,
+	}
 }
 
 func (d Db) GetExplore(ctx context.Context) ([]string, error) {
@@ -61,24 +68,4 @@ func (d Db) RemoveLink(ctx context.Context, url string) error {
 		return fmt.Errorf("error removing link: %w", err)
 	}
 	return nil
-}
-
-func New() Db {
-	db, err := slitex.NewSqlite()
-	if err != nil {
-		panic(err)
-	}
-
-	// Check if queue table exists
-	_, err = db.Exec(sqlx.CheckQueueTableExistSqlite)
-	if err != nil {
-		_, err = db.Exec(sqlx.CreateQueueTable)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	return Db{
-		Sql: db,
-	}
 }

@@ -33,7 +33,7 @@ func main() {
 	}
 
 	// postgres
-	db, err := dbx.Postgres("admin", "example", "localhost", 5432, "main")
+	db, _, err := dbx.Postgres("admin", "example", "localhost", 5432, "main")
 	if err != nil {
 		panic(err)
 	}

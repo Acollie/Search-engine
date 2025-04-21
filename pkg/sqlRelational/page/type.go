@@ -6,13 +6,19 @@ import (
 	"errors"
 	_ "github.com/lib/pq"
 	"webcrawler/cmd/spider/pkg/site"
-	slitex "webcrawler/pkg/db"
 	"webcrawler/pkg/sqlx"
 )
 
 type Db struct {
 	Sql      *sql.DB
 	ConnType sqlx.ConnType
+}
+
+func New(sql *sql.DB, conn sqlx.ConnType) Db {
+	return Db{
+		Sql:      sql,
+		ConnType: conn,
+	}
 }
 
 func (d Db) SavePage(ctx context.Context, page site.Page) error {
@@ -97,24 +103,4 @@ func (d Db) GetAllPages(ctx context.Context) ([]site.Page, error) {
 	}
 
 	return pages, nil
-}
-
-func New() Db {
-	db, err := slitex.NewSqlite()
-	if err != nil {
-		panic(err)
-	}
-	// Check if page table exists
-	_, err = db.Exec(sqlx.CheckTableExistSqlite)
-	if err != nil {
-		_, err = db.Exec(sqlx.CreateSeenTable)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	return Db{
-		Sql:      db,
-		ConnType: sqlx.SQLite,
-	}
 }

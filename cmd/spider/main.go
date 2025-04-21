@@ -7,12 +7,18 @@ import (
 	"google.golang.org/grpc/reflection"
 	"log"
 	"net"
+	"os"
 	"webcrawler/cmd/spider/handler"
 	"webcrawler/pkg/bootstrap"
 	"webcrawler/pkg/config"
+	dbx "webcrawler/pkg/db"
 	"webcrawler/pkg/generated/service/spider"
 	"webcrawler/pkg/grpcx"
 	"webcrawler/pkg/sqlRelational"
+)
+
+const (
+	databaseName = "databaseName"
 )
 
 func main() {
@@ -26,7 +32,20 @@ func main() {
 
 	config := config.Fetch()
 
-	server := handler.New(sqlRelational.New(), config)
+	pg, connType, err := dbx.Postgres(
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_HOST"),
+		5432,
+		databaseName,
+	)
+	if err != nil {
+		panic(err)
+	}
+	defer pg.Close()
+
+	dbConfig := sqlRelational.New(pg, connType)
+	server := handler.New(dbConfig, config)
 
 	initialLinks := []string{
 		"https://blog.alexcollie.com/",

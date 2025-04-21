@@ -15,5 +15,4 @@ func New(db sqlRelational.Db, config *config.Config) Server {
 		Db:     db,
 		Config: config,
 	}
-
 }

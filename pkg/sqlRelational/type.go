@@ -2,7 +2,11 @@ package sqlRelational
 
 import (
 	"context"
+	"database/sql"
 	"webcrawler/cmd/spider/pkg/site"
+	pageDB "webcrawler/pkg/sqlRelational/page"
+	"webcrawler/pkg/sqlRelational/queue"
+	"webcrawler/pkg/sqlx"
 )
 
 type DbiPage interface {
@@ -24,4 +28,13 @@ type DbiQueue interface {
 type Db struct {
 	Queue DbiQueue
 	Page  DbiPage
+}
+
+func New(conn *sql.DB, connType sqlx.ConnType) Db {
+	q := queue.New(conn, connType)
+	p := pageDB.New(conn, connType)
+	return Db{
+		Queue: q,
+		Page:  p,
+	}
 }
