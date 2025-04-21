@@ -4,15 +4,21 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"webcrawler/pkg/sqlx"
+	"webcrawler/pkg/conn"
 )
 
 type Db struct {
 	Sql      *sql.DB
-	ConnType sqlx.ConnType
+	ConnType conn.ConnType
+}
+type DbiQueue interface {
+	GetExplore(ctx context.Context) ([]string, error)
+	AddLink(ctx context.Context, url string) error
+	AddLinks(ctx context.Context, url []string) error
+	RemoveLink(ctx context.Context, url string) error
 }
 
-func New(sql *sql.DB, conn sqlx.ConnType) Db {
+func New(sql *sql.DB, conn conn.ConnType) Db {
 	return Db{
 		Sql:      sql,
 		ConnType: conn,
@@ -20,7 +26,7 @@ func New(sql *sql.DB, conn sqlx.ConnType) Db {
 }
 
 func (d Db) GetExplore(ctx context.Context) ([]string, error) {
-	rows, err := d.Sql.QueryContext(ctx, sqlx.GetQueue)
+	rows, err := d.Sql.QueryContext(ctx, GetQueue)
 	if err != nil {
 		return nil, fmt.Errorf("error querying queue: %w", err)
 	}
@@ -42,7 +48,7 @@ func (d Db) GetExplore(ctx context.Context) ([]string, error) {
 }
 
 func (d Db) AddLink(ctx context.Context, url string) error {
-	sqlQuery := fmt.Sprintf(sqlx.AddLink, url)
+	sqlQuery := fmt.Sprintf(AddLink, url)
 	_, err := d.Sql.ExecContext(ctx, sqlQuery)
 	if err != nil {
 		return fmt.Errorf("error adding link: %w", err)
@@ -52,7 +58,7 @@ func (d Db) AddLink(ctx context.Context, url string) error {
 
 func (d Db) AddLinks(ctx context.Context, url []string) error {
 	for _, u := range url {
-		sqlQuery := fmt.Sprintf(sqlx.AddLink, u)
+		sqlQuery := fmt.Sprintf(AddLink, u)
 		_, err := d.Sql.ExecContext(ctx, sqlQuery)
 		if err != nil {
 			return fmt.Errorf("error adding link: %w", err)
@@ -62,7 +68,7 @@ func (d Db) AddLinks(ctx context.Context, url []string) error {
 }
 
 func (d Db) RemoveLink(ctx context.Context, url string) error {
-	sqlQuery := fmt.Sprintf(sqlx.RemoveLink, url)
+	sqlQuery := fmt.Sprintf(RemoveLink, url)
 	_, err := d.Sql.ExecContext(ctx, sqlQuery)
 	if err != nil {
 		return fmt.Errorf("error removing link: %w", err)

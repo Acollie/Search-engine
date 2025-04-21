@@ -8,15 +8,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"testing"
 	"webcrawler/cmd/spider/pkg/site"
+	"webcrawler/pkg/conn"
 	dbx "webcrawler/pkg/db"
-	"webcrawler/pkg/sqlx/page"
+	"webcrawler/pkg/page"
 	test_containers "webcrawler/pkg/test-containers"
 )
 
 type testDb struct {
 	conn     *sql.DB
 	name     string
-	connType ConnType
+	connType conn.ConnType
 }
 
 func Test_DbInteraction(t *testing.T) {
@@ -27,7 +28,7 @@ func Test_DbInteraction(t *testing.T) {
 	sqliteTestDb := testDb{
 		conn:     sqliteConn,
 		name:     "sqlite",
-		connType: SQLite,
+		connType: conn.SQLite,
 	}
 	defer func() {
 		_, err := sqliteConn.Exec(DropSeenPages)
@@ -40,7 +41,7 @@ func Test_DbInteraction(t *testing.T) {
 	mariaTestDb := testDb{
 		conn:     mariaConn,
 		name:     "maria",
-		connType: Maria,
+		connType: conn.Maria,
 	}
 
 	postGresConn, testContainerPostPg, err := test_containers.NewPostgres(ctx)
@@ -49,7 +50,7 @@ func Test_DbInteraction(t *testing.T) {
 	postGresDB := testDb{
 		conn:     postGresConn,
 		name:     "postgres",
-		connType: PG,
+		connType: conn.PG,
 	}
 
 	for _, connType := range []testDb{sqliteTestDb, mariaTestDb, postGresDB} {

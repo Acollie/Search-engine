@@ -6,13 +6,22 @@ import (
 	"errors"
 	_ "github.com/lib/pq"
 	"webcrawler/cmd/spider/pkg/site"
-	"webcrawler/pkg/sqlx"
-	"webcrawler/pkg/sqlx/conn"
+	"webcrawler/pkg/conn"
+	"webcrawler/pkg/slice"
 )
 
 type Db struct {
 	Sql      *sql.DB
 	ConnType conn.ConnType
+}
+
+type DbiPage interface {
+	SavePage(ctx context.Context, page site.Page) error
+	UpdatePage(ctx context.Context, page site.Page) error
+	GetPage(ctx context.Context, url string) (*site.Page, error)
+	GetAllPages(ctx context.Context) ([]site.Page, error)
+	DeletePage(ctx context.Context, url string) error
+	NumberOfPages(ctx context.Context) (int, error)
 }
 
 func New(sql *sql.DB, conn conn.ConnType) Db {
@@ -23,27 +32,27 @@ func New(sql *sql.DB, conn conn.ConnType) Db {
 }
 
 func (d Db) SavePage(ctx context.Context, page site.Page) error {
-	addPage := sqlx.AddPage
+	addPage := AddPage
 	if d.ConnType == conn.PG {
-		addPage = sqlx.AddPagePG
+		addPage = AddPagePG
 	}
-	_, err := d.Sql.ExecContext(ctx, addPage, page.Url, page.Title, page.Body, 0, sqlx.ArrayToString(page.Links))
+	_, err := d.Sql.ExecContext(ctx, addPage, page.Url, page.Title, page.Body, 0, slice.ArrayToString(page.Links))
 	return err
 }
 
 func (d Db) UpdatePage(ctx context.Context, page site.Page) error {
-	updatePage := sqlx.UpdatePage
+	updatePage := UpdatePage
 	if d.ConnType == conn.PG {
-		updatePage = sqlx.UpdatePagePG
+		updatePage = RemovePagePG
 	}
 	_, err := d.Sql.ExecContext(ctx, updatePage, page.Title, page.Body, page.ProminenceValue, page.Url)
 	return err
 }
 
 func (d Db) GetPage(ctx context.Context, url string) (*site.Page, error) {
-	getPage := sqlx.GetPage
+	getPage := GetPage
 	if d.ConnType == conn.PG {
-		getPage = sqlx.GetPagePG
+		getPage = GetPagePG
 	}
 	row := d.Sql.QueryRowContext(ctx, getPage, url)
 
@@ -56,20 +65,20 @@ func (d Db) GetPage(ctx context.Context, url string) (*site.Page, error) {
 		}
 		return nil, err
 	}
-	page.Links = sqlx.StringToArray(links)
+	page.Links = slice.StringToArray(links)
 	return &page, nil
 }
 
 func (d Db) DeletePage(ctx context.Context, url string) error {
-	removePage := sqlx.RemovePage
+	removePage := RemovePage
 	if d.ConnType == conn.PG {
-		removePage = sqlx.RemovePagePG
+		removePage = RemovePagePG
 	}
 	_, err := d.Sql.ExecContext(ctx, removePage, url)
 	return err
 }
 func (d Db) NumberOfPages(ctx context.Context) (int, error) {
-	sqlQuery := sqlx.CountSeenPages
+	sqlQuery := CountSeenPages
 	row := d.Sql.QueryRowContext(ctx, sqlQuery)
 
 	var count int
@@ -81,7 +90,7 @@ func (d Db) NumberOfPages(ctx context.Context) (int, error) {
 	return count, nil
 }
 func (d Db) GetAllPages(ctx context.Context) ([]site.Page, error) {
-	rows, err := d.Sql.QueryContext(ctx, sqlx.GetAllPages)
+	rows, err := d.Sql.QueryContext(ctx, GetAllPages)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +104,7 @@ func (d Db) GetAllPages(ctx context.Context) ([]site.Page, error) {
 		if err != nil {
 			return nil, err
 		}
-		page.Links = sqlx.StringToArray(links)
+		page.Links = slice.StringToArray(links)
 		pages = append(pages, page)
 	}
 
