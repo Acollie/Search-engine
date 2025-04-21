@@ -46,12 +46,13 @@ func (c *RpcServer) _GetSeenList(ctx context.Context, request *spider.SeenListRe
 
 func (c *RpcServer) GetSeenList(conn grpc.BidiStreamingServer[spider.SeenListRequest, spider.SeenListResponse]) error {
 	for {
-		request, err := conn.Recv()
-		if err != nil {
-			return err
-		}
-		request.GetLimit()
-		response, err := c._GetSeenList(conn.Context(), request)
+		ctx := conn.Context()
+		//request, err := conn.Recv()
+		//if err != nil {
+		//	return err
+		//}
+		//request.GetLimit()
+		response, err := c._GetSeenList(ctx, nil)
 		if err != nil {
 			return err
 		}

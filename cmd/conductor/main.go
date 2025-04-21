@@ -4,38 +4,53 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"os"
+	"webcrawler/cmd/conductor/handler"
+	"webcrawler/cmd/spider/pkg/site"
+	"webcrawler/pkg/awsx"
+	"webcrawler/pkg/awsx/queue"
+	dbx "webcrawler/pkg/db"
 	"webcrawler/pkg/generated/service/spider"
 	"webcrawler/pkg/grpcx"
 )
 
+const (
+	spiderURL = "0.0.0.0"
+)
+
+var (
+	queueUrl = os.Getenv("QUEUE_URL")
+)
+
 func main() {
 	ctx := context.Background()
+	awsConfig, err := awsx.GetConfig(ctx)
+	if err != nil {
+		panic(err)
+	}
 
-	// Get list of spiders
+	// postgres
+	db, err := dbx.Postgres("admin", "example", "localhost", 5432, "main")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
 
-	// Get cone
+	sqsClient := queue.New(queueUrl, awsConfig)
 
 	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithInsecure())
-	conn, err := grpc.NewClient(fmt.Sprintf("0.0.0.0:%d", grpcx.SpiderPort), opts...)
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(fmt.Sprintf("%s:%d", spiderURL, grpcx.SpiderPort), opts...)
 	if err != nil {
 		panic(err)
 	}
 	defer conn.Close()
+
 	spiderClient := spider.NewSpiderClient(conn)
+	adder := site.NewAdder(db)
+	h := handler.New(adder, sqsClient, spiderClient)
 
-	biCon, err := spiderClient.GetSeenList(ctx)
-	if err != nil {
-		panic(err)
-	}
-	for {
-		biCon.Send(nil)
-		request, err := biCon.Recv()
-		if err != nil {
-			break
-		}
-		fmt.Println(request)
-
-	}
+	h.Listen(ctx)
 
 }

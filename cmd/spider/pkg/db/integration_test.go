@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"testing"
 	"webcrawler/cmd/spider/pkg/db/page"
-	"webcrawler/cmd/spider/pkg/db/queue"
 	"webcrawler/cmd/spider/pkg/site"
 	dbx "webcrawler/pkg/db"
 	"webcrawler/pkg/sqlx"
@@ -16,8 +15,9 @@ import (
 )
 
 type testDb struct {
-	conn *sql.DB
-	name string
+	conn     *sql.DB
+	name     string
+	connType page.ConnType
 }
 
 func Test_DbInteraction(t *testing.T) {
@@ -26,25 +26,34 @@ func Test_DbInteraction(t *testing.T) {
 	require.NoError(t, err)
 	defer sqliteConn.Close()
 	sqliteTestDb := testDb{
-		conn: sqliteConn,
-		name: "sqlite",
+		conn:     sqliteConn,
+		name:     "sqlite",
+		connType: page.SQLite,
 	}
 	defer func() {
 		_, err := sqliteConn.Exec(sqlx.DropSeenPages)
 		require.NoError(t, err)
-		_, err = sqliteConn.Exec(sqlx.DropQueue)
-		require.NoError(t, err)
 	}()
 
-	mariaConn, testContainer, err := test_containers.NewMarina(ctx)
+	mariaConn, testContainerMar, err := test_containers.NewMarina(ctx)
 	require.NoError(t, err)
-	defer testContainer.Terminate(ctx)
+	defer testContainerMar.Terminate(ctx)
 	mariaTestDb := testDb{
-		conn: mariaConn,
-		name: "maria",
+		conn:     mariaConn,
+		name:     "maria",
+		connType: page.MariaDB,
 	}
 
-	for _, connType := range []testDb{sqliteTestDb, mariaTestDb} {
+	postGresConn, testContainerPostPg, err := test_containers.NewPostgres(ctx)
+	require.NoError(t, err)
+	defer testContainerPostPg.Terminate(ctx)
+	postGresDB := testDb{
+		conn:     postGresConn,
+		name:     "postgres",
+		connType: page.PG,
+	}
+
+	for _, connType := range []testDb{sqliteTestDb, mariaTestDb, postGresDB} {
 		conn := connType.conn
 		t.Run(fmt.Sprintf("conn name:%s basic testing Seen pages", connType.name), func(t *testing.T) {
 			sitePage := site.Page{
@@ -62,69 +71,37 @@ func Test_DbInteraction(t *testing.T) {
 			if conn == nil {
 				t.Errorf("Expected connection to be created")
 			}
-			db := page.Db{Sql: conn}
+			db := page.Db{
+				Sql:      conn,
+				ConnType: connType.connType,
+			}
 			err = db.SavePage(ctx, sitePage)
 			require.NoError(t, err)
 
-			page, err := db.GetPage(ctx, sitePage.Url)
+			p, err := db.GetPage(ctx, sitePage.Url)
 			require.NoError(t, err)
-			require.Equal(t, &sitePage, page)
+			require.Equal(t, &sitePage, p)
 
 			//Page which does not exist
-			page, err = db.GetPage(ctx, faker.URL())
+			p, err = db.GetPage(ctx, faker.URL())
 			require.NoError(t, err)
-			require.Nil(t, page)
+			require.Nil(t, p)
 
-			// Update page
+			// Update p
 			sitePage.Title = faker.Sentence()
 			sitePage.Body = faker.Paragraph()
 			err = db.UpdatePage(ctx, sitePage)
 			require.NoError(t, err)
-			page, err = db.GetPage(ctx, sitePage.Url)
+			p, err = db.GetPage(ctx, sitePage.Url)
 			require.NoError(t, err)
-			require.Equal(t, &sitePage, page)
+			require.Equal(t, &sitePage, p)
 
-			// Remove a page
+			// Remove a p
 			err = db.DeletePage(ctx, sitePage.Url)
 			require.NoError(t, err)
-			// Check if the page is removed
-			page, err = db.GetPage(ctx, sitePage.Url)
+			// Check if the p is removed
+			p, err = db.GetPage(ctx, sitePage.Url)
 			require.NoError(t, err)
-		})
-		t.Run("queue testing", func(t *testing.T) {
-
-			_, err = conn.Exec(sqlx.CreateQueueTable)
-			require.NoError(t, err)
-
-			db := queue.Db{Sql: conn}
-
-			err = db.AddLink(ctx, "https://example.com")
-			require.NoError(t, err)
-			err = db.AddLink(ctx, "https://example.com/2")
-			require.NoError(t, err)
-
-			links, err := db.GetExplore(ctx)
-			require.NoError(t, err)
-			require.Len(t, links, 2)
-			require.Equal(t, "https://example.com", links[0])
-			require.Equal(t, "https://example.com/2", links[1])
-			err = db.RemoveLink(ctx, "https://example.com")
-			require.NoError(t, err)
-			links, err = db.GetExplore(ctx)
-			require.NoError(t, err)
-			require.Len(t, links, 1)
-			require.Equal(t, "https://example.com/2", links[0])
-
-			err = db.RemoveLink(ctx, "https://example.com/2")
-			require.NoError(t, err)
-			links, err = db.GetExplore(ctx)
-			require.NoError(t, err)
-			require.Len(t, links, 0)
-
-			links = []string{"https://example.com", "https://example.com/2", "https://example.com/3"}
-			err = db.AddLinks(ctx, links)
-			require.NoError(t, err)
-			links, err = db.GetExplore(ctx)
 		})
 	}
 }

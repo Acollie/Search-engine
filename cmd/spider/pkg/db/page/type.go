@@ -4,31 +4,45 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	_ "github.com/lib/pq"
 	"webcrawler/cmd/spider/pkg/site"
 	slitex "webcrawler/pkg/db"
 	"webcrawler/pkg/sqlx"
 )
 
 type Db struct {
-	Sql *sql.DB
+	Sql      *sql.DB
+	ConnType sqlx.ConnType
 }
 
 func (d Db) SavePage(ctx context.Context, page site.Page) error {
-	_, err := d.Sql.ExecContext(ctx, sqlx.AddPage, page.Url, page.Title, page.Body, 0, sqlx.ArrayToString(page.Links))
+	addPage := sqlx.AddPage
+	if d.ConnType == sqlx.PG {
+		addPage = sqlx.AddPagePG
+	}
+	_, err := d.Sql.ExecContext(ctx, addPage, page.Url, page.Title, page.Body, 0, sqlx.ArrayToString(page.Links))
 	return err
 }
 
 func (d Db) UpdatePage(ctx context.Context, page site.Page) error {
-	_, err := d.Sql.ExecContext(ctx, sqlx.UpdatePage, page.Title, page.Body, page.ProminenceValue, page.Url)
+	updatePage := sqlx.UpdatePage
+	if d.ConnType == sqlx.PG {
+		updatePage = sqlx.UpdatePagePG
+	}
+	_, err := d.Sql.ExecContext(ctx, updatePage, page.Title, page.Body, page.ProminenceValue, page.Url)
 	return err
 }
 
 func (d Db) GetPage(ctx context.Context, url string) (*site.Page, error) {
-	row := d.Sql.QueryRowContext(ctx, sqlx.GetPage, url)
+	getPage := sqlx.GetPage
+	if d.ConnType == sqlx.PG {
+		getPage = sqlx.GetPagePG
+	}
+	row := d.Sql.QueryRowContext(ctx, getPage, url)
 
 	var page site.Page
 	var links string
-	err := row.Scan(&page.Url, &page.Title, &page.Body, &page.ProminenceValue, sqlx.StringToArray(links))
+	err := row.Scan(&page.Url, &page.Title, &page.Body, &page.ProminenceValue, &links)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -37,11 +51,14 @@ func (d Db) GetPage(ctx context.Context, url string) (*site.Page, error) {
 	}
 	page.Links = sqlx.StringToArray(links)
 	return &page, nil
-
 }
 
 func (d Db) DeletePage(ctx context.Context, url string) error {
-	_, err := d.Sql.ExecContext(ctx, sqlx.RemovePage, url)
+	removePage := sqlx.RemovePage
+	if d.ConnType == sqlx.PG {
+		removePage = sqlx.RemovePagePG
+	}
+	_, err := d.Sql.ExecContext(ctx, removePage, url)
 	return err
 }
 func (d Db) NumberOfPages(ctx context.Context) (int, error) {
@@ -97,6 +114,7 @@ func New() Db {
 	}
 
 	return Db{
-		Sql: db,
+		Sql:      db,
+		ConnType: sqlx.SQLite,
 	}
 }

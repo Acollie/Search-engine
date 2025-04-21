@@ -1,0 +1,46 @@
+deployment:
+  enabled: true
+
+service:
+  type: ClusterIP
+
+ingressRoute:
+  dashboard:
+    enabled: true
+    entryPoints: ["web"]
+
+ports:
+  web:
+    port: 8000
+    expose:
+      default: true
+    exposedPort: 80
+  websecure:
+    port: 8443
+    expose:
+      default: true
+    exposedPort: 443
+    tls:
+      enabled: true
+
+
+# Enable dashboard
+dashboard:
+  enabled: true
+
+# Access logs (optional)
+accessLogs:
+  enabled: true
+
+# Additional args
+additionalArguments:
+  - "--entrypoints.web.address=:8000"
+  - "--entrypoints.websecure.address=:8443"
+  - "--api.dashboard=true"
+  - "--api.insecure=true"  # Remove for prod
+
+providers:
+  kubernetesCRD:
+    enabled: true
+  kubernetesIngress:
+    enabled: true
