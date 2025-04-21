@@ -16,14 +16,12 @@ require (
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.24
-	github.com/neo4j/neo4j-go-driver/v5 v5.20.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/stretchr/testify v1.10.0
 	github.com/temoto/robotstxt v1.1.2
 	github.com/testcontainers/testcontainers-go v0.36.0
 	github.com/testcontainers/testcontainers-go/modules/dynamodb v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/mariadb v0.35.0
-	github.com/testcontainers/testcontainers-go/modules/neo4j v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.36.0
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.57.0
