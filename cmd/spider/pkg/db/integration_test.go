@@ -17,7 +17,7 @@ import (
 type testDb struct {
 	conn     *sql.DB
 	name     string
-	connType page.ConnType
+	connType sqlx.ConnType
 }
 
 func Test_DbInteraction(t *testing.T) {
@@ -28,7 +28,7 @@ func Test_DbInteraction(t *testing.T) {
 	sqliteTestDb := testDb{
 		conn:     sqliteConn,
 		name:     "sqlite",
-		connType: page.SQLite,
+		connType: sqlx.SQLite,
 	}
 	defer func() {
 		_, err := sqliteConn.Exec(sqlx.DropSeenPages)
@@ -41,7 +41,7 @@ func Test_DbInteraction(t *testing.T) {
 	mariaTestDb := testDb{
 		conn:     mariaConn,
 		name:     "maria",
-		connType: page.MariaDB,
+		connType: sqlx.Maria,
 	}
 
 	postGresConn, testContainerPostPg, err := test_containers.NewPostgres(ctx)
@@ -50,7 +50,7 @@ func Test_DbInteraction(t *testing.T) {
 	postGresDB := testDb{
 		conn:     postGresConn,
 		name:     "postgres",
-		connType: page.PG,
+		connType: sqlx.PG,
 	}
 
 	for _, connType := range []testDb{sqliteTestDb, mariaTestDb, postGresDB} {
