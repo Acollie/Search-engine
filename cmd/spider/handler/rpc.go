@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"google.golang.org/grpc"
 	"webcrawler/pkg/generated/service/spider"
-	"webcrawler/pkg/sqlRelational"
+	"webcrawler/pkg/sqlx"
 )
 
 type RpcServer struct {
 	spider.UnimplementedSpiderServer
 
-	db sqlRelational.Db
+	db sqlx.Db
 }
 
 func (c *RpcServer) mustEmbedUnimplementedSpiderServer() {
@@ -19,7 +19,7 @@ func (c *RpcServer) mustEmbedUnimplementedSpiderServer() {
 	panic("implement me")
 }
 
-func NewRPCServer(db sqlRelational.Db) *RpcServer {
+func NewRPCServer(db sqlx.Db) *RpcServer {
 	return &RpcServer{
 		db: db,
 	}
