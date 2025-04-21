@@ -1,4 +1,4 @@
-package sqlRelational
+package sqlx
 
 import (
 	"context"
@@ -9,15 +9,14 @@ import (
 	"testing"
 	"webcrawler/cmd/spider/pkg/site"
 	dbx "webcrawler/pkg/db"
-	"webcrawler/pkg/sqlRelational/page"
-	"webcrawler/pkg/sqlx"
+	"webcrawler/pkg/sqlx/page"
 	test_containers "webcrawler/pkg/test-containers"
 )
 
 type testDb struct {
 	conn     *sql.DB
 	name     string
-	connType sqlx.ConnType
+	connType ConnType
 }
 
 func Test_DbInteraction(t *testing.T) {
@@ -28,10 +27,10 @@ func Test_DbInteraction(t *testing.T) {
 	sqliteTestDb := testDb{
 		conn:     sqliteConn,
 		name:     "sqlite",
-		connType: sqlx.SQLite,
+		connType: SQLite,
 	}
 	defer func() {
-		_, err := sqliteConn.Exec(sqlx.DropSeenPages)
+		_, err := sqliteConn.Exec(DropSeenPages)
 		require.NoError(t, err)
 	}()
 
@@ -41,7 +40,7 @@ func Test_DbInteraction(t *testing.T) {
 	mariaTestDb := testDb{
 		conn:     mariaConn,
 		name:     "maria",
-		connType: sqlx.Maria,
+		connType: Maria,
 	}
 
 	postGresConn, testContainerPostPg, err := test_containers.NewPostgres(ctx)
@@ -50,7 +49,7 @@ func Test_DbInteraction(t *testing.T) {
 	postGresDB := testDb{
 		conn:     postGresConn,
 		name:     "postgres",
-		connType: sqlx.PG,
+		connType: PG,
 	}
 
 	for _, connType := range []testDb{sqliteTestDb, mariaTestDb, postGresDB} {
@@ -61,10 +60,10 @@ func Test_DbInteraction(t *testing.T) {
 				Title: faker.Sentence(),
 				Body:  faker.Paragraph(),
 			}
-			_, err = conn.Exec(sqlx.CreateSeenTable)
+			_, err = conn.Exec(CreateSeenTable)
 			require.NoError(t, err)
 
-			_, err = conn.Exec(sqlx.CreateSeenTableIndex)
+			_, err = conn.Exec(CreateSeenTableIndex)
 			require.NoError(t, err)
 
 			require.NoError(t, err)

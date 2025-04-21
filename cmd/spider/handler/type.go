@@ -2,15 +2,15 @@ package handler
 
 import (
 	"webcrawler/pkg/config"
-	"webcrawler/pkg/sqlRelational"
+	"webcrawler/pkg/sqlx"
 )
 
 type Server struct {
-	Db     sqlRelational.Db
+	Db     sqlx.Db
 	Config *config.Config
 }
 
-func New(db sqlRelational.Db, config *config.Config) Server {
+func New(db sqlx.Db, config *config.Config) Server {
 	return Server{
 		Db:     db,
 		Config: config,

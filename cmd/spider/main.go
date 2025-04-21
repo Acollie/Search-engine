@@ -14,7 +14,7 @@ import (
 	dbx "webcrawler/pkg/db"
 	"webcrawler/pkg/generated/service/spider"
 	"webcrawler/pkg/grpcx"
-	"webcrawler/pkg/sqlRelational"
+	"webcrawler/pkg/sqlx"
 )
 
 const (
@@ -44,7 +44,7 @@ func main() {
 	}
 	defer pg.Close()
 
-	dbConfig := sqlRelational.New(pg, connType)
+	dbConfig := sqlx.New(pg, connType)
 	server := handler.New(dbConfig, config)
 
 	initialLinks := []string{

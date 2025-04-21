@@ -7,14 +7,15 @@ import (
 	_ "github.com/lib/pq"
 	"webcrawler/cmd/spider/pkg/site"
 	"webcrawler/pkg/sqlx"
+	"webcrawler/pkg/sqlx/conn"
 )
 
 type Db struct {
 	Sql      *sql.DB
-	ConnType sqlx.ConnType
+	ConnType conn.ConnType
 }
 
-func New(sql *sql.DB, conn sqlx.ConnType) Db {
+func New(sql *sql.DB, conn conn.ConnType) Db {
 	return Db{
 		Sql:      sql,
 		ConnType: conn,
@@ -23,7 +24,7 @@ func New(sql *sql.DB, conn sqlx.ConnType) Db {
 
 func (d Db) SavePage(ctx context.Context, page site.Page) error {
 	addPage := sqlx.AddPage
-	if d.ConnType == sqlx.PG {
+	if d.ConnType == conn.PG {
 		addPage = sqlx.AddPagePG
 	}
 	_, err := d.Sql.ExecContext(ctx, addPage, page.Url, page.Title, page.Body, 0, sqlx.ArrayToString(page.Links))
@@ -32,7 +33,7 @@ func (d Db) SavePage(ctx context.Context, page site.Page) error {
 
 func (d Db) UpdatePage(ctx context.Context, page site.Page) error {
 	updatePage := sqlx.UpdatePage
-	if d.ConnType == sqlx.PG {
+	if d.ConnType == conn.PG {
 		updatePage = sqlx.UpdatePagePG
 	}
 	_, err := d.Sql.ExecContext(ctx, updatePage, page.Title, page.Body, page.ProminenceValue, page.Url)
@@ -41,7 +42,7 @@ func (d Db) UpdatePage(ctx context.Context, page site.Page) error {
 
 func (d Db) GetPage(ctx context.Context, url string) (*site.Page, error) {
 	getPage := sqlx.GetPage
-	if d.ConnType == sqlx.PG {
+	if d.ConnType == conn.PG {
 		getPage = sqlx.GetPagePG
 	}
 	row := d.Sql.QueryRowContext(ctx, getPage, url)
@@ -61,7 +62,7 @@ func (d Db) GetPage(ctx context.Context, url string) (*site.Page, error) {
 
 func (d Db) DeletePage(ctx context.Context, url string) error {
 	removePage := sqlx.RemovePage
-	if d.ConnType == sqlx.PG {
+	if d.ConnType == conn.PG {
 		removePage = sqlx.RemovePagePG
 	}
 	_, err := d.Sql.ExecContext(ctx, removePage, url)
