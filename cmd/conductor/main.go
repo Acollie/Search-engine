@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"log"
 	"os"
 	"webcrawler/cmd/conductor/handler"
 	"webcrawler/cmd/spider/pkg/site"
 	"webcrawler/pkg/awsx"
 	"webcrawler/pkg/awsx/queue"
+	"webcrawler/pkg/bootstrap"
 	dbx "webcrawler/pkg/db"
 	"webcrawler/pkg/generated/service/spider"
 	"webcrawler/pkg/grpcx"
@@ -51,6 +53,19 @@ func main() {
 	adder := site.NewAdder(db)
 	h := handler.New(adder, sqsClient, spiderClient)
 
-	h.Listen(ctx)
+	go func() {
+		h.Listen(ctx)
+	}()
+	// Initialize OpenTelemetry
+	err = bootstrap.Observability()
+	if err != nil {
+		log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
+	}
+
+	// Initialize HealthCheck
+	err = bootstrap.HealthCheck()
+	if err != nil {
+		log.Fatalf("Failed to initialize HealthCheck: %v", err)
+	}
 
 }

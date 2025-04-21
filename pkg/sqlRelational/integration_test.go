@@ -1,4 +1,4 @@
-package db
+package sqlRelational
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/require"
 	"testing"
-	"webcrawler/cmd/spider/pkg/db/page"
 	"webcrawler/cmd/spider/pkg/site"
 	dbx "webcrawler/pkg/db"
+	"webcrawler/pkg/sqlRelational/page"
 	"webcrawler/pkg/sqlx"
 	test_containers "webcrawler/pkg/test-containers"
 )
