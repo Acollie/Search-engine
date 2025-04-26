@@ -31,8 +31,9 @@ func Test_DbInteraction(t *testing.T) {
 		connType: conn.SQLite,
 	}
 	defer func() {
-		_, err := sqliteConn.Exec(DropSeenPages)
-		require.NoError(t, err)
+		//_, err := sqliteConn.Exec(page.DropSeenPages)
+		//
+		//require.NoError(t, err)
 	}()
 
 	mariaConn, testContainerMar, err := test_containers.NewMarina(ctx)
@@ -61,13 +62,7 @@ func Test_DbInteraction(t *testing.T) {
 				Title: faker.Sentence(),
 				Body:  faker.Paragraph(),
 			}
-			_, err = conn.Exec(CreateSeenTable)
-			require.NoError(t, err)
 
-			_, err = conn.Exec(CreateSeenTableIndex)
-			require.NoError(t, err)
-
-			require.NoError(t, err)
 			if conn == nil {
 				t.Errorf("Expected connection to be created")
 			}
@@ -75,6 +70,11 @@ func Test_DbInteraction(t *testing.T) {
 				Sql:      conn,
 				ConnType: connType.connType,
 			}
+
+			db.CreateTable(ctx)
+			db.CreateIndex(ctx)
+
+			require.NoError(t, err)
 			err = db.SavePage(ctx, sitePage)
 			require.NoError(t, err)
 

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
-	"webcrawler/pkg/sqlx"
 )
 
 func MariaDB(username string, password string, address string, port int) (*sql.DB, error) {
@@ -13,6 +12,6 @@ func MariaDB(username string, password string, address string, port int) (*sql.D
 	if err != nil {
 		return nil, err
 	}
-	conn.Exec(fmt.Sprintf(sqlx.SelectDB, sqlx.MainDB))
+	conn.Exec(fmt.Sprintf(SelectDB, MainDB))
 	return conn, nil
 }

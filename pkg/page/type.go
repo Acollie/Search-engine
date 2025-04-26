@@ -22,6 +22,9 @@ type DbiPage interface {
 	GetAllPages(ctx context.Context) ([]site.Page, error)
 	DeletePage(ctx context.Context, url string) error
 	NumberOfPages(ctx context.Context) (int, error)
+	CreateIndex(ctx context.Context) error
+	CreateTable(ctx context.Context) error
+	DropTable(ctx context.Context) error
 }
 
 func New(sql *sql.DB, conn conn.ConnType) Db {
@@ -113,4 +116,22 @@ func (d Db) GetAllPages(ctx context.Context) ([]site.Page, error) {
 	}
 
 	return pages, nil
+}
+
+func (d Db) CreateIndex(ctx context.Context) error {
+	createIndex := CreateSeenTable
+	_, err := d.Sql.ExecContext(ctx, createIndex)
+	return err
+}
+
+func (d Db) CreateTable(ctx context.Context) error {
+	createTable := CreateSeenTable
+	_, err := d.Sql.ExecContext(ctx, createTable)
+	return err
+}
+
+func (d Db) DropTable(ctx context.Context) error {
+	dropTable := DropSeenPages
+	_, err := d.Sql.ExecContext(ctx, dropTable)
+	return err
 }
