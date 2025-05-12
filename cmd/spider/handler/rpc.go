@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 	"google.golang.org/grpc"
-	"webcrawler/cmd/spider/pkg/db"
 	"webcrawler/pkg/generated/service/spider"
+	"webcrawler/pkg/sqlx"
 )
 
 type RpcServer struct {
 	spider.UnimplementedSpiderServer
 
-	db db.Db
+	db sqlx.Db
 }
 
 func (c *RpcServer) mustEmbedUnimplementedSpiderServer() {
@@ -19,7 +19,7 @@ func (c *RpcServer) mustEmbedUnimplementedSpiderServer() {
 	panic("implement me")
 }
 
-func NewRPCServer(db db.Db) *RpcServer {
+func NewRPCServer(db sqlx.Db) *RpcServer {
 	return &RpcServer{
 		db: db,
 	}
@@ -46,12 +46,13 @@ func (c *RpcServer) _GetSeenList(ctx context.Context, request *spider.SeenListRe
 
 func (c *RpcServer) GetSeenList(conn grpc.BidiStreamingServer[spider.SeenListRequest, spider.SeenListResponse]) error {
 	for {
-		request, err := conn.Recv()
-		if err != nil {
-			return err
-		}
-		request.GetLimit()
-		response, err := c._GetSeenList(conn.Context(), request)
+		ctx := conn.Context()
+		//request, err := conn.Recv()
+		//if err != nil {
+		//	return err
+		//}
+		//request.GetLimit()
+		response, err := c._GetSeenList(ctx, nil)
 		if err != nil {
 			return err
 		}

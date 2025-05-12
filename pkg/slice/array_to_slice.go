@@ -1,4 +1,4 @@
-package sqlx
+package slice
 
 import "strings"
 
@@ -11,5 +11,8 @@ func ArrayToString(arr []string) string {
 }
 
 func StringToArray(str string) []string {
+	if str == "" {
+		return nil
+	}
 	return strings.Split(str, delimiter)
 }

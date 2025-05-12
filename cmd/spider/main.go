@@ -3,21 +3,22 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/prometheus"
-	"go.opentelemetry.io/otel/sdk/metric"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 	"log"
 	"net"
-	"net/http"
+	"os"
 	"webcrawler/cmd/spider/handler"
-	"webcrawler/cmd/spider/pkg/db"
+	"webcrawler/pkg/bootstrap"
 	"webcrawler/pkg/config"
+	dbx "webcrawler/pkg/db"
 	"webcrawler/pkg/generated/service/spider"
 	"webcrawler/pkg/grpcx"
-	"webcrawler/pkg/health"
+	"webcrawler/pkg/sqlx"
+)
+
+const (
+	databaseName = "databaseName"
 )
 
 func main() {
@@ -31,7 +32,20 @@ func main() {
 
 	config := config.Fetch()
 
-	server := handler.New(db.New(), config)
+	pg, connType, err := dbx.Postgres(
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_HOST"),
+		5432,
+		databaseName,
+	)
+	if err != nil {
+		panic(err)
+	}
+	defer pg.Close()
+
+	dbConfig := sqlx.New(pg, connType)
+	server := handler.New(dbConfig, config)
 
 	initialLinks := []string{
 		"https://blog.alexcollie.com/",
@@ -77,21 +91,17 @@ func main() {
 		panic(err)
 	}
 	// Initialize OpenTelemetry
-	exporter, err := prometheus.New()
+	err = bootstrap.Observability()
 	if err != nil {
-		log.Fatalf("Failed to create Prometheus exporter: %v", err)
+		log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
 	}
-	meterProvider := metric.NewMeterProvider(metric.WithReader(exporter))
-	otel.SetMeterProvider(meterProvider)
 
-	// K8s health check
-	http.HandleFunc("/health", health.Ok)
-	http.Handle("/metrics", promhttp.Handler())
+	// Initialize HealthCheck
+	err = bootstrap.HealthCheck()
+	if err != nil {
+		log.Fatalf("Failed to initialize HealthCheck: %v", err)
+	}
 
-	// Start HTTP server in a separate goroutine
-	go func() {
-		log.Fatal(http.ListenAndServe("0.0.0.0:8080", nil))
-	}()
 	//go func() {
 	//	server.Scan(ctx)
 	//}()

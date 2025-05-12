@@ -5,7 +5,7 @@ import (
 	"log"
 	"sync"
 	"webcrawler/cmd/spider/pkg/formating"
-	site2 "webcrawler/cmd/spider/pkg/site"
+	"webcrawler/cmd/spider/pkg/site"
 )
 
 func (h *Server) Scan(ctx context.Context) {
@@ -26,7 +26,7 @@ func (h *Server) Scan(ctx context.Context) {
 			go func() {
 				defer wg.Done()
 
-				valid, err := site2.FetchRobots(link)
+				valid, err := site.FetchRobots(link)
 				if err != nil {
 					log.Printf("fetching robots %v", err)
 				}
@@ -36,7 +36,7 @@ func (h *Server) Scan(ctx context.Context) {
 					return
 				}
 
-				page, resp, err := site2.NewPage(link)
+				page, resp, err := site.NewPage(link)
 				if err != nil {
 					log.Printf("fetching page %v", err)
 					h.Db.Queue.RemoveLink(ctx, link)

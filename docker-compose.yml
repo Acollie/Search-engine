@@ -5,6 +5,30 @@ services:
     container_name: spider
     ports:
       - "8080:8080"
+    depends_on:
+      - db
   conductor:
     image: conductor
     container_name: conductor
+    depends_on:
+      - db
+      - spider
+  cartographer:
+    image: cartographer
+    container_name: cartographer
+    depends_on:
+      - db
+  db:
+    image: postgres
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_PASSWORD: example
+      POSTGRES_USER: admin
+    ports:
+      - "5432:5432"
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"

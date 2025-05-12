@@ -1,4 +1,4 @@
-package pkg
+package graph
 
 import (
 	"context"
@@ -11,8 +11,8 @@ func Test_Graph(t *testing.T) {
 	ctx := context.Background()
 	tests := []struct {
 		name   string
-		input  map[string]*site.Page
-		output map[string]*site.Page
+		input  Graph
+		output Graph
 	}{
 		{
 			name:   "nil test",

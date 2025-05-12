@@ -1,19 +1,18 @@
 package handler
 
 import (
-	"webcrawler/cmd/spider/pkg/db"
 	"webcrawler/pkg/config"
+	"webcrawler/pkg/sqlx"
 )
 
 type Server struct {
-	Db     db.Db
+	Db     sqlx.Db
 	Config *config.Config
 }
 
-func New(db db.Db, config *config.Config) Server {
+func New(db sqlx.Db, config *config.Config) Server {
 	return Server{
 		Db:     db,
 		Config: config,
 	}
-
 }
