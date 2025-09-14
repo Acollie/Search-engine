@@ -2,9 +2,10 @@ package awsx
 
 import (
 	"context"
+	"os"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"os"
 )
 
 func GetConfig(ctx context.Context) (aws.Config, error) {

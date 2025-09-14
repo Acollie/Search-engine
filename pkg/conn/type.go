@@ -1,9 +1,9 @@
 package conn
 
-type ConnType string
+type Type string
 
 var (
-	PG     = ConnType("postgres")
-	SQLite = ConnType("sqlite")
-	Maria  = ConnType("mariadb")
+	PG     = Type("postgres")
+	SQLite = Type("sqlite")
+	Maria  = Type("mariadb")
 )

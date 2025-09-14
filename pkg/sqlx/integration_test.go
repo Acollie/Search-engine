@@ -17,7 +17,7 @@ import (
 type testDb struct {
 	conn     *sql.DB
 	name     string
-	connType conn.ConnType
+	connType conn.Type
 }
 
 func Test_DbInteraction(t *testing.T) {

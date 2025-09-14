@@ -12,7 +12,7 @@ type Db struct {
 	Page  page.DbiPage
 }
 
-func New(conn *sql.DB, connType conn.ConnType) Db {
+func New(conn *sql.DB, connType conn.Type) Db {
 	q := queue.New(conn, connType)
 	p := page.New(conn, connType)
 	return Db{

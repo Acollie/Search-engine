@@ -1,14 +1,16 @@
 package config
 
 import (
-	"gopkg.in/yaml.v3"
-	"io/ioutil"
 	"log"
 	"net/url"
+	"os"
+	"sync"
+
+	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
-	Website    map[string]bool
+	Website    sync.Map // using a normal map will cause a race condition
 	Depth      int
 	Relational bool
 	LinkDepth  int
@@ -21,7 +23,7 @@ type rawIgnoreList struct {
 }
 
 func Fetch() *Config {
-	yamlFile, err := ioutil.ReadFile("config.yml")
+	yamlFile, err := os.ReadFile("config.yml")
 	if err != nil {
 		log.Printf("yamlFile.Get err #%v ", err)
 	}
@@ -32,20 +34,19 @@ func Fetch() *Config {
 	}
 
 	conf := &Config{
-		Website:    make(map[string]bool),
+		Website:    sync.Map{},
 		Relational: raw.Relational,
 		Depth:      raw.Depth,
 		LinkDepth:  raw.LinkDepth,
 	}
 
 	for _, website := range raw.Websites {
-		// Extract host from the url
 		parsedUrl, err := url.Parse(website)
 		if err != nil {
 			log.Printf("Failed to parse URL from yaml file: %v, err: %v", website, err)
 			continue
 		}
-		conf.Website[parsedUrl.Host] = true
+		conf.Website.Store(parsedUrl.Host, true)
 	}
 	return conf
 }
@@ -58,6 +59,6 @@ func (i *Config) Ignore(urlStr string) bool {
 		return false
 	}
 
-	_, isIgnored := i.Website[parsedURL.Host]
+	_, isIgnored := i.Website.Load(parsedURL.Host)
 	return isIgnored
 }

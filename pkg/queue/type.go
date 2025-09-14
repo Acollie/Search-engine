@@ -9,7 +9,7 @@ import (
 
 type Db struct {
 	Sql      *sql.DB
-	ConnType conn.ConnType
+	ConnType conn.Type
 }
 type DbiQueue interface {
 	GetExplore(ctx context.Context) ([]string, error)
@@ -18,7 +18,7 @@ type DbiQueue interface {
 	RemoveLink(ctx context.Context, url string) error
 }
 
-func New(sql *sql.DB, conn conn.ConnType) Db {
+func New(sql *sql.DB, conn conn.Type) Db {
 	return Db{
 		Sql:      sql,
 		ConnType: conn,

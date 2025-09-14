@@ -12,7 +12,7 @@ import (
 
 type Db struct {
 	Sql      *sql.DB
-	ConnType conn.ConnType
+	ConnType conn.Type
 }
 
 type DbiPage interface {
@@ -27,7 +27,7 @@ type DbiPage interface {
 	DropTable(ctx context.Context) error
 }
 
-func New(sql *sql.DB, conn conn.ConnType) Db {
+func New(sql *sql.DB, conn conn.Type) Db {
 	return Db{
 		Sql:      sql,
 		ConnType: conn,
