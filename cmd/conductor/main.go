@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"log"
 	"os"
 	"webcrawler/cmd/conductor/handler"
@@ -15,6 +13,9 @@ import (
 	dbx "webcrawler/pkg/db"
 	"webcrawler/pkg/generated/service/spider"
 	"webcrawler/pkg/grpcx"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
@@ -62,7 +63,7 @@ func main() {
 		log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
 	}
 
-	// Initialize HealthCheck
+	// Initialize HealthCheck and metrics
 	err = bootstrap.HealthCheck()
 	if err != nil {
 		log.Fatalf("Failed to initialize HealthCheck: %v", err)

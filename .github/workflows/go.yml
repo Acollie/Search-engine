@@ -27,6 +27,12 @@ jobs:
 
       - name: Build
         run: go build -v ./...
-
       - name: Test
-        run: go test -v -p 2 ./...
+        run: go test -v -p 2 ./... -coverprofile cover.out
+      - name: check test coverage
+        uses: vladopajic/go-test-coverage@v2
+        with:
+          profile: cover.out
+          threshold-total: 20
+          git-token: ${{ github.ref_name == 'main' && secrets.GITHUB_TOKEN || '' }}
+          git-branch: badges

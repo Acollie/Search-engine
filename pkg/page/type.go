@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	_ "github.com/lib/pq"
 	"webcrawler/cmd/spider/pkg/site"
 	"webcrawler/pkg/conn"
 	"webcrawler/pkg/slice"
+
+	_ "github.com/lib/pq"
 )
 
 type Db struct {
@@ -46,7 +47,7 @@ func (d Db) SavePage(ctx context.Context, page site.Page) error {
 func (d Db) UpdatePage(ctx context.Context, page site.Page) error {
 	updatePage := UpdatePage
 	if d.ConnType == conn.PG {
-		updatePage = RemovePagePG
+		updatePage = UpdatePagePG
 	}
 	_, err := d.Sql.ExecContext(ctx, updatePage, page.Title, page.Body, page.ProminenceValue, page.Url)
 	return err

@@ -2,9 +2,10 @@ package graph
 
 import (
 	"context"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"webcrawler/cmd/spider/pkg/site"
+
+	"github.com/stretchr/testify/require"
 )
 
 func Test_Graph(t *testing.T) {
@@ -197,7 +198,7 @@ func Test_Graph(t *testing.T) {
 	t.Parallel()
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			output, err := GraphTraverse(ctx, test.input)
+			output, err := Traverse(ctx, test.input)
 			require.NoError(t, err)
 			for i, page := range output {
 				require.Equal(t, test.output[i].ProminenceValue, page.ProminenceValue)

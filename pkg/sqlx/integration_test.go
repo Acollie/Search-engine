@@ -4,14 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/go-faker/faker/v4"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"webcrawler/cmd/spider/pkg/site"
 	"webcrawler/pkg/conn"
 	dbx "webcrawler/pkg/db"
 	"webcrawler/pkg/page"
 	test_containers "webcrawler/pkg/test-containers"
+
+	"github.com/go-faker/faker/v4"
+	"github.com/stretchr/testify/require"
 )
 
 type testDb struct {
@@ -31,9 +32,9 @@ func Test_DbInteraction(t *testing.T) {
 		connType: conn.SQLite,
 	}
 	defer func() {
-		//_, err := sqliteConn.Exec(page.DropSeenPages)
-		//
-		//require.NoError(t, err)
+		_, err := sqliteConn.Exec(page.DropSeenPages)
+
+		require.NoError(t, err)
 	}()
 
 	mariaConn, testContainerMar, err := test_containers.NewMarina(ctx)

@@ -5,11 +5,15 @@ import (
 )
 
 type Handler struct {
-	db *sql.DB
+	db          *sql.DB
+	sweepCount  int
+	sweepBreath int
 }
 
-func New(db *sql.DB) Handler {
+func New(db *sql.DB, sweepSize int, sweepCount int) Handler {
 	return Handler{
-		db: db,
+		db:          db,
+		sweepCount:  sweepSize,
+		sweepBreath: sweepCount,
 	}
 }
