@@ -31,3 +31,7 @@ jobs:
         run: go test -v -p 2 ./... -coverprofile cover.out
       - name: check test coverage
         uses: vladopajic/go-test-coverage@v2
+        with:
+          profile: test.coverage.yml
+          git-token: ${{ github.ref_name == 'main' && secrets.GITHUB_TOKEN || '' }}
+          git-branch: badges
