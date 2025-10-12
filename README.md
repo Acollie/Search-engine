@@ -3,7 +3,6 @@
 ![full_system.png](assets/full_system.png "Overview of the search engine")
 ![Example of a graph](assets/example.png "Example of a graph")
 ## Overview 🌐
-![coverage](https://raw.githubusercontent.com/org/project/badges/.badges/main/coverage.svg)
 
 ### 1. Spider
 
