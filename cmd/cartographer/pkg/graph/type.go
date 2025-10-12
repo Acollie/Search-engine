@@ -1,13 +1,20 @@
 package graph
 
-import "webcrawler/cmd/spider/pkg/site"
+import (
+	"errors"
+	"webcrawler/cmd/spider/pkg/site"
+)
+
+var (
+	ErrNoGraphs = errors.New("no graphs found")
+)
 
 type Graph map[string]*site.Page
 
 func New(sites []*site.Page) Graph {
 	g := Graph{}
-	for _, site := range sites {
-		g[site.Url] = site
+	for _, s := range sites {
+		g[s.Url] = s
 	}
 	return g
 }

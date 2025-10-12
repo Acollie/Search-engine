@@ -10,7 +10,7 @@ const (
 	HitScore = 1
 )
 
-func GraphTraverse(ctx context.Context, graph Graph) (Graph, error) {
+func Traverse(ctx context.Context, graph Graph) (Graph, error) {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 

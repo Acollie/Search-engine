@@ -2,10 +2,11 @@ package bootstrap
 
 import (
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"log"
 	"net/http"
 	"webcrawler/pkg/health"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func HealthCheck() error {

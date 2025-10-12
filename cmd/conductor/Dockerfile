@@ -1,4 +1,4 @@
-FROM golang:latest
+FROM base-search:latest
 
 # Set working directory
 WORKDIR /app

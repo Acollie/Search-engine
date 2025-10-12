@@ -1,5 +1,6 @@
 package main
 
 const (
-	numberOfPagesInSweep = 1000
+	sweepCount  = 100
+	sweepBreath = 100000
 )

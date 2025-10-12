@@ -2,29 +2,27 @@ package handler
 
 import (
 	"context"
-	"fmt"
-	"webcrawler/cmd/cartographer/pkg/collector"
+	"time"
+	"webcrawler/cmd/cartographer/pkg/fetch"
 	"webcrawler/cmd/cartographer/pkg/graph"
+	"webcrawler/cmd/cartographer/pkg/push"
 )
 
-const (
-	sweepAmount = 100
-)
-
-func Traverse() error {
+func (d *Handler) Traverse() error {
 	ctx := context.Background()
-
-	for i := 0; i < sweepAmount; i++ {
-
-		// Randomly collect from database
-		sites := collector.Fetch(nil)
+	for i := 0; i < d.sweepCount; i++ {
+		sites := fetch.Fetch(d.db, d.sweepCount)
 		g := graph.New(sites)
 
-		traversed, err := graph.GraphTraverse(ctx, g)
+		traversed, err := graph.Traverse(ctx, g)
 		if err != nil {
 			return err
 		}
-		fmt.Println(traversed)
+
+		err = push.Push(traversed, "al", time.Now())
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
