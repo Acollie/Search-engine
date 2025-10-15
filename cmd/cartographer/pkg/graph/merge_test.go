@@ -31,14 +31,14 @@ func Test_Merge(t *testing.T) {
 			graphs: []Graph{
 				{
 					"test": &site.Page{
-						Url:             "test",
+						URL:             "test",
 						ProminenceValue: 1,
 					},
 				},
 			},
 			expectedGraph: Graph{
 				"test": &site.Page{
-					Url:             "test",
+					URL:             "test",
 					ProminenceValue: 1,
 				},
 			},
@@ -49,28 +49,28 @@ func Test_Merge(t *testing.T) {
 			graphs: []Graph{
 				{
 					"Site1": &site.Page{
-						Url:             "test",
+						URL:             "test",
 						ProminenceValue: 1,
 					},
 					"Site2": &site.Page{
-						Url:             "test",
+						URL:             "test",
 						ProminenceValue: 1,
 					},
 				},
 				{
 					"Site1": &site.Page{
-						Url:             "test",
+						URL:             "test",
 						ProminenceValue: 1,
 					},
 				},
 			},
 			expectedGraph: Graph{
 				"Site1": &site.Page{
-					Url:             "test",
+					URL:             "test",
 					ProminenceValue: 2,
 				},
 				"Site2": &site.Page{
-					Url:             "test",
+					URL:             "test",
 					ProminenceValue: 1,
 				},
 			},

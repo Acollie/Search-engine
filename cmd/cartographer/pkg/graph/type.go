@@ -14,7 +14,7 @@ type Graph map[string]*site.Page
 func New(sites []*site.Page) Graph {
 	g := Graph{}
 	for _, s := range sites {
-		g[s.Url] = s
+		g[s.URL] = s
 	}
 	return g
 }

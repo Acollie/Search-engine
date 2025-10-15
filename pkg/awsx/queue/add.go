@@ -39,14 +39,14 @@ func (h Handler) BatchAdd(ctx context.Context, messages []Message) error {
 
 		var entries []types.SendMessageBatchRequestEntry
 		for j, msg := range batch {
-			messageJson, err := json.Marshal(msg)
+			messageJSON, err := json.Marshal(msg)
 			if err != nil {
 				return err
 			}
 
 			entry := types.SendMessageBatchRequestEntry{
 				Id:          aws.String(strconv.Itoa(j)),
-				MessageBody: aws.String(string(messageJson)),
+				MessageBody: aws.String(string(messageJSON)),
 			}
 
 			entries = append(entries, entry)

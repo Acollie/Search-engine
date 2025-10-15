@@ -55,7 +55,7 @@ func (i *Config) Ignore(urlStr string) bool {
 
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
-		log.Printf("Url parse error %v ", err)
+		log.Printf("URL parse error %v ", err)
 		return false
 	}
 

@@ -11,7 +11,7 @@ func (db *DB) RemovePage(ctx context.Context, website site.Page) error {
 	_, err := db.session.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: &db.pageNameTable,
 		Key: map[string]types.AttributeValue{
-			"PageURL": &types.AttributeValueMemberS{Value: website.Url},
+			"PageURL": &types.AttributeValueMemberS{Value: website.URL},
 		},
 	})
 	return err

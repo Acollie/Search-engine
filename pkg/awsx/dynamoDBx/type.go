@@ -3,14 +3,15 @@ package dynamoDBx
 import (
 	"context"
 	"fmt"
+	"os"
+	"webcrawler/pkg/awsx"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	dynamodblocal "github.com/testcontainers/testcontainers-go/modules/dynamodb"
-	"os"
-	"webcrawler/pkg/awsx"
 )
 
 type DB struct {
@@ -68,8 +69,7 @@ func NewTestContainer(ctx context.Context) (*DB, error) {
 	}
 
 	// Override the endpoint for DynamoDB Local
-	cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(func(
-		service, region string, options ...interface{},
+	cfg.EndpointResolverWithOptions = aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{},
 	) (aws.Endpoint, error) {
 		return aws.Endpoint{
 			PartitionID:   "aws",

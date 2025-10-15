@@ -37,7 +37,7 @@ func TestCanVisitURL(t *testing.T) {
 	})
 
 	t.Run("ReturnsTrueWhenRobotsTxtNotFound", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 			rw.WriteHeader(http.StatusNotFound)
 		}))
 		defer server.Close()
@@ -48,7 +48,7 @@ func TestCanVisitURL(t *testing.T) {
 	})
 
 	t.Run("ReturnsFalseWhenPathIsDisallowed", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 			rw.Write([]byte("User-agent: *\nDisallow: /"))
 		}))
 		defer server.Close()
@@ -59,7 +59,7 @@ func TestCanVisitURL(t *testing.T) {
 	})
 
 	t.Run("ReturnsTrueWhenPathIsAllowed", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 			rw.Write([]byte("User-agent: *\nDisallow:"))
 		}))
 		defer server.Close()

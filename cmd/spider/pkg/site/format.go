@@ -47,12 +47,12 @@ func NewPage(fetchURL string) (Page, string, error) {
 		title = "title not found"
 	}
 
-	baseUrl, _ := url.Parse(fetchURL)
+	baseURL, _ := url.Parse(fetchURL)
 	return Page{
-		Url:         fetchURL,
+		URL:         fetchURL,
 		Title:       title,
 		Body:        fetchText(&doc),
-		BaseURL:     baseUrl.Hostname(),
+		BaseURL:     baseURL.Hostname(),
 		CrawledDate: uint64(time.Now().Unix()),
 		Meta:        fetchMeta(&doc),
 	}, string(body), nil

@@ -33,7 +33,7 @@ func (c *RpcServer) _GetSeenList(ctx context.Context, request *spider.SeenListRe
 	var response []*spider.Page
 	for _, page := range pages {
 		response = append(response, &spider.Page{
-			Url:   page.Url,
+			Url:   page.URL,
 			Body:  page.Body,
 			Links: page.Links,
 		})

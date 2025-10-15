@@ -5,6 +5,6 @@ import (
 	"webcrawler/cmd/cartographer/pkg/graph"
 )
 
-func Push(graph graph.Graph, indexName string, date time.Time) error {
+func Push(_ graph.Graph, _ string, _ time.Time) error {
 	return nil
 }

@@ -40,7 +40,7 @@ func (d Db) SavePage(ctx context.Context, page site.Page) error {
 	if d.ConnType == conn.PG {
 		addPage = AddPagePG
 	}
-	_, err := d.Sql.ExecContext(ctx, addPage, page.Url, page.Title, page.Body, 0, slice.ArrayToString(page.Links))
+	_, err := d.Sql.ExecContext(ctx, addPage, page.URL, page.Title, page.Body, 0, slice.ArrayToString(page.Links))
 	return err
 }
 
@@ -49,7 +49,7 @@ func (d Db) UpdatePage(ctx context.Context, page site.Page) error {
 	if d.ConnType == conn.PG {
 		updatePage = UpdatePagePG
 	}
-	_, err := d.Sql.ExecContext(ctx, updatePage, page.Title, page.Body, page.ProminenceValue, page.Url)
+	_, err := d.Sql.ExecContext(ctx, updatePage, page.Title, page.Body, page.ProminenceValue, page.URL)
 	return err
 }
 
@@ -62,7 +62,7 @@ func (d Db) GetPage(ctx context.Context, url string) (*site.Page, error) {
 
 	var page site.Page
 	var links string
-	err := row.Scan(&page.Url, &page.Title, &page.Body, &page.ProminenceValue, &links)
+	err := row.Scan(&page.URL, &page.Title, &page.Body, &page.ProminenceValue, &links)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -104,7 +104,7 @@ func (d Db) GetAllPages(ctx context.Context) ([]site.Page, error) {
 	for rows.Next() {
 		var page site.Page
 		var links string
-		err := rows.Scan(&page.Url, &page.Title, &page.Body, &page.ProminenceValue, &links)
+		err := rows.Scan(&page.URL, &page.Title, &page.Body, &page.ProminenceValue, &links)
 		if err != nil {
 			return nil, err
 		}

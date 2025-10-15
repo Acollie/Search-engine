@@ -23,14 +23,14 @@ func Test_New(t *testing.T) {
 				name: "one site",
 				input: []*site.Page{
 					{
-						Url:  "example.com",
+						URL:  "example.com",
 						Body: "foo bar",
 					},
 				},
 				expected: map[string]*site.Page{
 					"example.com": {
 						Body: "foo bar",
-						Url:  "example.com",
+						URL:  "example.com",
 					},
 				},
 			},
@@ -38,29 +38,29 @@ func Test_New(t *testing.T) {
 				name: "three sites",
 				input: []*site.Page{
 					{
-						Url:  "example.com",
+						URL:  "example.com",
 						Body: "foo bar",
 					},
 					{
-						Url:  "alexcollie.com",
+						URL:  "alexcollie.com",
 						Body: "alex collie",
 					},
 					{
-						Url:  "collie.codes",
+						URL:  "collie.codes",
 						Body: "collie codes",
 					},
 				},
 				expected: map[string]*site.Page{
 					"example.com": {
 						Body: "foo bar",
-						Url:  "example.com",
+						URL:  "example.com",
 					},
 					"alexcollie.com": {
-						Url:  "alexcollie.com",
+						URL:  "alexcollie.com",
 						Body: "alex collie",
 					},
 					"collie.codes": {
-						Url:  "collie.codes",
+						URL:  "collie.codes",
 						Body: "collie codes",
 					},
 				},

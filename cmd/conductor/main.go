@@ -1,3 +1,4 @@
+// A simple conductor service that listens to a SQS queue and sends URLs to the spider service.
 package main
 
 import (

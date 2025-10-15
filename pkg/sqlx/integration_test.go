@@ -59,7 +59,7 @@ func Test_DbInteraction(t *testing.T) {
 		conn := connType.conn
 		t.Run(fmt.Sprintf("conn name:%s basic testing Seen pages", connType.name), func(t *testing.T) {
 			sitePage := site.Page{
-				Url:   faker.URL(),
+				URL:   faker.URL(),
 				Title: faker.Sentence(),
 				Body:  faker.Paragraph(),
 			}
@@ -79,7 +79,7 @@ func Test_DbInteraction(t *testing.T) {
 			err = db.SavePage(ctx, sitePage)
 			require.NoError(t, err)
 
-			p, err := db.GetPage(ctx, sitePage.Url)
+			p, err := db.GetPage(ctx, sitePage.URL)
 			require.NoError(t, err)
 			require.Equal(t, &sitePage, p)
 
@@ -93,15 +93,15 @@ func Test_DbInteraction(t *testing.T) {
 			sitePage.Body = faker.Paragraph()
 			err = db.UpdatePage(ctx, sitePage)
 			require.NoError(t, err)
-			p, err = db.GetPage(ctx, sitePage.Url)
+			p, err = db.GetPage(ctx, sitePage.URL)
 			require.NoError(t, err)
 			require.Equal(t, &sitePage, p)
 
 			// Remove a p
-			err = db.DeletePage(ctx, sitePage.Url)
+			err = db.DeletePage(ctx, sitePage.URL)
 			require.NoError(t, err)
 			// Check if the p is removed
-			p, err = db.GetPage(ctx, sitePage.Url)
+			p, err = db.GetPage(ctx, sitePage.URL)
 			require.NoError(t, err)
 		})
 	}

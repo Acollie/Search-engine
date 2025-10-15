@@ -17,11 +17,11 @@ func (db *DB) UpdateWebsite(ctx context.Context, page site.Page, website site.We
 		println("Website not found")
 		websiteDB = &website
 	} else {
-		website.Links = append(websiteDB.Links, page.Url)
+		website.Links = append(websiteDB.Links, page.URL)
 	}
 
 	websiteDB.ProminenceValue += 1
-	websiteDB.Links = append(websiteDB.Links, page.Url)
+	websiteDB.Links = append(websiteDB.Links, page.URL)
 	website = *websiteDB
 
 	av, err := attributevalue.MarshalMap(website)

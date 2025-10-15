@@ -18,7 +18,7 @@ func Test_DynamoDBx(t *testing.T) {
 
 	t.Run("Add a page to ddb", func(t *testing.T) {
 		page := site.Page{
-			Url:   "https:\\/\\/example.com\\/page",
+			URL:   "https:\\/\\/example.com\\/page",
 			Title: "Example Page",
 		}
 		err := ddb.AddPage(ctx, page)

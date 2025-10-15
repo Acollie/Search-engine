@@ -9,7 +9,7 @@ type pageI interface {
 	Save(website Page) error
 }
 type Page struct {
-	Url             string            `dynamodbav:"PageURL"`
+	URL             string            `dynamodbav:"PageURL"`
 	Title           string            `dynamodbav:"title"`
 	Body            string            `dynamodbav:"body"`
 	BaseURL         string            `dynamodbav:"BaseURL"`

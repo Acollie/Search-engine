@@ -5,6 +5,6 @@ import (
 	"webcrawler/cmd/spider/pkg/site"
 )
 
-func Fetch(db *sql.DB, sitesForSweep int) []*site.Page {
+func Fetch(_ *sql.DB, _ int) []*site.Page {
 	return nil
 }
