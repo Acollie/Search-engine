@@ -8,9 +8,21 @@ service Spider {
   rpc GetHealth(HealthRequest) returns (HealthResponse);
 }
 
+service Searcher{
+  rpc SearchPages(SearchRequest) returns (SearchResponse);
+}
+
+message SearchRequest{
+  string query = 1;
+  int32 limit = 2;
+}
+message SearchResponse{
+  repeated Page pages = 1;
+  repeated Error errors = 2;
+}
+
 message SeenListRequest{
-  // The number of sites to return default is 10
-  int32 limit = 1;
+  int32 limit = 1; // limit The number of sites to return default is 10
   repeated Error errors = 2;
 }
 
@@ -23,8 +35,7 @@ message Error{
   int32 code = 2;
 }
 
-message HealthRequest{
-}
+message HealthRequest{}
 
 message HealthResponse{
   Status status = 1;
@@ -32,7 +43,7 @@ message HealthResponse{
 
 message Status{
   bool healthy = 2;
-  int32 tps = 3;
+  int32 tps = 3; // transactions per second
   int64 seen_sites = 4;
   int64 queued_sites = 5;
 }

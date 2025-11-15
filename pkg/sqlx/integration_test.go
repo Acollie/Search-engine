@@ -9,7 +9,7 @@ import (
 	"webcrawler/pkg/conn"
 	dbx "webcrawler/pkg/db"
 	"webcrawler/pkg/page"
-	test_containers "webcrawler/pkg/test-containers"
+	"webcrawler/pkg/testContainers"
 
 	"github.com/go-faker/faker/v4"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ func Test_DbInteraction(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	mariaConn, testContainerMar, err := test_containers.NewMarina(ctx)
+	mariaConn, testContainerMar, err := testContainers.NewMarina(ctx)
 	require.NoError(t, err)
 	defer testContainerMar.Terminate(ctx)
 	mariaTestDb := testDb{
@@ -46,7 +46,7 @@ func Test_DbInteraction(t *testing.T) {
 		connType: conn.Maria,
 	}
 
-	postGresConn, testContainerPostPg, err := test_containers.NewPostgres(ctx)
+	postGresConn, testContainerPostPg, err := testContainers.NewPostgres(ctx)
 	require.NoError(t, err)
 	defer testContainerPostPg.Terminate(ctx)
 	postGresDB := testDb{
