@@ -1,0 +1,29 @@
+name: Proto Lint
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+    paths:
+      - 'protos/**/*.proto'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          version: 'latest'
+
+      - name: Lint proto files
+        run: buf lint protos
+        continue-on-error: false
+
+      - name: Check proto breaking changes
+        if: github.event_name == 'pull_request'
+        run: buf breaking --against '.git#branch=main'
+        continue-on-error: true
