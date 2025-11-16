@@ -2,7 +2,7 @@ package fetch
 
 import (
 	"database/sql"
-	"log"
+	"log/slog"
 	"webcrawler/cmd/spider/pkg/site"
 	"webcrawler/pkg/slice"
 )
@@ -21,13 +21,13 @@ const (
 // limit: number of random pages to fetch
 func Fetch(db *sql.DB, limit int) []*site.Page {
 	if db == nil {
-		log.Println("Error: database connection is nil")
+		slog.Error("Database connection is nil")
 		return []*site.Page{}
 	}
 
 	rows, err := db.Query(randomSampleQuery, limit)
 	if err != nil {
-		log.Printf("Error fetching random pages: %v", err)
+		slog.Error("Error fetching random pages", slog.Any("error", err))
 		return []*site.Page{}
 	}
 	defer rows.Close()
@@ -45,7 +45,7 @@ func Fetch(db *sql.DB, limit int) []*site.Page {
 			&linksStr,
 		)
 		if err != nil {
-			log.Printf("Error scanning page row: %v", err)
+			slog.Error("Error scanning page row", slog.Any("error", err))
 			continue
 		}
 
@@ -58,10 +58,10 @@ func Fetch(db *sql.DB, limit int) []*site.Page {
 	}
 
 	if err = rows.Err(); err != nil {
-		log.Printf("Error iterating page rows: %v", err)
+		slog.Error("Error iterating page rows", slog.Any("error", err))
 		return []*site.Page{}
 	}
 
-	log.Printf("Fetched %d random pages for PageRank computation", len(pages))
+	slog.Info("Fetched random pages for PageRank computation", slog.Int("count", len(pages)))
 	return pages
 }

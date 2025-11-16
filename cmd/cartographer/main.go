@@ -1,7 +1,8 @@
 package main
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 	handler "webcrawler/cmd/cartographer/handler"
 	"webcrawler/pkg/bootstrap"
@@ -17,17 +18,37 @@ type conf struct {
 	DBName     string `env:"DB_NAME" envDefault:"databaseName"`
 }
 
-func main() {
-	// Initialize observability first
-	err := bootstrap.Observability()
-	if err != nil {
-		log.Printf("Warning: Failed to initialize OpenTelemetry: %v", err)
-	}
+var (
+	ErrMissingDBUsername = fmt.Errorf("missing database username")
+	ErrMissingDBPassword = fmt.Errorf("missing database password")
+	ErrMissingDBHost     = fmt.Errorf("missing database host")
+	ErrMissingDBName     = fmt.Errorf("missing database name")
+)
 
+func validateConfig(cfg conf) error {
+	if cfg.DBUsername == "" {
+		return ErrMissingDBUsername
+	}
+	if cfg.DBPassword == "" {
+		return ErrMissingDBPassword
+	}
+	if cfg.DBHost == "" {
+		return ErrMissingDBHost
+	}
+	if cfg.DBName == "" {
+		return ErrMissingDBName
+	}
+	return nil
+}
+
+func main() {
 	// Parse configuration
 	cfg := conf{}
 	if err := env.Parse(&cfg); err != nil {
-		log.Fatalf("Failed to parse environment config: %+v", err)
+		slog.Error("Failed to parse environment config", slog.Any("error", err))
+	}
+	if err := validateConfig(cfg); err != nil {
+		slog.Error("Invalid configuration", slog.Any("error", err))
 	}
 
 	// Fallback to os.Getenv if env tags don't work
@@ -47,23 +68,28 @@ func main() {
 		}
 	}
 
-	log.Printf("Connecting to database at %s as %s", cfg.DBHost, cfg.DBUsername)
-
 	// Connect to database
 	db, _, err := dbx.Postgres(cfg.DBUsername, cfg.DBPassword, cfg.DBHost, 5432, cfg.DBName)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		slog.Error("Failed to connect to database", slog.Any("error", err))
 	}
 	defer db.Close()
 
-	log.Printf("Starting PageRank computation: %d sweeps, %d pages per sweep", sweepCount, sweepBreath)
+	// Initialize observability first
+	err = bootstrap.Observability()
+	if err != nil {
+		slog.Error("Failed to initialize OpenTelemetry", slog.Any("error", err))
+		os.Exit(1)
+	}
 
+	slog.Info("Starting PageRank computation")
 	// Run PageRank computation
 	h := handler.New(db, sweepCount, sweepBreath)
 	err = h.Traverse()
 	if err != nil {
-		log.Fatalf("PageRank computation failed: %v", err)
+		slog.Error("PageRank computation failed", slog.Any("error", err))
 	}
 
-	log.Println("PageRank computation completed successfully")
+	slog.Info("PageRank computation completed successfully")
+
 }

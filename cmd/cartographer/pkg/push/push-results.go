@@ -3,7 +3,7 @@ package push
 import (
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 	"webcrawler/cmd/cartographer/pkg/graph"
 )
@@ -56,11 +56,11 @@ func Push(db *sql.DB, g graph.Graph, indexName string, sweepTime time.Time) erro
 	}
 
 	if _, err := db.Exec(createIndexLatest); err != nil {
-		log.Printf("Warning: failed to create idx_latest_rank: %v", err)
+		slog.Warn("Failed to create idx_latest_rank", slog.Any("error", err))
 	}
 
 	if _, err := db.Exec(createIndexSweep); err != nil {
-		log.Printf("Warning: failed to create idx_sweep: %v", err)
+		slog.Warn("Failed to create idx_sweep", slog.Any("error", err))
 	}
 
 	// Generate sweep ID if not provided
@@ -111,7 +111,7 @@ func Push(db *sql.DB, g graph.Graph, indexName string, sweepTime time.Time) erro
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	log.Printf("Successfully pushed %d PageRank results for sweep %s", insertedCount, sweepID)
+	slog.Info("Successfully pushed PageRank results", slog.Int("count", insertedCount), slog.String("sweep_id", sweepID))
 	return nil
 }
 

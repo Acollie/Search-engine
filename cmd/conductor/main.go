@@ -4,7 +4,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"webcrawler/cmd/conductor/handler"
 	"webcrawler/cmd/spider/pkg/site"
@@ -61,13 +61,15 @@ func main() {
 	// Initialize OpenTelemetry
 	err = bootstrap.Observability()
 	if err != nil {
-		log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
+		slog.Error("Failed to initialize OpenTelemetry", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	// Initialize HealthCheck and metrics
 	err = bootstrap.HealthCheck()
 	if err != nil {
-		log.Fatalf("Failed to initialize HealthCheck: %v", err)
+		slog.Error("Failed to initialize HealthCheck", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 }
