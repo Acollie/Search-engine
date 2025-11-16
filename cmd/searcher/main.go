@@ -28,14 +28,14 @@ func main() {
 	// Parse configuration
 	cfg := conf{}
 	if err := env.Parse(&cfg); err != nil {
-		slog.Error("Failed to parse environment config: %+v", err)
+		slog.Error("Failed to parse environment config", "err", err)
 		os.Exit(1)
 	}
 
 	// Connect to database
 	db, _, err := dbx.Postgres(cfg.DBUsername, cfg.DBPassword, cfg.DBHost, 5432, cfg.DBName)
 	if err != nil {
-		slog.Error("Failed to connect to database: %+v", err)
+		slog.Error("Failed to connect to database", "err", err)
 		os.Exit(1)
 	}
 	defer db.Close()
@@ -53,14 +53,14 @@ func main() {
 
 	err = bootstrap.Observability()
 	if err != nil {
-		slog.Error("Failed to initialize observability: %+v", err)
+		slog.Error("Failed to initialize observability", "err", err)
 		os.Exit(1)
 	}
 
 	// Initialize HealthCheck and metrics
 	err = bootstrap.HealthCheck()
 	if err != nil {
-		slog.Error("Failed to initialize health check: %+v", err)
+		slog.Error("Failed to initialize health check", "err", err)
 		os.Exit(1)
 	}
 
