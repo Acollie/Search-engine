@@ -1,0 +1,15 @@
+syntax = "proto3";
+package types;
+
+option go_package = "webcrawler/pkg/generated/types/site";
+
+message Page {
+  string url = 1;
+  string title = 2;
+  int64 last_seen = 3;
+}
+
+message Error {
+  int32 code = 1;
+  string message = 2;
+}

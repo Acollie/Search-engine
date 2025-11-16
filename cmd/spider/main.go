@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
 	"log"
 	"net"
 	"os"
@@ -15,6 +13,9 @@ import (
 	"webcrawler/pkg/generated/service/spider"
 	"webcrawler/pkg/grpcx"
 	"webcrawler/pkg/sqlx"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 const (

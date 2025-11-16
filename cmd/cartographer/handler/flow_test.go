@@ -221,12 +221,6 @@ func TestHandler_Traverse_PushError(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestHandler_Traverse_PageRankError(t *testing.T) {
-	t.Skip("PageRank errors are context-based and difficult to simulate in unit tests")
-	// This would require cancelling the context mid-execution
-	// Integration tests would be better suited for this
-}
-
 func TestHandler_Traverse_MergeError(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
