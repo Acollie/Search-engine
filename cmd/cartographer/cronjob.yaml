@@ -1,0 +1,113 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cartographer-pagerank
+  labels:
+    app: cartographer
+    component: pagerank
+spec:
+  # Run every 6 hours (adjust as needed)
+  # "0 */6 * * *" = At minute 0 past every 6th hour
+  # "0 0 * * *" = Daily at midnight
+  # "0 */1 * * *" = Every hour
+  schedule: "0 */6 * * *"
+
+  # Maximum time the job is allowed to run
+  activeDeadlineSeconds: 3600  # 1 hour timeout
+
+  # Keep last 3 successful and 1 failed job for debugging
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+
+  # Don't allow concurrent runs (wait for previous to complete)
+  concurrencyPolicy: Forbid
+
+  jobTemplate:
+    metadata:
+      labels:
+        app: cartographer
+        component: pagerank
+    spec:
+      # Retry on failure
+      backoffLimit: 2
+
+      template:
+        metadata:
+          labels:
+            app: cartographer
+            component: pagerank
+          annotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/path: /metrics
+            prometheus.io/port: "8080"
+        spec:
+          restartPolicy: OnFailure
+
+          imagePullSecrets:
+            - name: regcred
+
+          containers:
+            - name: cartographer
+              image: ${CARTOGRAPHER_IMAGE}
+
+              env:
+                # Database connection
+                - name: DB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: username
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres-credentials
+                      key: password
+                - name: DB_HOST
+                  valueFrom:
+                    configMapKeyRef:
+                      name: database-config
+                      key: host
+                - name: DB_NAME
+                  valueFrom:
+                    configMapKeyRef:
+                      name: database-config
+                      key: database
+
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "2000m"
+                  memory: "2Gi"
+
+              # Optional: Add volume for logs
+              volumeMounts:
+                - name: logs
+                  mountPath: /var/log/cartographer
+
+          volumes:
+            - name: logs
+              emptyDir: {}
+
+---
+# ConfigMap for database configuration (non-sensitive)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: database-config
+data:
+  host: "postgres-service.default.svc.cluster.local"
+  database: "databaseName"
+
+---
+# Secret for database credentials (replace with actual values or use external secrets manager)
+# NOTE: In production, use SealedSecrets, External Secrets Operator, or Vault
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-credentials
+type: Opaque
+stringData:
+  username: "your-db-username"
+  password: "your-db-password"

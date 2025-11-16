@@ -3,9 +3,11 @@ package handler
 import (
 	"context"
 	"fmt"
-	"google.golang.org/grpc"
 	"webcrawler/pkg/generated/service/spider"
+	"webcrawler/pkg/generated/types/site"
 	"webcrawler/pkg/sqlx"
+
+	"google.golang.org/grpc"
 )
 
 type RpcServer struct {
@@ -30,12 +32,11 @@ func (c *RpcServer) _GetSeenList(ctx context.Context, request *spider.SeenListRe
 	if err != nil {
 		return nil, err
 	}
-	var response []*spider.Page
+	var response []*site.Page
 	for _, page := range pages {
-		response = append(response, &spider.Page{
+		response = append(response, &site.Page{
 			Url:   page.URL,
-			Body:  page.Body,
-			Links: page.Links,
+			Title: page.Title,
 		})
 	}
 

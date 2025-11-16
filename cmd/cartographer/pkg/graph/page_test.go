@@ -43,19 +43,19 @@ func Test_Graph(t *testing.T) {
 			output: map[string]*site.Page{
 				"page1": {
 					Links:           []string{"page2"},
-					ProminenceValue: HitScore,
+					ProminenceValue: 1,
 				},
 				"page2": {
 					Links:           []string{"page3"},
-					ProminenceValue: HitScore,
+					ProminenceValue: 1,
 				},
 				"page3": {
 					Links:           []string{"page4"},
-					ProminenceValue: HitScore,
+					ProminenceValue: 1,
 				},
 				"page4": {
 					Links:           []string{"page1"},
-					ProminenceValue: HitScore,
+					ProminenceValue: 1,
 				},
 			},
 		},
@@ -117,19 +117,19 @@ func Test_Graph(t *testing.T) {
 			output: map[string]*site.Page{
 				"page1": {
 					Links:           []string{"page2"},
-					ProminenceValue: HitScore * 3,
+					ProminenceValue: 3,
 				},
 				"page2": {
 					Links:           []string{"page3"},
-					ProminenceValue: HitScore,
+					ProminenceValue: 1,
 				},
 				"page3": {
 					Links:           []string{"page4"},
-					ProminenceValue: HitScore,
+					ProminenceValue: 1,
 				},
 				"page4": {
 					Links:           []string{"page1"},
-					ProminenceValue: HitScore,
+					ProminenceValue: 1,
 				},
 			},
 		},
@@ -147,10 +147,10 @@ func Test_Graph(t *testing.T) {
 			},
 			output: map[string]*site.Page{
 				"page1": {
-					ProminenceValue: HitScore,
+					ProminenceValue: 1,
 				},
 				"page2": {
-					ProminenceValue: HitScore,
+					ProminenceValue: 1,
 				},
 			},
 		},

@@ -1,0 +1,20 @@
+syntax = "proto3";
+package service;
+
+option go_package = "webcrawler/pkg/generated/service/searcher";
+
+import "types/site.proto";
+
+service Searcher {
+  rpc SearchPages(SearchRequest) returns (SearchResponse);
+}
+
+message SearchRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+
+message SearchResponse {
+  repeated types.Page pages = 1;
+  repeated types.Error errors = 2;
+}

@@ -1,0 +1,33 @@
+# Mockery configuration for generating mocks
+# Documentation: https://vektra.github.io/mockery/latest/
+
+# Fix deprecation warnings for v3 compatibility
+disable-version-string: true
+with-expecter: true
+resolve-type-alias: false
+issue-845-fix: true
+dir: "pkg/mocks/{{.PackagePath}}"
+mockname: "Mock{{.InterfaceName}}"
+outpkg: "{{.PackageName}}"
+filename: "{{.InterfaceName}}.go"
+
+packages:
+  # Spider service mocks
+  webcrawler/pkg/generated/service/spider:
+    interfaces:
+      SpiderClient:
+        config:
+          dir: "pkg/mocks/service/spider"
+      SpiderServer:
+        config:
+          dir: "pkg/mocks/service/spider"
+
+  # Searcher service mocks
+  webcrawler/pkg/generated/service/searcher:
+    interfaces:
+      SearcherClient:
+        config:
+          dir: "pkg/mocks/service/searcher"
+      SearcherServer:
+        config:
+          dir: "pkg/mocks/service/searcher"

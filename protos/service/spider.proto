@@ -1,45 +1,34 @@
 syntax = "proto3";
 package service;
 
-option go_package = "service/spider";
+option go_package = "webcrawler/pkg/generated/service/spider";
+
+import "types/site.proto";
 
 service Spider {
   rpc GetSeenList(stream SeenListRequest) returns (stream SeenListResponse);
   rpc GetHealth(HealthRequest) returns (HealthResponse);
 }
 
-message SeenListRequest{
-  // The number of sites to return default is 10
-  int32 limit = 1;
-  repeated Error errors = 2;
+message SeenListRequest {
+  int32 limit = 1; // limit The number of sites to return default is 10
+  repeated types.Error errors = 2;
 }
 
-message SeenListResponse{
-  repeated Page seen_sites = 1;
-  repeated Error errors = 2;
-}
-message Error{
-  string message = 1;
-  int32 code = 2;
+message SeenListResponse {
+  repeated types.Page seen_sites = 1;
+  repeated types.Error errors = 2;
 }
 
-message HealthRequest{
-}
+message HealthRequest {}
 
-message HealthResponse{
+message HealthResponse {
   Status status = 1;
 }
 
-message Status{
+message Status {
   bool healthy = 2;
-  int32 tps = 3;
+  int32 tps = 3; // transactions per second
   int64 seen_sites = 4;
   int64 queued_sites = 5;
 }
-message Page{
-  string url = 1;
-  string body = 2;
-  repeated string links = 3;
-  int32  prominence = 4;
-}
-

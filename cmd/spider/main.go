@@ -3,9 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"webcrawler/cmd/spider/handler"
@@ -15,6 +13,9 @@ import (
 	"webcrawler/pkg/generated/service/spider"
 	"webcrawler/pkg/grpcx"
 	"webcrawler/pkg/sqlx"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 const (
@@ -93,13 +94,15 @@ func main() {
 	// Initialize OpenTelemetry
 	err = bootstrap.Observability()
 	if err != nil {
-		log.Fatalf("Failed to initialize OpenTelemetry: %v", err)
+		slog.Error("Failed to initialize OpenTelemetry", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	// Initialize HealthCheck
 	err = bootstrap.HealthCheck()
 	if err != nil {
-		log.Fatalf("Failed to initialize HealthCheck: %v", err)
+		slog.Error("Failed to initialize HealthCheck", slog.Any("error", err))
+		os.Exit(1)
 	}
 
 	//go func() {

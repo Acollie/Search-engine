@@ -5,6 +5,7 @@ go 1.23.0
 toolchain go1.23.3
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/anaskhan96/soup v1.2.5
 	github.com/aws/aws-sdk-go-v2 v1.31.0
 	github.com/aws/aws-sdk-go-v2/config v1.27.37
@@ -12,6 +13,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.12.17
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.35.1
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.29.6
+	github.com/caarlos0/env/v11 v11.3.1
 	github.com/go-faker/faker/v4 v4.6.0
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/lib/pq v1.10.9
@@ -48,7 +50,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.31.1 // indirect
 	github.com/aws/smithy-go v1.21.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/caarlos0/env/v11 v11.3.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -89,6 +90,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/shirou/gopsutil/v4 v4.25.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
+	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/tklauser/go-sysconf v0.3.12 // indirect
 	github.com/tklauser/numcpus v0.6.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
@@ -101,7 +103,5 @@ require (
 	golang.org/x/net v0.36.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
-	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
-	golang.org/x/tools/cmd/cover v0.1.0-deprecated // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
 )

@@ -2,7 +2,7 @@ package page
 
 const (
 	CreateSeenTable = `
-    CREATE TABLE SeenPages (
+    CREATE TABLE IF NOT EXISTS SeenPages (
         url VARCHAR(768) NOT NULL PRIMARY KEY,
         title VARCHAR(4000) NOT NULL,
         body TEXT,
@@ -10,7 +10,7 @@ const (
         links TEXT
     )`
 	DropSeenPages        = `drop table SeenPages;`
-	CreateSeenTableIndex = `CREATE INDEX idx_url ON SeenPages (url);`
+	CreateSeenTableIndex = `CREATE INDEX IF NOT EXISTS idx_url ON SeenPages (url);`
 	AddPage              = `INSERT INTO SeenPages (url, title, body, prominence,links) VALUES (?, ?, ?, ?, ?)`
 	AddPagePG            = `INSERT INTO SeenPages (url, title, body, prominence,links) VALUES ($1, $2, $3, $4, $5)`
 	GetPage              = `SELECT * FROM SeenPages WHERE url = ?`

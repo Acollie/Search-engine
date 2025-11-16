@@ -12,32 +12,33 @@ import (
 func (d *Handler) Traverse() error {
 	ctx := context.Background()
 	var graphs []graph.Graph
-	sweepName := ""
+	sweepName := time.Now().Format("pagerank_20060102_150405")
+
 	for i := 0; i < d.sweepCount; i++ {
 		metrics.Sweeps.Inc()
-		sites := fetch.Fetch(d.db, d.sweepCount)
+		sites := fetch.Fetch(d.db, d.sweepBreath)
 		g := graph.New(sites)
-		metrics.SitesProcessed.With(map[string]string{
-			"sweepName": sweepName,
-		}).Add(float64(len(sites)))
+		for range sites {
+			metrics.SitesProcessed.WithLabelValues().Inc()
+		}
 
-		traversed, err := graph.Traverse(ctx, g)
+		// Use PageRank algorithm instead of simple Traverse
+		ranked, err := graph.PageRank(ctx, g)
 		if err != nil {
 			return err
 		}
-		graphs = append(graphs, traversed)
-
+		graphs = append(graphs, ranked)
 	}
+
 	merged, err := graph.Merge(graphs)
 	if err != nil {
-		return nil
+		return err
 	}
 
-	err = push.Push(merged, sweepName, time.Now())
+	err = push.Push(d.db, merged, sweepName, time.Now())
 	if err != nil {
 		return err
 	}
 
 	return nil
-
 }
