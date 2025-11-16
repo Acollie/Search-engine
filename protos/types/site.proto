@@ -7,6 +7,7 @@ message Page {
   string url = 1;
   string title = 2;
   int64 last_seen = 3;
+  string body = 4;
 }
 
 message Error {
