@@ -31,6 +31,36 @@ proto_list:
 	@echo "Empty files (skipped):"
 	@find $(PROTO_SRC_DIR) -name "*.proto" -type f -empty -exec echo "  ⊗ {}" \; || echo "  (none)"
 
+# Lint proto files using buf
+proto_lint:
+	@echo "Linting proto files with buf..."
+	@which buf > /dev/null || (echo "Error: buf not installed. Install it from https://docs.buf.build/installation" && exit 1)
+	@buf lint $(PROTO_SRC_DIR)
+	@echo "✓ Proto files linted successfully"
+
+# Check for breaking changes in proto files
+proto_breaking:
+	@echo "Checking for breaking changes in proto files..."
+	@which buf > /dev/null || (echo "Error: buf not installed. Install it from https://docs.buf.build/installation" && exit 1)
+	@buf breaking --against '.git#branch=main'
+	@echo "✓ No breaking changes detected"
+
+# Install buf locally (macOS/Linux)
+proto_install_buf:
+	@echo "Installing buf..."
+	@if [ "$$(uname)" = "Darwin" ]; then \
+		if command -v brew > /dev/null; then \
+			brew install bufbuild/buf/buf; \
+		else \
+			echo "Homebrew not found. Install manually from https://docs.buf.build/installation"; \
+			exit 1; \
+		fi \
+	else \
+		curl -sSL "https://github.com/bufbuild/buf/releases/latest/download/buf-$$(uname -s)-$$(uname -m)" -o /usr/local/bin/buf && \
+		chmod +x /usr/local/bin/buf; \
+	fi
+	@echo "✓ buf installed successfully"
+
 buildSpider:
 	docker buildx build --platform linux/amd64 -f cmd/spider/Dockerfile -t spider .
 	docker tag spider:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/spider:latest
