@@ -8,9 +8,13 @@ message Page {
   string title = 2;
   int64 last_seen = 3;
   string body = 4;
+  string base_url = 5;
+  map<string, string> meta = 6;
+  repeated string links = 7;
 }
 
 message Error {
   int32 code = 1;
   string message = 2;
+  string url = 3;
 }

@@ -13,16 +13,15 @@ RUN go mod download
 COPY . .
 
 # Build the application
-#RUN go build -o spider cmd/conductor/main.go
-RUN GOOS=linux GOARCH=amd64 go build -o conductor cmd/conductor/main.go
+RUN GOOS=linux GOARCH=amd64 go build -o searcher cmd/searcher/main.go
 
 
 # Expose ports
-EXPOSE 9090 9090
+EXPOSE 9091 9091
 # Used for health check
 EXPOSE 8080 8080
 # Used for metrics
 EXPOSE 80 80
 
 # Run the application
-CMD ["./conductor"]
+CMD ["./searcher"]

@@ -61,15 +61,75 @@ proto_install_buf:
 	fi
 	@echo "✓ buf installed successfully"
 
-buildSpider:
-	docker buildx build --platform linux/amd64 -f cmd/spider/Dockerfile -t spider .
-	docker tag spider:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/spider:latest
-	docker push 967991486854.dkr.ecr.eu-west-1.amazonaws.com/spider:latest
+# Build targets for all services
+# These targets build Docker images for local development and production
 
-buildConductor:
-	docker buildx build --platform linux/amd64 -f cmd/spider/Dockerfile -t conductor .
-	docker tag spider:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/conductor:latest
-	docker push 967991486854.dkr.ecr.eu-west-1.amazonaws.com/conductor:latest
+.PHONY: build-spider build-conductor build-cartographer build-searcher build-all
+
+# Build Spider service
+buildSpider: build-spider
+
+build-spider:
+	@echo "Building Spider service image..."
+	docker build -f cmd/spider/Dockerfile -t spider:latest .
+	@echo "✓ Spider image built successfully"
+
+# Build Conductor service
+buildConductor: build-conductor
+
+build-conductor:
+	@echo "Building Conductor service image..."
+	docker build -f cmd/conductor/Dockerfile -t conductor:latest .
+	@echo "✓ Conductor image built successfully"
+
+# Build Cartographer service
+build-cartographer:
+	@echo "Building Cartographer service image..."
+	docker build -f cmd/cartographer/Dockerfile -t cartographer:latest .
+	@echo "✓ Cartographer image built successfully"
+
+# Build Searcher service
+build-searcher:
+	@echo "Building Searcher service image..."
+	docker build -f cmd/searcher/Dockerfile -t searcher:latest .
+	@echo "✓ Searcher image built successfully"
+
+# Build all service images
+build-all: build-spider build-conductor build-cartographer build-searcher
+	@echo "✓ All service images built successfully"
+
+# Build and push to ECR (requires AWS credentials and ECR repository)
+build-and-push-spider:
+	@echo "Building and pushing Spider to ECR..."
+	docker buildx build --platform linux/amd64 -f cmd/spider/Dockerfile -t spider:latest .
+	docker tag spider:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/spider:latest
+	#docker push 967991486854.dkr.ecr.eu-west-1.amazonaws.com/spider:latest
+	@echo "✓ Spider pushed to ECR"
+
+build-and-push-conductor:
+	@echo "Building and pushing Conductor to ECR..."
+	docker buildx build --platform linux/amd64 -f cmd/conductor/Dockerfile -t conductor:latest .
+	docker tag conductor:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/conductor:latest
+	#docker push 967991486854.dkr.ecr.eu-west-1.amazonaws.com/conductor:latest
+	@echo "✓ Conductor pushed to ECR"
+
+build-and-push-cartographer:
+	@echo "Building and pushing Cartographer to ECR..."
+	docker buildx build --platform linux/amd64 -f cmd/cartographer/Dockerfile -t cartographer:latest .
+	docker tag cartographer:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/cartographer:latest
+	#docker push 967991486854.dkr.ecr.eu-west-1.amazonaws.com/cartographer:latest
+	@echo "✓ Cartographer pushed to ECR"
+
+build-and-push-searcher:
+	@echo "Building and pushing Searcher to ECR..."
+	docker buildx build --platform linux/amd64 -f cmd/searcher/Dockerfile -t searcher:latest .
+	docker tag searcher:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/searcher:latest
+	#docker push 967991486854.dkr.ecr.eu-west-1.amazonaws.com/searcher:latest
+	@echo "✓ Searcher pushed to ECR"
+
+# Build and push all services to ECR
+build-and-push-all: build-and-push-spider build-and-push-conductor build-and-push-cartographer build-and-push-searcher
+	@echo "✓ All services pushed to ECR"
 
 # Generate mocks for all gRPC services using mockery
 mock_gen:

@@ -1,34 +1,168 @@
 version: '3.8'
+
+# This docker-compose file sets up the search engine locally for development
+# It includes all 4 microservices plus PostgreSQL database
+
 services:
-  spider:
-    image: spider
-    container_name: spider
-    ports:
-      - "8080:8080"
-    depends_on:
-      - db
-  conductor:
-    image: conductor
-    container_name: conductor
-    depends_on:
-      - db
-      - spider
-  cartographer:
-    image: cartographer
-    container_name: cartographer
-    depends_on:
-      - db
-  db:
-    image: postgres
-    restart: always
-    shm_size: 128mb
+  # PostgreSQL Database - Central storage for all services
+  postgres:
+    image: postgres:15-alpine
+    container_name: search-engine-postgres
+    restart: unless-stopped
+    shm_size: 256mb
     environment:
-      POSTGRES_PASSWORD: example
-      POSTGRES_USER: admin
+      POSTGRES_DB: databaseName
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./pkg/db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - search-engine
+
+  # Spider Service - Web crawler that discovers and fetches pages
+  spider:
+    build:
+      context: .
+      dockerfile: ./cmd/spider/Dockerfile
+    container_name: search-engine-spider
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: postgres
+      DB_NAME: databaseName
+    ports:
+      - "9001:9090"  # gRPC port
+      - "8001:8080"  # Health/metrics port
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - search-engine
+    labels:
+      - "prometheus-job=spider"
+
+  # Conductor Service - Deduplication and queue management
+  conductor:
+    build:
+      context: .
+      dockerfile: ./cmd/conductor/Dockerfile
+    container_name: search-engine-conductor
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      spider:
+        condition: service_healthy
+    environment:
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: postgres
+      DB_NAME: databaseName
+      QUEUE_URL: ${QUEUE_URL:-http://mock-sqs:9324}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+    ports:
+      - "8002:8080"  # Health/metrics port
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - search-engine
+    labels:
+      - "prometheus-job=conductor"
+
+  # Cartographer Service - PageRank computation (runs as batch job)
+  cartographer:
+    build:
+      context: .
+      dockerfile: ./cmd/cartographer/Dockerfile
+    container_name: search-engine-cartographer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: postgres
+      DB_NAME: databaseName
+    ports:
+      - "8003:8080"  # Health/metrics port
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - search-engine
+    labels:
+      - "prometheus-job=cartographer"
+
+  # Searcher Service - Full-text search with PageRank boosting
+  searcher:
+    build:
+      context: .
+      dockerfile: ./cmd/searcher/Dockerfile
+    container_name: search-engine-searcher
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: postgres
+      DB_NAME: databaseName
+    ports:
+      - "9002:9091"  # gRPC port
+      - "8004:8080"  # Health/metrics port
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - search-engine
+    labels:
+      - "prometheus-job=searcher"
+
+  # Adminer - Database management UI (optional)
   adminer:
-    image: adminer
-    restart: always
+    image: adminer:latest
+    container_name: search-engine-adminer
+    restart: unless-stopped
+    depends_on:
+      - postgres
     ports:
-      - "8080:8080"
+      - "8888:8080"  # Fixed port to avoid conflicts
+    networks:
+      - search-engine
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+
+networks:
+  search-engine:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

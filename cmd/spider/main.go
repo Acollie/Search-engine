@@ -6,6 +6,10 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
 	"webcrawler/cmd/spider/handler"
 	"webcrawler/pkg/bootstrap"
 	"webcrawler/pkg/config"
@@ -89,7 +93,11 @@ func main() {
 
 	err = server.Db.Queue.AddLinks(ctx, initialLinks)
 	if err != nil {
-		panic(err)
+		// Ignore duplicate key errors - links may already exist
+		if !strings.Contains(err.Error(), "duplicate key value") {
+			panic(err)
+		}
+		slog.Warn("Some initial links already exist in queue", slog.Any("error", err))
 	}
 	// Initialize OpenTelemetry
 	err = bootstrap.Observability()
@@ -105,10 +113,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	//go func() {
-	//	server.Scan(ctx)
-	//}()
-
 	// GRPC server
 	var opts []grpc.ServerOption
 	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", grpcx.SpiderPort))
@@ -118,6 +122,46 @@ func main() {
 	grpcServer := grpc.NewServer(opts...)
 	spider.RegisterSpiderServer(grpcServer, handler.NewRPCServer(server.Db))
 	reflection.Register(grpcServer)
-	grpcServer.Serve(lis)
 
+	// Create cancellable context for crawler
+	crawlerCtx, cancelCrawler := context.WithCancel(ctx)
+	defer cancelCrawler()
+
+	// Start crawler in background goroutine
+	go func() {
+		slog.Info("Starting Spider crawler")
+		server.Scan(crawlerCtx)
+		slog.Info("Spider crawler stopped")
+	}()
+
+	// Handle graceful shutdown with signal handling
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		sig := <-sigChan
+		slog.Info("Received signal, shutting down gracefully", slog.String("signal", sig.String()))
+
+		// Cancel crawler first
+		cancelCrawler()
+
+		// Give crawler time to finish current batch
+		time.Sleep(2 * time.Second)
+
+		// Stop gRPC server
+		grpcServer.GracefulStop()
+		pg.Close()
+		os.Exit(0)
+	}()
+
+	slog.Info("Spider service started",
+		slog.Int("grpc_port", grpcx.SpiderPort),
+		slog.Int("initial_links", len(initialLinks)))
+
+	// Start serving gRPC
+	if err := grpcServer.Serve(lis); err != nil {
+		slog.Error("Failed to serve", slog.Any("error", err))
+		cancelCrawler()
+		os.Exit(1)
+	}
 }

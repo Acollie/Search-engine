@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"syscall"
 	handler "webcrawler/cmd/cartographer/handler"
 	"webcrawler/pkg/bootstrap"
 	dbx "webcrawler/pkg/db"
@@ -12,10 +14,12 @@ import (
 )
 
 type conf struct {
-	DBUsername string `env:"DB_USER"`
-	DBPassword string `env:"DB_PASSWORD"`
-	DBHost     string `env:"DB_HOST"`
-	DBName     string `env:"DB_NAME" envDefault:"databaseName"`
+	DBUsername  string `env:"DB_USER"`
+	DBPassword  string `env:"DB_PASSWORD"`
+	DBHost      string `env:"DB_HOST"`
+	DBName      string `env:"DB_NAME" envDefault:"databaseName"`
+	SweepCount  int    `env:"SWEEP_COUNT" envDefault:"100"`
+	SweepBreath int    `env:"SWEEP_BREATH" envDefault:"100000"`
 }
 
 var (
@@ -82,9 +86,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Handle graceful shutdown with signal handling
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		sig := <-sigChan
+		slog.Info("Received signal, shutting down gracefully", slog.String("signal", sig.String()))
+		db.Close()
+		os.Exit(0)
+	}()
+
 	slog.Info("Starting PageRank computation")
 	// Run PageRank computation
-	h := handler.New(db, sweepCount, sweepBreath)
+	h := handler.New(db, cfg.SweepCount, cfg.SweepBreath)
 	err = h.Traverse()
 	if err != nil {
 		slog.Error("PageRank computation failed", slog.Any("error", err))

@@ -3,7 +3,7 @@ package site
 import (
 	"fmt"
 	"github.com/anaskhan96/soup"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -13,29 +13,61 @@ import (
 )
 
 const (
-	MaxBodyLength = 10000
+	MaxBodyLength    = 10000
+	MaxResponseBytes = 10 * 1024 * 1024 // 10MB max response size
 )
 
 func NewPage(fetchURL string) (Page, string, error) {
 	client := &http.Client{
-		Timeout: time.Second * 10, // Set timeout to 10 seconds
+		Timeout: time.Second * 10,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			// Limit redirects to 5
+			if len(via) >= 5 {
+				return fmt.Errorf("too many redirects")
+			}
+			return nil
+		},
 	}
 
-	resp, err := client.Get(fetchURL)
+	// Create request with proper User-Agent
+	req, err := http.NewRequest("GET", fetchURL, nil)
+	if err != nil {
+		return Page{}, "", fmt.Errorf("create request: %w", err)
+	}
+
+	// Set User-Agent to identify the crawler
+	req.Header.Set("User-Agent", "AlexCollieBot/1.0 (+https://alexcollie.com/bot; crawler@alexcollie.com)")
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return Page{}, "", fmt.Errorf("get %s", err)
 	}
 
 	defer resp.Body.Close()
+
+	// Check Content-Type to avoid parsing non-HTML content
+	contentType := resp.Header.Get("Content-Type")
+	if contentType != "" && !strings.Contains(strings.ToLower(contentType), "text/html") {
+		return Page{}, "", fmt.Errorf("not HTML content: %s", contentType)
+	}
+
 	if resp.StatusCode != 200 {
 		return Page{}, "", fmt.Errorf("status code error: %d %s", resp.StatusCode, resp.Status)
 	}
 
-	// response into string
-	body, err := ioutil.ReadAll(resp.Body)
+	// Limit response body size to prevent OOM
+	limitedReader := io.LimitReader(resp.Body, MaxResponseBytes)
+	body, err := io.ReadAll(limitedReader)
 
 	if err != nil {
 		return Page{}, "", err
+	}
+
+	// Check if we hit the limit
+	if len(body) >= MaxResponseBytes {
+		return Page{}, "", fmt.Errorf("response body too large (>%d bytes)", MaxResponseBytes)
 	}
 
 	doc := soup.HTMLParse(string(body))

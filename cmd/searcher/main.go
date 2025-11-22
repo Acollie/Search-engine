@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 	"webcrawler/cmd/searcher/handler"
 	"webcrawler/pkg/bootstrap"
 	dbx "webcrawler/pkg/db"
@@ -40,17 +42,7 @@ func main() {
 	}
 	defer db.Close()
 
-	// GRPC server
-	var opts []grpc.ServerOption
-	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", grpcx.SearcherPort))
-	if err != nil {
-		panic(err)
-	}
-	grpcServer := grpc.NewServer(opts...)
-	searcher.RegisterSearcherServer(grpcServer, handler.NewRPCServer(db))
-	reflection.Register(grpcServer)
-	grpcServer.Serve(lis)
-
+	// Initialize observability first
 	err = bootstrap.Observability()
 	if err != nil {
 		slog.Error("Failed to initialize observability", "err", err)
@@ -64,4 +56,31 @@ func main() {
 		os.Exit(1)
 	}
 
+	// GRPC server
+	var opts []grpc.ServerOption
+	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", grpcx.SearcherPort))
+	if err != nil {
+		panic(err)
+	}
+	grpcServer := grpc.NewServer(opts...)
+	searcher.RegisterSearcherServer(grpcServer, handler.NewRPCServer(db))
+	reflection.Register(grpcServer)
+
+	// Handle graceful shutdown with signal handling
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		sig := <-sigChan
+		slog.Info("Received signal, shutting down gracefully", slog.String("signal", sig.String()))
+		grpcServer.GracefulStop()
+		db.Close()
+		os.Exit(0)
+	}()
+
+	// Start serving
+	if err := grpcServer.Serve(lis); err != nil {
+		slog.Error("Failed to serve", slog.Any("error", err))
+		os.Exit(1)
+	}
 }

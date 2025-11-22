@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"io"
 	"webcrawler/pkg/generated/service/spider"
 	"webcrawler/pkg/generated/types/site"
 	"webcrawler/pkg/sqlx"
@@ -28,10 +29,24 @@ func NewRPCServer(db sqlx.Db) *RpcServer {
 }
 
 func (c *RpcServer) _GetSeenList(ctx context.Context, request *spider.SeenListRequest) (*spider.SeenListResponse, error) {
-	pages, err := c.db.Page.GetAllPages(ctx)
+	// Respect limit parameter, default to 100 if not set or too large
+	limit := request.Limit
+	if limit == 0 || limit > 1000 {
+		limit = 100 // Default limit
+	}
+
+	// Get all pages (TODO: implement pagination in database layer)
+	allPages, err := c.db.Page.GetAllPages(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	// Apply limit to prevent OOM
+	pages := allPages
+	if int32(len(allPages)) > limit {
+		pages = allPages[:limit]
+	}
+
 	var response []*site.Page
 	for _, page := range pages {
 		response = append(response, &site.Page{
@@ -47,21 +62,25 @@ func (c *RpcServer) _GetSeenList(ctx context.Context, request *spider.SeenListRe
 
 func (c *RpcServer) GetSeenList(conn grpc.BidiStreamingServer[spider.SeenListRequest, spider.SeenListResponse]) error {
 	for {
-		ctx := conn.Context()
-		//request, err := conn.Recv()
-		//if err != nil {
-		//	return err
-		//}
-		//request.GetLimit()
-		response, err := c._GetSeenList(ctx, nil)
+		// Receive request from client
+		request, err := conn.Recv()
+		if err == io.EOF {
+			// Client has finished sending
+			return nil
+		}
 		if err != nil {
 			return err
 		}
+
+		// Process and send response
+		response, err := c._GetSeenList(conn.Context(), request)
+		if err != nil {
+			return err
+		}
+
 		if err := conn.Send(response); err != nil {
 			return err
 		}
 		fmt.Println("Sending response")
 	}
-
-	return nil
 }
