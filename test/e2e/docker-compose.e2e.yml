@@ -1,0 +1,186 @@
+version: '3.8'
+
+# Optimized docker-compose for E2E testing
+# - Faster health checks (5s intervals)
+# - Debug logging enabled
+# - SQL fixtures auto-loaded
+# - HTTP trigger enabled for Cartographer
+
+services:
+  # PostgreSQL Database - Central storage for all services
+  postgres:
+    image: postgres:15-alpine
+    container_name: e2e-postgres
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_DB: databaseName
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../pkg/db/init:/docker-entrypoint-initdb.d/00-schema
+      - ./fixtures:/docker-entrypoint-initdb.d/10-fixtures
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - search-engine
+
+  # Spider Service - Web crawler that discovers and fetches pages
+  spider:
+    build:
+      context: ../..
+      dockerfile: ./cmd/spider/Dockerfile
+    container_name: e2e-spider
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: postgres
+      DB_NAME: databaseName
+      LOG_LEVEL: debug
+    ports:
+      - "9001:9090"  # gRPC port
+      - "8001:8080"  # Health/metrics port
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - search-engine
+
+  # Conductor Service - Deduplication and queue management
+  conductor:
+    build:
+      context: ../..
+      dockerfile: ./cmd/conductor/Dockerfile
+    container_name: e2e-conductor
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      spider:
+        condition: service_healthy
+    environment:
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: postgres
+      DB_NAME: databaseName
+      QUEUE_URL: http://mock-sqs:9324
+      AWS_REGION: us-east-1
+      LOG_LEVEL: debug
+      SPIDER_HOST: spider
+      SPIDER_PORT: "9090"
+    ports:
+      - "8002:8080"  # Health/metrics port
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - search-engine
+
+  # Cartographer Service - PageRank computation (with HTTP trigger for testing)
+  cartographer:
+    build:
+      context: ../..
+      dockerfile: ./cmd/cartographer/Dockerfile
+    container_name: e2e-cartographer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: postgres
+      DB_NAME: databaseName
+      LOG_LEVEL: debug
+      ENABLE_HTTP_TRIGGER: "true"
+    ports:
+      - "8003:8080"  # Health/metrics port (also used for /compute trigger)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - search-engine
+
+  # Searcher Service - Full-text search with PageRank boosting
+  searcher:
+    build:
+      context: ../..
+      dockerfile: ./cmd/searcher/Dockerfile
+    container_name: e2e-searcher
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_HOST: postgres
+      DB_NAME: databaseName
+      LOG_LEVEL: debug
+    ports:
+      - "9002:9091"  # gRPC port
+      - "8004:8080"  # Health/metrics port
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - search-engine
+
+  # Frontend Service - User-facing web interface
+  frontend:
+    build:
+      context: ../..
+      dockerfile: ./cmd/frontend/Dockerfile
+    container_name: e2e-frontend
+    restart: unless-stopped
+    depends_on:
+      searcher:
+        condition: service_healthy
+    environment:
+      PORT: "3000"
+      HEALTH_PORT: "8080"
+      SEARCHER_HOST: searcher
+      SEARCHER_PORT: "9091"
+      LOG_LEVEL: debug
+    ports:
+      - "3000:3000"  # HTTP web interface
+      - "8005:8080"  # Health/metrics port
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - search-engine
+
+networks:
+  search-engine:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

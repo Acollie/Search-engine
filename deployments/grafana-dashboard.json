@@ -1,0 +1,496 @@
+{
+  "dashboard": {
+    "title": "Search Engine Overview",
+    "tags": ["search-engine", "microservices"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        },
+        "id": 1,
+        "title": "Search Requests per Second",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(frontend_search_requests_total[5m])",
+            "legendFormat": "{{status}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "reqps",
+            "label": "Requests/sec"
+          }
+        ]
+      },
+      {
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 0
+        },
+        "id": 2,
+        "title": "Search Latency (p50, p95, p99)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(frontend_search_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(frontend_search_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(frontend_search_duration_seconds_bucket[5m]))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "s",
+            "label": "Duration"
+          }
+        ]
+      },
+      {
+        "gridPos": {
+          "h": 6,
+          "w": 4,
+          "x": 0,
+          "y": 8
+        },
+        "id": 3,
+        "title": "Frontend Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"frontend\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "green", "value": 1 }
+              ]
+            },
+            "mappings": [
+              { "type": "value", "value": "0", "text": "Down" },
+              { "type": "value", "value": "1", "text": "Up" }
+            ]
+          }
+        }
+      },
+      {
+        "gridPos": {
+          "h": 6,
+          "w": 4,
+          "x": 4,
+          "y": 8
+        },
+        "id": 4,
+        "title": "Searcher Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"searcher\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "green", "value": 1 }
+              ]
+            },
+            "mappings": [
+              { "type": "value", "value": "0", "text": "Down" },
+              { "type": "value", "value": "1", "text": "Up" }
+            ]
+          }
+        }
+      },
+      {
+        "gridPos": {
+          "h": 6,
+          "w": 4,
+          "x": 8,
+          "y": 8
+        },
+        "id": 5,
+        "title": "Spider Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"spider\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "green", "value": 1 }
+              ]
+            },
+            "mappings": [
+              { "type": "value", "value": "0", "text": "Down" },
+              { "type": "value", "value": "1", "text": "Up" }
+            ]
+          }
+        }
+      },
+      {
+        "gridPos": {
+          "h": 6,
+          "w": 4,
+          "x": 12,
+          "y": 8
+        },
+        "id": 6,
+        "title": "Conductor Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"conductor\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "green", "value": 1 }
+              ]
+            },
+            "mappings": [
+              { "type": "value", "value": "0", "text": "Down" },
+              { "type": "value", "value": "1", "text": "Up" }
+            ]
+          }
+        }
+      },
+      {
+        "gridPos": {
+          "h": 6,
+          "w": 4,
+          "x": 16,
+          "y": 8
+        },
+        "id": 7,
+        "title": "Cartographer Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"cartographer\"}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "none",
+          "textMode": "value_and_name"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "color": "red", "value": null },
+                { "color": "green", "value": 1 }
+              ]
+            },
+            "mappings": [
+              { "type": "value", "value": "0", "text": "Down" },
+              { "type": "value", "value": "1", "text": "Up" }
+            ]
+          }
+        }
+      },
+      {
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 14
+        },
+        "id": 8,
+        "title": "Search Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(frontend_search_requests_total{status=\"error\"}[5m]) / rate(frontend_search_requests_total[5m])",
+            "legendFormat": "Error Rate",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "percentunit",
+            "label": "Error Rate"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "custom": {
+              "fillOpacity": 10
+            }
+          }
+        }
+      },
+      {
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 14
+        },
+        "id": 9,
+        "title": "Total Searches (24h)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(frontend_search_requests_total[24h])",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "textMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 22
+        },
+        "id": 10,
+        "title": "Frontend Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "container_memory_usage_bytes{pod=~\"frontend-.*\"}",
+            "legendFormat": "{{pod}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "bytes",
+            "label": "Memory"
+          }
+        ]
+      },
+      {
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 22
+        },
+        "id": 11,
+        "title": "Frontend CPU Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(container_cpu_usage_seconds_total{pod=~\"frontend-.*\"}[5m])",
+            "legendFormat": "{{pod}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "percentunit",
+            "label": "CPU"
+          }
+        ]
+      },
+      {
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 30
+        },
+        "id": 12,
+        "title": "Searcher Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "container_memory_usage_bytes{pod=~\"searcher-.*\"}",
+            "legendFormat": "{{pod}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "bytes",
+            "label": "Memory"
+          }
+        ]
+      },
+      {
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 30
+        },
+        "id": 13,
+        "title": "Searcher CPU Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(container_cpu_usage_seconds_total{pod=~\"searcher-.*\"}[5m])",
+            "legendFormat": "{{pod}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "percentunit",
+            "label": "CPU"
+          }
+        ]
+      },
+      {
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 38
+        },
+        "id": 14,
+        "title": "Pod Restart Count",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "kube_pod_container_status_restarts_total{namespace=\"search-engine\"}",
+            "legendFormat": "{{pod}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "short",
+            "label": "Restarts"
+          }
+        ]
+      },
+      {
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 38
+        },
+        "id": 15,
+        "title": "HPA Replicas",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "kube_horizontalpodautoscaler_status_current_replicas{namespace=\"search-engine\"}",
+            "legendFormat": "{{horizontalpodautoscaler}} (current)",
+            "refId": "A"
+          },
+          {
+            "expr": "kube_horizontalpodautoscaler_status_desired_replicas{namespace=\"search-engine\"}",
+            "legendFormat": "{{horizontalpodautoscaler}} (desired)",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "short",
+            "label": "Replicas"
+          }
+        ]
+      },
+      {
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 46
+        },
+        "id": 16,
+        "title": "Network I/O",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(container_network_receive_bytes_total{namespace=\"search-engine\"}[5m])",
+            "legendFormat": "{{pod}} RX",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(container_network_transmit_bytes_total{namespace=\"search-engine\"}[5m])",
+            "legendFormat": "{{pod}} TX",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {
+            "format": "Bps",
+            "label": "Network I/O"
+          }
+        ]
+      }
+    ]
+  }
+}

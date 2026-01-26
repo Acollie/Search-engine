@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Query}} - Search Results</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <a href="/" class="logo-small">Search Engine</a>
+            <form action="/search" method="GET" class="search-form-header">
+                <input
+                    type="text"
+                    name="q"
+                    value="{{.Query}}"
+                    class="search-input-header"
+                    autofocus
+                >
+                <button type="submit" class="search-button-header">Search</button>
+            </form>
+        </header>
+
+        <main class="results-container">
+            {{if .Error}}
+                <div class="error-message">
+                    <p>{{.Error}}</p>
+                </div>
+            {{else}}
+                <div class="results-info">
+                    <p>Found {{.ResultCount}} results in {{printf "%.3f" .SearchTime}} seconds</p>
+                </div>
+
+                {{if .Results}}
+                    <div class="results-list">
+                        {{range .Results}}
+                            <div class="result-item">
+                                <a href="{{.URL}}" class="result-link" target="_blank" rel="noopener">
+                                    <h2 class="result-title">{{if .Title}}{{.Title}}{{else}}{{.URL}}{{end}}</h2>
+                                </a>
+                                <div class="result-url">{{.URL}}</div>
+                                {{if .Snippet}}
+                                    <p class="result-snippet">{{.Snippet}}</p>
+                                {{end}}
+                                {{if .LastCrawled}}
+                                    <div class="result-meta">Crawled: {{.LastCrawled}}</div>
+                                {{end}}
+                            </div>
+                        {{end}}
+                    </div>
+
+                    <div class="pagination">
+                        {{if .HasPrev}}
+                            <a href="/search?q={{.Query}}&page={{.PrevPage}}" class="pagination-link">
+                                &larr; Previous
+                            </a>
+                        {{end}}
+
+                        <span class="pagination-current">Page {{.Page}}</span>
+
+                        {{if .HasNext}}
+                            <a href="/search?q={{.Query}}&page={{.NextPage}}" class="pagination-link">
+                                Next &rarr;
+                            </a>
+                        {{end}}
+                    </div>
+                {{else}}
+                    <div class="no-results">
+                        <h2>No results found for "{{.Query}}"</h2>
+                        <p>Try different keywords or check your spelling.</p>
+                    </div>
+                {{end}}
+            {{end}}
+        </main>
+    </div>
+</body>
+</html>

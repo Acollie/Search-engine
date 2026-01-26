@@ -17,9 +17,30 @@ type RpcServer struct {
 	db sqlx.Db
 }
 
-func (c *RpcServer) mustEmbedUnimplementedSpiderServer() {
-	//TODO implement me
-	panic("implement me")
+func (c *RpcServer) GetHealth(ctx context.Context, req *spider.HealthRequest) (*spider.HealthResponse, error) {
+	// Try to get all pages to verify database connectivity
+	// If this fails, the database is unhealthy
+	_, err := c.db.Page.GetAllPages(ctx)
+	if err != nil {
+		return &spider.HealthResponse{
+			Status: &spider.Status{
+				Healthy:     false,
+				Tps:         0,
+				SeenSites:   0,
+				QueuedSites: 0,
+			},
+		}, nil
+	}
+
+	// Service is healthy if we can query the database
+	return &spider.HealthResponse{
+		Status: &spider.Status{
+			Healthy:     true,
+			Tps:         0,
+			SeenSites:   0, // Could count from GetAllPages but that's expensive
+			QueuedSites: 0, // Would need to add GetQueueDepth method
+		},
+	}, nil
 }
 
 func NewRPCServer(db sqlx.Db) *RpcServer {

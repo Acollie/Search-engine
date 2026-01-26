@@ -1,0 +1,222 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: conductor
+  namespace: search-engine
+  labels:
+    app: conductor
+spec:
+  type: ClusterIP
+  selector:
+    app: conductor
+  ports:
+    - name: health
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: conductor
+  namespace: search-engine
+  labels:
+    app: conductor
+    version: v1
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: conductor
+  template:
+    metadata:
+      labels:
+        app: conductor
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: conductor
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: conductor
+          image: conductor:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: health
+              containerPort: 8080
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: search-engine-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: search-engine-secrets
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: search-engine-config
+                  key: DB_HOST
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: search-engine-config
+                  key: DB_NAME
+            - name: QUEUE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: search-engine-config
+                  key: QUEUE_URL
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: search-engine-config
+                  key: AWS_REGION
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: search-engine-secrets
+                  key: AWS_ACCESS_KEY_ID
+                  optional: true
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: search-engine-secrets
+                  key: AWS_SECRET_ACCESS_KEY
+                  optional: true
+            - name: CONDUCTOR_HEALTH_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: search-engine-config
+                  key: CONDUCTOR_HEALTH_PORT
+            - name: ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: search-engine-config
+                  key: ENVIRONMENT
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: search-engine-config
+                  key: LOG_LEVEL
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2
+              memory: 1Gi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: health
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - conductor
+                topologyKey: kubernetes.io/hostname
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: conductor
+  namespace: search-engine
+  labels:
+    app: conductor
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: conductor
+  namespace: search-engine
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: conductor
+
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: conductor
+  namespace: search-engine
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: conductor
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

@@ -1,4 +1,4 @@
-FROM base-search:latest
+FROM golang:1.24.0-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -12,8 +12,14 @@ RUN go mod download
 # Copy the entire project
 COPY . .
 
-# Build the application
-RUN GOOS=linux GOARCH=amd64 go build -o searcher cmd/searcher/main.go
+# Build the application with all optimizations disabled to ensure fresh build
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o searcher ./cmd/searcher
+
+# Runtime stage
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /app
+COPY --from=builder /app/searcher .
 
 
 # Expose ports
@@ -24,4 +30,4 @@ EXPOSE 8080 8080
 EXPOSE 80 80
 
 # Run the application
-CMD ["./searcher"]
+CMD ["/app/searcher"]

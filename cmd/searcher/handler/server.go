@@ -29,37 +29,41 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 		return &searcher.SearchResponse{}, nil
 	}
 
-	// Set default limit if not provided
+	// Set default limit and offset
 	limit := request.GetLimit()
 	if limit <= 0 {
 		limit = 10
 	}
-
-	// Build WHERE clause for token matching
-	var whereConditions []string
-	var args []interface{}
-	argIndex := 1
-
-	for _, token := range tokens {
-		whereConditions = append(whereConditions, fmt.Sprintf("url ILIKE $%d", argIndex))
-		args = append(args, "%"+token+"%")
-		argIndex++
+	offset := int32(0)
+	if request.GetOffset() > 0 {
+		offset = request.GetOffset()
 	}
 
-	// Build and execute query - join with SeenPages to get title and body
-	query := fmt.Sprintf(`
-		SELECT pr.url, sp.title, sp.body, pr.rank_score, pr.computed_at
-		FROM PageRankResults pr
-		INNER JOIN SeenPages sp ON pr.url = sp.url
-		WHERE pr.is_latest = TRUE
-		AND (%s)
-		ORDER BY pr.rank_score DESC
-		LIMIT $%d
-	`, strings.Join(whereConditions, " OR "), argIndex)
+	// Build full-text search query
+	// Join tokens with & for AND search
+	queryVector := strings.Join(tokens, " & ")
 
-	args = append(args, limit)
+	// Full-text search query combining ts_rank (30%) with PageRank score (70%)
+	query := `
+		SELECT
+			sp.url,
+			sp.title,
+			sp.body,
+			sp.description,
+			COALESCE(pr.score, 0.0) as pagerank_score,
+			ts_rank(sp.search_vector, to_tsquery('english', $1)) as text_relevance,
+			(ts_rank(sp.search_vector, to_tsquery('english', $1)) * 0.3 +
+			 COALESCE(pr.score, 0.0) * 0.7) as combined_score,
+			sp.crawl_time
+		FROM seenpages sp
+		LEFT JOIN pagerankresults pr ON sp.id = pr.page_id AND pr.is_latest = true
+		WHERE sp.search_vector @@ to_tsquery('english', $1)
+		  AND sp.is_indexable = true
+		ORDER BY combined_score DESC
+		LIMIT $2 OFFSET $3
+	`
 
-	rows, err := c.db.QueryContext(ctx, query, args...)
+	rows, err := c.db.QueryContext(ctx, query, queryVector, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query pages: %w", err)
 	}
@@ -71,22 +75,35 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 		var url string
 		var title sql.NullString
 		var body sql.NullString
-		var rankScore float64
-		var computedAt sql.NullTime
+		var description sql.NullString
+		var pagerankScore float64
+		var textRelevance float64
+		var combinedScore float64
+		var crawlTime sql.NullTime
 
-		if err := rows.Scan(&url, &title, &body, &rankScore, &computedAt); err != nil {
+		if err := rows.Scan(&url, &title, &body, &description, &pagerankScore, &textRelevance, &combinedScore, &crawlTime); err != nil {
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
 		var lastSeen int64
-		if computedAt.Valid {
-			lastSeen = computedAt.Time.Unix()
+		if crawlTime.Valid {
+			lastSeen = crawlTime.Time.Unix()
+		}
+
+		// Create snippet from description or body
+		snippet := description.String
+		if snippet == "" && body.Valid {
+			// Take first 200 characters of body as snippet
+			snippet = body.String
+			if len(snippet) > 200 {
+				snippet = snippet[:200] + "..."
+			}
 		}
 
 		pages = append(pages, &site.Page{
 			Url:      url,
 			Title:    title.String,
-			Body:     body.String,
+			Body:     snippet,
 			LastSeen: lastSeen,
 		})
 	}
@@ -97,5 +114,42 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 
 	return &searcher.SearchResponse{
 		Pages: pages,
+	}, nil
+}
+
+func (c *Handler) GetHealth(ctx context.Context, req *searcher.HealthRequest) (*searcher.HealthResponse, error) {
+	// Check database connection
+	if err := c.db.PingContext(ctx); err != nil {
+		return &searcher.HealthResponse{
+			Healthy: false,
+			Message: fmt.Sprintf("database unhealthy: %v", err),
+		}, nil
+	}
+
+	// Get count of indexed pages
+	var pagesCount int64
+	err := c.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM SeenPages").Scan(&pagesCount)
+	if err != nil {
+		pagesCount = 0
+	}
+
+	// Get count of latest PageRank results
+	var pagerankCount int64
+	err = c.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM PageRankResults WHERE is_latest = TRUE").Scan(&pagerankCount)
+	if err != nil {
+		pagerankCount = 0
+	}
+
+	message := "searcher operational"
+	if pagerankCount == 0 {
+		message = "no PageRank data available (degraded)"
+	}
+
+	return &searcher.HealthResponse{
+		Healthy:         true,
+		Message:         message,
+		PagesIndexed:    pagesCount,
+		PagerankResults: pagerankCount,
 	}, nil
 }

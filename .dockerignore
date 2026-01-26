@@ -1,0 +1,41 @@
+# Exclude binaries from Docker build context
+searcher
+spider
+conductor
+cartographer
+frontend
+
+# Exclude test files
+*_test.go
+
+# Exclude build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Exclude git
+.git
+.gitignore
+
+# Exclude documentation
+*.md
+!README.md
+
+# Exclude development files
+.env
+.env.*
+!.env.example
+
+# Exclude IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# Exclude logs
+*.log
+
+# Exclude temporary files
+tmp/
+temp/

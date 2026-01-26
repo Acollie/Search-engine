@@ -1,0 +1,236 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: search-engine
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: 5432
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: search-engine
+  labels:
+    app: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: standard
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: search-engine
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgresql
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: search-engine-secrets
+                  key: DB_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: search-engine-secrets
+                  key: DB_PASSWORD
+            - name: POSTGRES_DB
+              value: databaseName
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2
+              memory: 2Gi
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+            - name: postgres-init
+              mountPath: /docker-entrypoint-initdb.d
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+      volumes:
+        - name: postgres-init
+          configMap:
+            name: postgres-init-scripts
+            defaultMode: 0755
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - postgres
+                topologyKey: kubernetes.io/hostname
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 50Gi
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: search-engine
+  labels:
+    app: postgres
+data:
+  01-init-database.sql: |
+    -- Create extensions
+    CREATE EXTENSION IF NOT EXISTS pg_trgm;
+    CREATE EXTENSION IF NOT EXISTS btree_gin;
+
+    -- SeenPages table
+    CREATE TABLE IF NOT EXISTS SeenPages (
+      id SERIAL PRIMARY KEY,
+      url TEXT UNIQUE NOT NULL,
+      title TEXT,
+      description TEXT,
+      body TEXT,
+      headers JSONB,
+      status_code INTEGER,
+      crawl_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      last_modified TIMESTAMP,
+      search_vector tsvector GENERATED ALWAYS AS (
+        to_tsvector('english', COALESCE(title, '') || ' ' || COALESCE(description, '') || ' ' || COALESCE(body, ''))
+      ) STORED,
+      is_indexable BOOLEAN DEFAULT true,
+      domain TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_seen_pages_url ON SeenPages(url);
+    CREATE INDEX IF NOT EXISTS idx_seen_pages_crawl_time ON SeenPages(crawl_time DESC);
+    CREATE INDEX IF NOT EXISTS idx_seen_pages_domain ON SeenPages(domain);
+    CREATE INDEX IF NOT EXISTS idx_seen_pages_search_vector ON SeenPages USING GIN(search_vector);
+
+    -- Queue table
+    CREATE TABLE IF NOT EXISTS Queue (
+      id SERIAL PRIMARY KEY,
+      url TEXT UNIQUE NOT NULL,
+      domain TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      retries INTEGER DEFAULT 0,
+      priority INTEGER DEFAULT 0,
+      status VARCHAR(20) DEFAULT 'pending'
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_queue_status ON Queue(status);
+    CREATE INDEX IF NOT EXISTS idx_queue_domain ON Queue(domain);
+    CREATE INDEX IF NOT EXISTS idx_queue_priority ON Queue(priority DESC);
+
+    -- Links table (for PageRank graph)
+    CREATE TABLE IF NOT EXISTS Links (
+      id SERIAL PRIMARY KEY,
+      source_page_id INTEGER NOT NULL REFERENCES SeenPages(id) ON DELETE CASCADE,
+      target_page_id INTEGER REFERENCES SeenPages(id) ON DELETE SET NULL,
+      target_url TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_links_source ON Links(source_page_id);
+    CREATE INDEX IF NOT EXISTS idx_links_target ON Links(target_page_id);
+    CREATE INDEX IF NOT EXISTS idx_links_target_url ON Links(target_url);
+
+    -- PageRank results
+    CREATE TABLE IF NOT EXISTS PageRankResults (
+      id SERIAL PRIMARY KEY,
+      page_id INTEGER NOT NULL REFERENCES SeenPages(id) ON DELETE CASCADE,
+      score FLOAT NOT NULL,
+      result_version INTEGER NOT NULL,
+      is_latest BOOLEAN DEFAULT false,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_pagerank_page_id ON PageRankResults(page_id);
+    CREATE INDEX IF NOT EXISTS idx_pagerank_version ON PageRankResults(result_version);
+    CREATE INDEX IF NOT EXISTS idx_pagerank_latest ON PageRankResults(is_latest) WHERE is_latest = true;
+
+    -- Search sessions (optional, for analytics)
+    CREATE TABLE IF NOT EXISTS SearchSessions (
+      id SERIAL PRIMARY KEY,
+      query TEXT NOT NULL,
+      result_count INTEGER,
+      execution_time_ms INTEGER,
+      user_id VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_search_sessions_created ON SearchSessions(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_search_sessions_query ON SearchSessions(query);
+
+    GRANT CONNECT ON DATABASE "databaseName" TO postgres;
+    GRANT USAGE ON SCHEMA public TO postgres;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres;

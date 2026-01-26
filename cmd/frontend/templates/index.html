@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Engine</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="search-container">
+            <h1 class="logo">Search Engine</h1>
+            <p class="tagline">Distributed web search powered by Go</p>
+
+            <form action="/search" method="GET" class="search-form">
+                <div class="search-box">
+                    <input
+                        type="text"
+                        name="q"
+                        placeholder="Search the web..."
+                        autofocus
+                        required
+                        class="search-input"
+                    >
+                    <button type="submit" class="search-button">Search</button>
+                </div>
+            </form>
+
+            <div class="info">
+                <p>Features:</p>
+                <ul>
+                    <li>Full-text search with PostgreSQL</li>
+                    <li>PageRank-based relevance ranking</li>
+                    <li>Distributed microservices architecture</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -7,14 +7,25 @@ import "types/site.proto";
 
 service Searcher {
   rpc SearchPages(SearchRequest) returns (SearchResponse);
+  rpc GetHealth(HealthRequest) returns (HealthResponse);
 }
 
 message SearchRequest {
   string query = 1;
   int32 limit = 2;
+  int32 offset = 3;
 }
 
 message SearchResponse {
   repeated types.Page pages = 1;
   repeated types.Error errors = 2;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool healthy = 1;
+  string message = 2;
+  int64 pages_indexed = 3;
+  int64 pagerank_results = 4;
 }

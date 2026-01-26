@@ -1,0 +1,248 @@
+# Alert rules for Search Engine services
+
+groups:
+  - name: search_engine_alerts
+    interval: 30s
+    rules:
+      # Service Availability Alerts
+      - alert: ServiceDown
+        expr: up{job=~"spider|conductor|cartographer|searcher"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: "{{ $labels.job }}"
+        annotations:
+          summary: "{{ $labels.job }} service is down"
+          description: "{{ $labels.job }} service on {{ $labels.instance }} has been unavailable for more than 2 minutes."
+
+      - alert: ServiceUnhealthy
+        expr: |
+          rate(service_graceful_shutdowns_total[5m]) > 0 and
+          rate(service_errors_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          component: "{{ $labels.service }}"
+        annotations:
+          summary: "{{ $labels.service }} service is unhealthy"
+          description: "{{ $labels.service }} is experiencing errors and shutdowns. Error rate: {{ $value | humanize }}/sec"
+
+      # Spider Service Alerts
+      - alert: SpiderHighFailureRate
+        expr: |
+          rate(spider_pages_failed_total[5m]) / (rate(spider_pages_fetched_total[5m]) + rate(spider_pages_failed_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: spider
+        annotations:
+          summary: "Spider service has high page failure rate"
+          description: "Spider failure rate is {{ $value | humanizePercentage }} (threshold: 10%)"
+
+      - alert: SpiderCrawlSlowdown
+        expr: |
+          rate(spider_pages_fetched_total[5m]) < 1
+        for: 10m
+        labels:
+          severity: warning
+          service: spider
+        annotations:
+          summary: "Spider crawl rate has dropped"
+          description: "Spider is fetching less than 1 page per 5 minutes. Current rate: {{ $value | humanize }}"
+
+      - alert: SpiderQueueDepthHigh
+        expr: spider_queue_depth > 10000
+        for: 15m
+        labels:
+          severity: warning
+          service: spider
+        annotations:
+          summary: "Spider queue depth is very high"
+          description: "Spider queue has {{ $value | humanize }} URLs waiting to be crawled"
+
+      - alert: SpiderHighCrawlLatency
+        expr: |
+          histogram_quantile(0.95, rate(spider_crawl_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          service: spider
+        annotations:
+          summary: "Spider crawl latency is high"
+          description: "95th percentile crawl latency: {{ $value | humanizeDuration }}"
+
+      # Conductor Service Alerts
+      - alert: ConductorHighDuplicateRate
+        expr: |
+          rate(conductor_duplicates_found_total[5m]) / rate(conductor_pages_received_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: info
+          service: conductor
+        annotations:
+          summary: "Conductor is finding many duplicates"
+          description: "Duplicate rate is {{ $value | humanizePercentage }} - {{ $value | humanize }} duplicates per second"
+
+      - alert: ConductorQueueDepthHigh
+        expr: conductor_queue_depth > 5000
+        for: 10m
+        labels:
+          severity: warning
+          service: conductor
+        annotations:
+          summary: "Conductor queue depth is high"
+          description: "Conductor queue has {{ $value | humanize }} URLs"
+
+      - alert: ConductorBackpressureActive
+        expr: rate(conductor_backpressure_triggered_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+          service: conductor
+        annotations:
+          summary: "Conductor is applying backpressure"
+          description: "Conductor is throttling Spider due to queue buildup"
+
+      - alert: ConductorDatabaseErrors
+        expr: rate(conductor_database_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: conductor
+        annotations:
+          summary: "Conductor is experiencing database errors"
+          description: "Database error rate: {{ $value | humanize }}/sec"
+
+      # Cartographer Service Alerts
+      - alert: CartographerSweepFailed
+        expr: increase(cartographer_errors_total[30m]) > 0
+        labels:
+          severity: warning
+          service: cartographer
+        annotations:
+          summary: "Cartographer sweep encountered errors"
+          description: "Cartographer had {{ $value | humanize }} errors in the last 30 minutes"
+
+      - alert: CartographerHighSweepDuration
+        expr: |
+          histogram_quantile(0.95, rate(cartographer_sweep_duration_seconds_bucket[30m])) > 600
+        labels:
+          severity: info
+          service: cartographer
+        annotations:
+          summary: "Cartographer sweep is taking a long time"
+          description: "95th percentile sweep duration: {{ $value | humanizeDuration }}"
+
+      # Searcher Service Alerts
+      - alert: SearcherHighQueryLatency
+        expr: |
+          histogram_quantile(0.95, rate(searcher_query_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: searcher
+        annotations:
+          summary: "Searcher query latency is high"
+          description: "95th percentile latency: {{ $value | humanizeDuration }}"
+
+      - alert: SearcherHighErrorRate
+        expr: |
+          rate(searcher_database_errors_total[5m]) / rate(searcher_queries_processed_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: searcher
+        annotations:
+          summary: "Searcher error rate is high"
+          description: "Error rate: {{ $value | humanizePercentage }}"
+
+      - alert: SearcherLowCacheHitRate
+        expr: |
+          rate(searcher_cache_hits_total[5m]) / (rate(searcher_cache_hits_total[5m]) + rate(searcher_cache_misses_total[5m])) < 0.3
+        for: 10m
+        labels:
+          severity: info
+          service: searcher
+        annotations:
+          summary: "Searcher cache hit rate is low"
+          description: "Cache hit rate: {{ $value | humanizePercentage }} (threshold: 30%)"
+
+      # Database Connection Pool Alerts
+      - alert: DatabaseConnectionPoolExhaustion
+        expr: |
+          database_connection_pool_size / 25 > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database connection pool is nearly exhausted"
+          description: "Service {{ $labels.service }} is using {{ $value | humanizePercentage }} of connection pool"
+
+      - alert: DatabaseConnectionWaitTime
+        expr: |
+          histogram_quantile(0.95, rate(database_connection_wait_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Database connection wait time is high"
+          description: "95th percentile wait time: {{ $value | humanizeDuration }}"
+
+      # gRPC Communication Alerts
+      - alert: GRPCHighErrorRate
+        expr: |
+          rate(grpc_messages_processed_total{status!="success"}[5m]) / rate(grpc_messages_processed_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: grpc
+        annotations:
+          summary: "gRPC error rate is high"
+          description: "{{ $labels.service }} gRPC error rate: {{ $value | humanizePercentage }}"
+
+      - alert: GRPCHighLatency
+        expr: |
+          histogram_quantile(0.95, rate(grpc_message_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: grpc
+        annotations:
+          summary: "gRPC latency is high"
+          description: "{{ $labels.service }} 95th percentile latency: {{ $value | humanizeDuration }}"
+
+      # Infrastructure Alerts
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High memory usage on Docker host"
+          description: "Memory usage: {{ $value | humanizePercentage }}"
+
+      - alert: HighCPUUsage
+        expr: |
+          (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High CPU usage on Docker host"
+          description: "CPU usage: {{ $value | humanizePercentage }}"
+
+      - alert: HighDiskUsage
+        expr: |
+          (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High disk usage on Docker host"
+          description: "Disk usage: {{ $value | humanizePercentage }}"

@@ -1,0 +1,97 @@
+# AlertManager configuration for Search Engine
+
+global:
+  resolve_timeout: 5m
+
+# Templates for alert notifications
+templates: []
+
+# Routes for different alert types
+route:
+  # Default receiver
+  receiver: 'null'
+
+  # Routes for different services
+  routes:
+    # Critical alerts go to all channels
+    - match:
+        severity: critical
+      receiver: 'critical'
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+
+    # Warning alerts
+    - match:
+        severity: warning
+      receiver: 'warning'
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 1m
+      group_interval: 10m
+      repeat_interval: 12h
+
+    # Info alerts
+    - match:
+        severity: info
+      receiver: 'info'
+      group_by: ['alertname', 'cluster']
+      group_wait: 5m
+      group_interval: 30m
+      repeat_interval: 24h
+
+# Receivers - configure notifications here
+receivers:
+  # Null receiver (no notifications)
+  - name: 'null'
+
+  # Critical alerts receiver
+  - name: 'critical'
+    # Uncomment to enable email notifications
+    # email_configs:
+    #   - to: 'ops-team@example.com'
+    #     from: 'alertmanager@example.com'
+    #     smarthost: 'smtp.example.com:587'
+    #     auth_username: 'user@example.com'
+    #     auth_password: 'password'
+    #     require_tls: true
+    #     headers:
+    #       Subject: 'Search Engine Critical Alert'
+
+    # Uncomment to enable Slack notifications
+    # slack_configs:
+    #   - api_url: 'https://hooks.slack.com/services/YOUR/WEBHOOK/URL'
+    #     channel: '#search-engine-alerts'
+    #     title: 'Search Engine Critical Alert'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+  # Warning alerts receiver
+  - name: 'warning'
+    # Add your notification configuration here
+
+  # Info alerts receiver
+  - name: 'info'
+    # Add your notification configuration here
+
+# Inhibition rules to prevent alert noise
+inhibit_rules:
+  # Inhibit warning alerts if critical alert exists
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']
+
+  # Inhibit info alerts if warning alert exists
+  - source_match:
+      severity: 'warning'
+    target_match:
+      severity: 'info'
+    equal: ['alertname', 'cluster', 'service']
+
+  # Don't alert if service is down (covered by ServiceDown alert)
+  - source_match:
+      alertname: 'ServiceDown'
+    target_match_re:
+      alertname: '.*HighErrorRate|.*HighLatency|.*QueueDepth'
+    equal: ['service', 'cluster']

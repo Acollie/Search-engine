@@ -1,0 +1,15 @@
+version: v1
+lint:
+  use:
+    - STANDARD
+  except:
+    - PACKAGE_VERSION_SUFFIX
+    - SERVICE_SUFFIX
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+    - PACKAGE_SAME_GO_PACKAGE
+  ignore:
+    - protos/google
+breaking:
+  use:
+    - FILE

@@ -145,6 +145,35 @@ services:
     labels:
       - "prometheus-job=searcher"
 
+  # Frontend Service - User-facing web interface
+  frontend:
+    build:
+      context: .
+      dockerfile: ./cmd/frontend/Dockerfile
+    container_name: search-engine-frontend
+    restart: unless-stopped
+    depends_on:
+      searcher:
+        condition: service_healthy
+    environment:
+      PORT: "3000"
+      HEALTH_PORT: "8080"
+      SEARCHER_HOST: searcher
+      SEARCHER_PORT: "9091"
+    ports:
+      - "3000:3000"  # HTTP web interface
+      - "8005:8080"  # Health/metrics port
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - search-engine
+    labels:
+      - "prometheus-job=frontend"
+
   # Adminer - Database management UI (optional)
   adminer:
     image: adminer:latest
