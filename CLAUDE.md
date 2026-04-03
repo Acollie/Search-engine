@@ -12,7 +12,7 @@ This is a distributed web search engine built in Go, consisting of five microser
 **Conductor** → receives crawled pages from Spider, deduplicates, stores in PostgreSQL, manages queue
 **Cartographer** → computes PageRank scores using damped algorithm (0.85 damping, 100K pages/sweep)
 **Searcher** → provides full-text search with GIN indices, combines text relevance (30%) + PageRank (70%)
-**Frontend** → user-facing search interface
+**Frontend** → user-facing search interface with TailwindCSS, queries Searcher via gRPC
 
 All services use:
 - PostgreSQL (central database, port 5432)
@@ -48,14 +48,19 @@ Proto files are in `protos/service/` and `protos/types/`. Generated code goes to
 ### Testing
 
 ```bash
-# Run all tests
-go test ./...
+# Run all unit tests (fast, excludes integration and E2E)
+make test
+# Or: go test ./...
+
+# Run short tests only (fastest)
+make test-short
+# Or: make test-unit
+
+# Run integration tests (uses testcontainers)
+make test-integration
 
 # Run tests for a specific package
 go test ./pkg/slice/...
-
-# Run a single test file
-go test ./pkg/slice/deduplication_test.go
 
 # Run tests with verbose output
 go test -v ./...
@@ -64,10 +69,44 @@ go test -v ./...
 go test -cover ./...
 ```
 
+**End-to-End Testing:**
+
+```bash
+# Run full E2E test suite (auto cleanup, takes 3-5 minutes)
+make test-e2e
+
+# Start E2E environment for manual testing
+make test-e2e-start
+
+# Check E2E service status and health
+make test-e2e-status
+
+# View E2E service logs
+make test-e2e-logs
+
+# Stop E2E environment (keeps volumes)
+make test-e2e-stop
+
+# Clean up E2E environment (removes containers and volumes)
+make test-e2e-clean
+
+# Run all tests (unit + E2E)
+make test-all
+```
+
+E2E tests require Docker and spin up all 5 services plus PostgreSQL. Services are available at:
+- Frontend: `http://localhost:3000`
+- Spider health: `http://localhost:8001/health`
+- Conductor health: `http://localhost:8002/health`
+- Cartographer health: `http://localhost:8003/health`
+- Searcher health: `http://localhost:8004/health`
+- PostgreSQL: `localhost:5432`
+
 The project uses:
 - `testify/mock` for mocks with the expecter pattern
 - `testcontainers-go` for integration tests (PostgreSQL, MariaDB, DynamoDB)
 - `sqlmock` for database mocking
+- E2E tests with docker-compose orchestration
 
 ### Linting
 
@@ -116,17 +155,44 @@ export DB_NAME=databaseName
 go run cmd/searcher/main.go
 ```
 
+**Frontend**:
+```bash
+export DB_USER=postgres
+export DB_PASSWORD=yourpassword
+export DB_HOST=localhost
+export DB_NAME=databaseName
+go run cmd/frontend/main.go
+```
+
 ### Docker Build Commands
 
 ```bash
-# Build Spider image
-make buildSpider
+# Build individual service images
+make buildSpider       # or: make build-spider
+make buildConductor    # or: make build-conductor
+make build-cartographer
+make build-searcher
+make buildFrontend     # or: make build-frontend
 
-# Build Conductor image
-make buildConductor
+# Build all services at once
+make build-all
 ```
 
-Note: These commands build for `linux/amd64`, tag, and push to ECR `967991486854.dkr.ecr.eu-west-1.amazonaws.com`.
+**Build and Push to Registry:**
+
+```bash
+# Build for linux/amd64 and push to container registry (requires credentials)
+make build-and-push-spider
+make build-and-push-conductor
+make build-and-push-cartographer
+make build-and-push-searcher
+make build-and-push-frontend
+
+# Build and push all services
+make build-and-push-all
+```
+
+Note: Configure your container registry in the Makefile before pushing.
 
 ## Code Structure
 
@@ -167,20 +233,35 @@ Connection is established via `dbx.Postgres()` in `pkg/db/postgres.go`.
 ### Defined Services
 
 **SpiderService** (`protos/service/spider.proto`):
-- `GetSeenList` - Stream of crawled pages
-- `GetHealth` - Health check
+- `GetSeenList` - Bidirectional streaming of crawled pages (Spider → Conductor)
+- `GetHealth` - Health check with crawl stats
 
 **SearcherService** (`protos/service/searcher.proto`):
-- `SearchPages` - Full-text search query
-- `GetHealth` - Health check
+- `SearchPages` - Full-text search query with pagination
+- `GetHealth` - Health check with index stats
 
 ### Adding New Services
 
 1. Create `.proto` file in `protos/service/` or `protos/types/`
-2. Specify package and go_package options
-3. Run `make proto_gen`
-4. Add mock configuration to `.mockery.yaml`
-5. Run `make mock_gen`
+2. Specify package and go_package options:
+   ```protobuf
+   syntax = "proto3";
+   package service;
+   option go_package = "webcrawler/pkg/generated/service/yourservice";
+   ```
+3. Run `make proto_gen` to generate Go code
+4. Add mock configuration to `.mockery.yaml`:
+   ```yaml
+   webcrawler/pkg/generated/service/yourservice:
+     interfaces:
+       YourServiceClient:
+         config:
+           dir: "pkg/mocks/service/yourservice"
+       YourServiceServer:
+         config:
+           dir: "pkg/mocks/service/yourservice"
+   ```
+5. Run `make mock_gen` to generate mocks
 
 ## Testing Patterns
 
@@ -225,10 +306,35 @@ Uses PostgreSQL GIN index on `SeenPages.search_vector` for full-text search.
 
 ### Spider-Conductor Communication
 
-Spider uses gRPC streaming (`GetSeenList`) to send crawled pages to Conductor. Conductor handles:
+Spider uses gRPC bidirectional streaming (`GetSeenList`) to send crawled pages to Conductor. Conductor handles:
 - Deduplication against PostgreSQL
 - Inserting new pages into `SeenPages` table
 - Adding new URLs to exploration queue
+- Backpressure signaling to throttle Spider when overwhelmed
+
+### Spider Security & Protection
+
+The Spider service has production-hardened security features:
+
+**SSRF Protection:**
+- Blocks private IPs (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+- Blocks loopback (127.0.0.0/8, ::1) and link-local (169.254.0.0/16)
+- Blocks cloud metadata endpoints (AWS 169.254.169.254, Azure, GCP)
+- DNS resolution check to prevent rebinding attacks
+
+**Rate Limiting & Respect:**
+- Per-domain rate limiting: 2 req/sec with burst of 5
+- robots.txt honored with 24-hour caching (reduces redundant requests by 1000x)
+- Proper User-Agent identification with contact info
+- Exponential backoff for 429/503 responses
+
+**Resource Protection:**
+- 10MB response size limit prevents OOM
+- Maximum 5 redirects prevents loops
+- Content-Type validation (only parses HTML)
+- Cycle detection prevents infinite crawl loops
+- Semaphore-based concurrency (max 10 concurrent fetches)
+- Graceful shutdown with 2-second grace period
 
 ## Module Information
 
