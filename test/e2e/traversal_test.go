@@ -2,8 +2,6 @@ package e2e
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
 	"net/http"
 	"os/exec"
 	"testing"
