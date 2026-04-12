@@ -93,9 +93,10 @@ func main() {
 
 	// Create handler for PageRank computation
 	h := handler.New(db, cfg.SweepCount, cfg.SweepBreath)
+	hp := &h
 
 	// Start health check server in background
-	healthServer := startHealthServer(db, h, cfg.EnableHTTPTrigger)
+	healthServer := startHealthServer(db, hp, cfg.EnableHTTPTrigger)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -125,7 +126,7 @@ func main() {
 		}()
 
 		slog.Info("Starting PageRank computation")
-		err = h.Traverse()
+		err = hp.Traverse()
 		if err != nil {
 			slog.Error("PageRank computation failed", slog.Any("error", err))
 		}
