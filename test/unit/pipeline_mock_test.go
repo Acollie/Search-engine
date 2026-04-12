@@ -460,7 +460,7 @@ func TestPipeline_EndToEndMocked(t *testing.T) {
 			{
 				Url:      testURL,
 				Title:    testTitle,
-				Body:     testBody[:50] + "...",
+				Body:     testBody,
 				LastSeen: time.Now().Unix(),
 			},
 		},

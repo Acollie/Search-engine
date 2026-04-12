@@ -6,6 +6,9 @@ import (
 )
 
 func Test_connectPostgres(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
 	t.Run("Test Connect Postgres", func(t *testing.T) {
 		ctx := context.Background()
 		conn, testContainer, err := NewPostgres(ctx)
