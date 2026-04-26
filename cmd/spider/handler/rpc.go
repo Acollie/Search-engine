@@ -50,22 +50,14 @@ func NewRPCServer(db sqlx.Db) *RpcServer {
 }
 
 func (c *RpcServer) _GetSeenList(ctx context.Context, request *spider.SeenListRequest) (*spider.SeenListResponse, error) {
-	// Respect limit parameter, default to 100 if not set or too large
 	limit := request.Limit
 	if limit == 0 || limit > 1000 {
-		limit = 100 // Default limit
+		limit = 100
 	}
 
-	// Get all pages (TODO: implement pagination in database layer)
-	allPages, err := c.db.Page.GetAllPages(ctx)
+	pages, err := c.db.Page.GetPagesPaginated(ctx, limit, request.Offset)
 	if err != nil {
 		return nil, err
-	}
-
-	// Apply limit to prevent OOM
-	pages := allPages
-	if int32(len(allPages)) > limit {
-		pages = allPages[:limit]
 	}
 
 	var response []*site.Page
