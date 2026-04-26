@@ -95,7 +95,7 @@ func main() {
 	h := handler.New(db, cfg.SweepCount, cfg.SweepBreath)
 
 	// Start health check server in background
-	healthServer := startHealthServer(db, h, cfg.EnableHTTPTrigger)
+	healthServer := startHealthServer(db, &h, cfg.EnableHTTPTrigger)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
