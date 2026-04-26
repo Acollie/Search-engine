@@ -1,10 +1,6 @@
 version: '3.8'
 
-# This docker-compose file sets up the search engine locally for development
-# It includes all 4 microservices plus PostgreSQL database
-
 services:
-  # PostgreSQL Database - Central storage for all services
   postgres:
     image: postgres:15-alpine
     container_name: search-engine-postgres
@@ -27,7 +23,22 @@ services:
     networks:
       - search-engine
 
-  # Spider Service - Web crawler that discovers and fetches pages
+  elasticmq:
+    image: softwaremill/elasticmq-native:latest
+    container_name: search-engine-elasticmq
+    restart: unless-stopped
+    ports:
+      - "9324:9324"
+    volumes:
+      - ./elasticmq.conf:/opt/elasticmq.conf
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9324/?Action=ListQueues || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - search-engine
+
   spider:
     build:
       context: .
@@ -43,20 +54,17 @@ services:
       DB_HOST: postgres
       DB_NAME: databaseName
     ports:
-      - "9001:9090"  # gRPC port
-      - "8001:8080"  # Health/metrics port
+      - "9001:9090"
+      - "8001:8080"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - search-engine
-    labels:
-      - "prometheus-job=spider"
 
-  # Conductor Service - Deduplication and queue management
   conductor:
     build:
       context: .
@@ -66,6 +74,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      elasticmq:
+        condition: service_healthy
       spider:
         condition: service_healthy
     environment:
@@ -73,22 +83,24 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_HOST: postgres
       DB_NAME: databaseName
-      QUEUE_URL: ${QUEUE_URL:-http://mock-sqs:9324}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
+      QUEUE_URL: http://elasticmq:9324/000000000000/search-queue
+      SQS_ENDPOINT: http://elasticmq:9324
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: local
+      AWS_SECRET_ACCESS_KEY: local
+      SPIDER_HOST: spider
+      SPIDER_PORT: "9090"
     ports:
-      - "8002:8080"  # Health/metrics port
+      - "8002:8080"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - search-engine
-    labels:
-      - "prometheus-job=conductor"
 
-  # Cartographer Service - PageRank computation (runs as batch job)
   cartographer:
     build:
       context: .
@@ -103,20 +115,18 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_HOST: postgres
       DB_NAME: databaseName
+      ENABLE_HTTP_TRIGGER: "true"
     ports:
-      - "8003:8080"  # Health/metrics port
+      - "8003:8080"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - search-engine
-    labels:
-      - "prometheus-job=cartographer"
 
-  # Searcher Service - Full-text search with PageRank boosting
   searcher:
     build:
       context: .
@@ -132,20 +142,17 @@ services:
       DB_HOST: postgres
       DB_NAME: databaseName
     ports:
-      - "9002:9091"  # gRPC port
-      - "8004:8080"  # Health/metrics port
+      - "9002:9091"
+      - "8004:8080"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     networks:
       - search-engine
-    labels:
-      - "prometheus-job=searcher"
 
-  # Frontend Service - User-facing web interface
   frontend:
     build:
       context: .
@@ -161,20 +168,17 @@ services:
       SEARCHER_HOST: searcher
       SEARCHER_PORT: "9091"
     ports:
-      - "3000:3000"  # HTTP web interface
-      - "8005:8080"  # Health/metrics port
+      - "3000:3000"
+      - "8005:8080"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 15s
+      timeout: 5s
+      retries: 5
       start_period: 20s
     networks:
       - search-engine
-    labels:
-      - "prometheus-job=frontend"
 
-  # Adminer - Database management UI (optional)
   adminer:
     image: adminer:latest
     container_name: search-engine-adminer
@@ -182,7 +186,7 @@ services:
     depends_on:
       - postgres
     ports:
-      - "8888:8080"  # Fixed port to avoid conflicts
+      - "8888:8080"
     networks:
       - search-engine
     environment:

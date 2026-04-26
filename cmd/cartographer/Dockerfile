@@ -1,42 +1,28 @@
-# Build stage
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24.0-alpine AS builder
 
-# Install build dependencies
 RUN apk add --no-cache git ca-certificates tzdata
 
-# Set working directory
 WORKDIR /app
 
-# Copy go.mod and go.sum
 COPY go.mod go.sum ./
-
-# Download dependencies
 RUN go mod download
 
-# Copy the entire project
 COPY . .
 
-# Build the application with optimizations
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags='-w -s -extldflags "-static"' \
     -a \
     -o cartographer \
     cmd/cartographer/main.go
 
-# Final stage - minimal runtime image
-FROM scratch
+FROM alpine:latest
 
-# Copy CA certificates for HTTPS
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+RUN apk --no-cache add ca-certificates curl tzdata
 
-# Copy timezone data
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+WORKDIR /app
 
-# Copy the binary
-COPY --from=builder /app/cartographer /cartographer
+COPY --from=builder /app/cartographer .
 
-# Run as non-root (optional, requires CGO for user lookup)
-# USER 65534:65534
+EXPOSE 8080
 
-# Run the application
-ENTRYPOINT ["/cartographer"]
+ENTRYPOINT ["./cartographer"]

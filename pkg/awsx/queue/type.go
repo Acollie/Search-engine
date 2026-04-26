@@ -24,12 +24,13 @@ type Message struct {
 }
 
 func New(url string, cfg aws.Config) *Handler {
-	if os.Getenv("ENVIRONMENT") == "local" {
+	// Allow overriding the SQS endpoint for local development (e.g. ElasticMQ)
+	if endpoint := os.Getenv("SQS_ENDPOINT"); endpoint != "" {
 		cfg.EndpointResolver = aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
 			return aws.Endpoint{
 				PartitionID:   "aws",
-				URL:           "http://localhost:4570",
-				SigningRegion: "us-west-2",
+				URL:           endpoint,
+				SigningRegion:  region,
 			}, nil
 		})
 	}
