@@ -20,5 +20,7 @@ const (
 	RemovePage           = `delete from SeenPages where url = ?;`
 	RemovePagePG         = `delete from SeenPages where url = $1;`
 	GetAllPages          = `SELECT * FROM SeenPages`
+	GetPagesPaginated    = `SELECT * FROM SeenPages ORDER BY url LIMIT ? OFFSET ?`
+	GetPagesPaginatedPG  = `SELECT * FROM SeenPages ORDER BY url LIMIT $1 OFFSET $2`
 	CountSeenPages       = `select count(*) as "count" from seenPages;`
 )
