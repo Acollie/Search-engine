@@ -93,8 +93,10 @@ go run cmd/spider/main.go
 
 **Conductor**:
 ```bash
-export QUEUE_URL=your-sqs-queue-url
-export AWS_REGION=eu-west-1
+export DB_USER=postgres
+export DB_PASSWORD=yourpassword
+export DB_HOST=localhost
+export DB_NAME=databaseName
 go run cmd/conductor/main.go
 ```
 
@@ -144,7 +146,8 @@ cmd/{service}/
 
 - `pkg/db/` - Database connections (PostgreSQL, SQLite, MariaDB)
 - `pkg/sqlx/` - Database wrappers and utilities
-- `pkg/awsx/` - AWS SDK wrappers (DynamoDB, SQS)
+- `pkg/awsx/` - AWS SDK wrappers (DynamoDB)
+- `pkg/queue/` - PostgreSQL-backed crawl queue used by Spider and Conductor
 - `pkg/bootstrap/` - Observability, health checks, Prometheus setup
 - `pkg/grpcx/` - gRPC port constants
 - `pkg/config/` - Configuration parsing with `caarlos0/env`

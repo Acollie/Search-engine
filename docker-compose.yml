@@ -73,8 +73,6 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_HOST: postgres
       DB_NAME: databaseName
-      QUEUE_URL: ${QUEUE_URL:-http://mock-sqs:9324}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
     ports:
       - "8002:8080"  # Health/metrics port
     healthcheck:

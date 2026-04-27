@@ -29,10 +29,6 @@ data:
   PROMETHEUS_PORT: "9090"
   METRICS_PORT: "9090"
 
-  # AWS configuration (for production, use real SQS)
-  AWS_REGION: us-east-1
-  QUEUE_URL: https://sqs.us-east-1.amazonaws.com/123456789012/search-engine-queue
-
 ---
 apiVersion: v1
 kind: ConfigMap

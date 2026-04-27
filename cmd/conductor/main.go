@@ -1,4 +1,6 @@
-// A simple conductor service that listens to a SQS queue and sends URLs to the spider service.
+// Conductor service: receives crawled pages from Spider via gRPC streaming,
+// deduplicates them into PostgreSQL, and pushes newly discovered URLs back
+// onto the Postgres-backed crawl queue.
 package main
 
 import (
@@ -11,12 +13,12 @@ import (
 	"syscall"
 	"webcrawler/cmd/conductor/handler"
 	"webcrawler/cmd/spider/pkg/site"
-	"webcrawler/pkg/awsx"
-	"webcrawler/pkg/awsx/queue"
 	"webcrawler/pkg/bootstrap"
+	"webcrawler/pkg/conn"
 	dbx "webcrawler/pkg/db"
 	"webcrawler/pkg/generated/service/spider"
 	"webcrawler/pkg/grpcx"
+	"webcrawler/pkg/queue"
 
 	"github.com/caarlos0/env/v11"
 	"google.golang.org/grpc"
@@ -34,12 +36,6 @@ type Config struct {
 
 	// Spider service configuration
 	SpiderHost string `env:"SPIDER_HOST" envDefault:"0.0.0.0"`
-
-	// SQS Queue configuration
-	QueueURL string `env:"QUEUE_URL,required"`
-
-	// AWS configuration
-	AWSRegion string `env:"AWS_REGION" envDefault:"eu-west-1"`
 }
 
 func main() {
@@ -54,17 +50,9 @@ func main() {
 		slog.String("db_host", cfg.DBHost),
 		slog.Int("db_port", cfg.DBPort),
 		slog.String("db_name", cfg.DBName),
-		slog.String("spider_host", cfg.SpiderHost),
-		slog.String("queue_url", cfg.QueueURL))
+		slog.String("spider_host", cfg.SpiderHost))
 
 	ctx := context.Background()
-
-	// Initialize AWS configuration
-	awsConfig, err := awsx.GetConfig(ctx)
-	if err != nil {
-		slog.Error("Failed to get AWS config", slog.Any("error", err))
-		os.Exit(1)
-	}
 
 	// Connect to PostgreSQL
 	db, _, err := dbx.Postgres(cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
@@ -75,25 +63,25 @@ func main() {
 	defer db.Close()
 	slog.Info("Connected to PostgreSQL successfully")
 
-	// Initialize SQS client
-	sqsClient := queue.New(cfg.QueueURL, awsConfig)
-	slog.Info("Initialized SQS client")
+	// Postgres-backed crawl queue (replaces SQS)
+	crawlQueue := queue.New(db, conn.PG)
+	slog.Info("Initialized Postgres crawl queue")
 
 	// Connect to Spider service via gRPC
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	conn, err := grpc.NewClient(fmt.Sprintf("%s:%d", cfg.SpiderHost, grpcx.SpiderPort), opts...)
+	grpcConn, err := grpc.NewClient(fmt.Sprintf("%s:%d", cfg.SpiderHost, grpcx.SpiderPort), opts...)
 	if err != nil {
 		slog.Error("Failed to connect to Spider service", slog.Any("error", err))
 		os.Exit(1)
 	}
-	defer conn.Close()
+	defer grpcConn.Close()
 	slog.Info("Connected to Spider service", slog.String("address", fmt.Sprintf("%s:%d", cfg.SpiderHost, grpcx.SpiderPort)))
 
 	// Initialize handler
-	spiderClient := spider.NewSpiderClient(conn)
+	spiderClient := spider.NewSpiderClient(grpcConn)
 	adder := site.NewAdder(db)
-	h := handler.New(adder, sqsClient, spiderClient)
+	h := handler.New(adder, crawlQueue, spiderClient)
 
 	// Initialize OpenTelemetry
 	if err := bootstrap.Observability(); err != nil {
@@ -146,7 +134,7 @@ func main() {
 	}
 
 	// Close connections
-	conn.Close()
+	grpcConn.Close()
 	db.Close()
 	slog.Info("Conductor service stopped")
 }

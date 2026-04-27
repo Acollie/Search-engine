@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"webcrawler/pkg/awsx/queue"
 )
 
 const (
@@ -172,10 +171,3 @@ func stripCSS(text *string) {
 	*text = re.ReplaceAllString(*text, "")
 }
 
-func resolveMessageIntoLinks(messages []queue.Message) []string {
-	var links []string
-	for _, message := range messages {
-		links = append(links, message.Url)
-	}
-	return links
-}
