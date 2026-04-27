@@ -33,7 +33,8 @@ func TestE2E_SearchEngine(t *testing.T) {
 
 	// Start docker-compose
 	t.Log("Starting docker-compose environment...")
-	cmd := exec.CommandContext(ctx, "docker-compose",
+	cmd := exec.CommandContext(ctx, "docker",
+		"compose",
 		"-f", "test/e2e/docker-compose.e2e.yml",
 		"up", "-d", "--build")
 	cmd.Dir = "../../" // Run from repo root
@@ -49,7 +50,7 @@ func TestE2E_SearchEngine(t *testing.T) {
 		if t.Failed() {
 			collectServiceLogs(t, []string{"postgres", "spider", "conductor", "cartographer", "searcher", "frontend"})
 		}
-		cleanupCmd := exec.Command("docker-compose", "-f", "test/e2e/docker-compose.e2e.yml", "down", "-v")
+		cleanupCmd := exec.Command("docker", "compose", "-f", "test/e2e/docker-compose.e2e.yml", "down", "-v")
 		cleanupCmd.Dir = "../../"
 		cleanupCmd.Run()
 	}()

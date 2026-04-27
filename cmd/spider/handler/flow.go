@@ -37,7 +37,11 @@ func (h *Server) Scan(ctx context.Context) {
 					return
 				}
 				slog.Error("Error processing batch", slog.Any("error", err))
-				time.Sleep(5 * time.Second)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(5 * time.Second):
+				}
 			}
 		}
 	}
@@ -53,8 +57,11 @@ func (h *Server) processBatch(ctx context.Context) error {
 	metrics.QueueDepth.Set(float64(len(links)))
 
 	if len(links) == 0 {
-		// No work to do, sleep briefly to avoid busy loop
-		time.Sleep(10 * time.Second)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(10 * time.Second):
+		}
 		return nil
 	}
 
