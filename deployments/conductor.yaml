@@ -84,28 +84,6 @@ spec:
                 configMapKeyRef:
                   name: search-engine-config
                   key: DB_NAME
-            - name: QUEUE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: search-engine-config
-                  key: QUEUE_URL
-            - name: AWS_REGION
-              valueFrom:
-                configMapKeyRef:
-                  name: search-engine-config
-                  key: AWS_REGION
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: search-engine-secrets
-                  key: AWS_ACCESS_KEY_ID
-                  optional: true
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: search-engine-secrets
-                  key: AWS_SECRET_ACCESS_KEY
-                  optional: true
             - name: CONDUCTOR_HEALTH_PORT
               valueFrom:
                 configMapKeyRef:

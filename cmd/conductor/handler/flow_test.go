@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 	"webcrawler/cmd/spider/pkg/site"
-	"webcrawler/pkg/awsx/queue"
 	"webcrawler/pkg/generated/service/spider"
 	sitepb "webcrawler/pkg/generated/types/site"
 	mockspider "webcrawler/pkg/mocks/service/spider"
@@ -27,28 +26,13 @@ func (m *MockSiteAdder) Add(ctx context.Context, page site.Page) error {
 	return args.Error(0)
 }
 
-// MockQueueHandler is a mock implementation of queue.HandlerI
+// MockQueueHandler is a mock implementation of the handler.Queue interface
 type MockQueueHandler struct {
 	mock.Mock
 }
 
-func (m *MockQueueHandler) Fetch(ctx context.Context) ([]queue.Message, error) {
-	args := m.Called(ctx)
-	return args.Get(0).([]queue.Message), args.Error(1)
-}
-
-func (m *MockQueueHandler) Add(ctx context.Context, message queue.Message) error {
-	args := m.Called(ctx, message)
-	return args.Error(0)
-}
-
-func (m *MockQueueHandler) BatchAdd(ctx context.Context, messages []queue.Message) error {
-	args := m.Called(ctx, messages)
-	return args.Error(0)
-}
-
-func (m *MockQueueHandler) Remove(ctx context.Context, message string) error {
-	args := m.Called(ctx, message)
+func (m *MockQueueHandler) AddLinks(ctx context.Context, urls []string) error {
+	args := m.Called(ctx, urls)
 	return args.Error(0)
 }
 
@@ -153,11 +137,11 @@ func TestProcessPage_Success(t *testing.T) {
 			len(p.Links) == 2
 	})).Return(nil)
 
-	// Expect BatchAdd to be called with the links
-	mockQueue.On("BatchAdd", ctx, mock.MatchedBy(func(msgs []queue.Message) bool {
-		return len(msgs) == 2 &&
-			msgs[0].Url == "https://example.com/page1" &&
-			msgs[1].Url == "https://example.com/page2"
+	// Expect AddLinks to be called with the links
+	mockQueue.On("AddLinks", ctx, mock.MatchedBy(func(urls []string) bool {
+		return len(urls) == 2 &&
+			urls[0] == "https://example.com/page1" &&
+			urls[1] == "https://example.com/page2"
 	})).Return(nil)
 
 	err := h.processPage(ctx, protoPage)
@@ -190,7 +174,7 @@ func TestProcessPage_DuplicateURL(t *testing.T) {
 	assert.NoError(t, err)
 	mockSite.AssertExpectations(t)
 	// Queue should not be called for duplicates
-	mockQueue.AssertNotCalled(t, "BatchAdd")
+	mockQueue.AssertNotCalled(t, "AddLinks")
 }
 
 func TestProcessPage_DatabaseError(t *testing.T) {
@@ -232,8 +216,8 @@ func TestProcessPage_QueueError(t *testing.T) {
 
 	mockSite.On("Add", ctx, mock.Anything).Return(nil)
 
-	queueErr := errors.New("SQS unavailable")
-	mockQueue.On("BatchAdd", ctx, mock.Anything).Return(queueErr)
+	queueErr := errors.New("postgres queue unavailable")
+	mockQueue.On("AddLinks", ctx, mock.Anything).Return(queueErr)
 
 	err := h.processPage(ctx, protoPage)
 
@@ -264,7 +248,7 @@ func TestProcessPage_NoLinks(t *testing.T) {
 	assert.NoError(t, err)
 	mockSite.AssertExpectations(t)
 	// Queue should not be called when there are no links
-	mockQueue.AssertNotCalled(t, "BatchAdd")
+	mockQueue.AssertNotCalled(t, "AddLinks")
 }
 
 func TestAddLinksToQueue(t *testing.T) {
@@ -281,12 +265,12 @@ func TestAddLinksToQueue(t *testing.T) {
 		"https://example.com/page3",
 	}
 
-	mockQueue.On("BatchAdd", ctx, mock.MatchedBy(func(msgs []queue.Message) bool {
-		if len(msgs) != 3 {
+	mockQueue.On("AddLinks", ctx, mock.MatchedBy(func(urls []string) bool {
+		if len(urls) != 3 {
 			return false
 		}
-		for i, msg := range msgs {
-			if msg.Url != links[i] {
+		for i, u := range urls {
+			if u != links[i] {
 				return false
 			}
 		}
@@ -309,8 +293,8 @@ func TestAddLinksToQueue_Empty(t *testing.T) {
 	ctx := context.Background()
 	links := []string{}
 
-	mockQueue.On("BatchAdd", ctx, mock.MatchedBy(func(msgs []queue.Message) bool {
-		return len(msgs) == 0
+	mockQueue.On("AddLinks", ctx, mock.MatchedBy(func(urls []string) bool {
+		return len(urls) == 0
 	})).Return(nil)
 
 	err := h.addLinksToQueue(ctx, links)
@@ -631,7 +615,7 @@ func BenchmarkProcessPage(b *testing.B) {
 	}
 
 	mockSite.On("Add", mock.Anything, mock.Anything).Return(nil)
-	mockQueue.On("BatchAdd", mock.Anything, mock.Anything).Return(nil)
+	mockQueue.On("AddLinks", mock.Anything, mock.Anything).Return(nil)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

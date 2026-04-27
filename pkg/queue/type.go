@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"webcrawler/pkg/conn"
 )
 
@@ -55,11 +56,32 @@ func (d Db) AddLink(ctx context.Context, url string) error {
 	return nil
 }
 
-func (d Db) AddLinks(ctx context.Context, url []string) error {
-	for _, u := range url {
-		_, err := d.Sql.ExecContext(ctx, AddLink, u)
-		if err != nil {
-			return fmt.Errorf("error adding link: %w", err)
+func (d Db) AddLinks(ctx context.Context, urls []string) error {
+	if len(urls) == 0 {
+		return nil
+	}
+
+	const batchSize = 500
+	for start := 0; start < len(urls); start += batchSize {
+		end := start + batchSize
+		if end > len(urls) {
+			end = len(urls)
+		}
+		batch := urls[start:end]
+
+		placeholders := make([]string, len(batch))
+		args := make([]interface{}, len(batch))
+		for i, u := range batch {
+			placeholders[i] = fmt.Sprintf("($%d)", i+1)
+			args[i] = u
+		}
+
+		query := fmt.Sprintf(
+			"insert into Queue (url) values %s on conflict (url) do nothing;",
+			strings.Join(placeholders, ","),
+		)
+		if _, err := d.Sql.ExecContext(ctx, query, args...); err != nil {
+			return fmt.Errorf("error adding links: %w", err)
 		}
 	}
 	return nil

@@ -2,12 +2,12 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"time"
 	"webcrawler/cmd/conductor/metrics"
 	"webcrawler/cmd/spider/pkg/site"
-	"webcrawler/pkg/awsx/queue"
 	"webcrawler/pkg/generated/service/spider"
 	sitepb "webcrawler/pkg/generated/types/site"
 
@@ -27,6 +27,9 @@ func (h *Handler) Listen(ctx context.Context) {
 			return
 		default:
 			if err := h.processBatch(ctx); err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return
+				}
 				if status.Code(err) == codes.Unavailable {
 					slog.Warn("Spider service unavailable, retrying in 10s", slog.Any("error", err))
 					time.Sleep(10 * time.Second)
@@ -147,24 +150,13 @@ func (h *Handler) processPage(ctx context.Context, protoPage *sitepb.Page) error
 	return nil
 }
 
-// addLinksToQueue adds discovered links to the SQS queue for future crawling
+// addLinksToQueue adds discovered links to the Postgres queue for future crawling
 func (h *Handler) addLinksToQueue(ctx context.Context, links []string) error {
-	// Convert links to queue messages
-	messages := make([]queue.Message, 0, len(links))
-	for _, link := range links {
-		messages = append(messages, queue.Message{
-			Url: link,
-		})
-	}
-
-	// Batch add to queue
-	if err := h.queue.BatchAdd(ctx, messages); err != nil {
+	if err := h.queue.AddLinks(ctx, links); err != nil {
 		return err
 	}
 
-	// Update queue depth metric (approximate)
 	metrics.QueueDepth.Add(float64(len(links)))
-
 	return nil
 }
 

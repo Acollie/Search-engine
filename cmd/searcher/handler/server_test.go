@@ -11,6 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// actualQuery is a regex that matches the full-text search query in server.go.
+// Uses (?s) so . matches newlines, and \$N for parameter placeholders.
+const actualQuery = `(?s)SELECT.*sp\.url.*to_tsquery.*LIMIT \$2 OFFSET \$3`
+
+// mockCols are the columns returned by the actual SELECT.
+var mockCols = []string{"url", "title", "body", "description", "pagerank_score", "text_relevance", "combined_score", "crawl_time"}
+
 func TestHandler_SearchPages(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -26,13 +33,13 @@ func TestHandler_SearchPages(t *testing.T) {
 				Limit: 5,
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"url", "title", "body", "rank_score", "computed_at"}).
-					AddRow("https://golang.org", "The Go Programming Language", "Go is an open source programming language...", 0.95, time.Now()).
-					AddRow("https://go.dev", "Go.dev", "Get started with Go documentation...", 0.92, time.Now()).
-					AddRow("https://golang.org/doc", "Documentation", "Learn how to use Go...", 0.88, time.Now())
+				rows := sqlmock.NewRows(mockCols).
+					AddRow("https://golang.org", "The Go Programming Language", "Go is an open source programming language...", nil, 0.95, 0.9, 0.94, time.Now()).
+					AddRow("https://go.dev", "Go.dev", "Get started with Go documentation...", nil, 0.92, 0.85, 0.91, time.Now()).
+					AddRow("https://golang.org/doc", "Documentation", "Learn how to use Go...", nil, 0.88, 0.80, 0.87, time.Now())
 
-				mock.ExpectQuery(`SELECT pr.url, sp.title, sp.body, pr.rank_score, pr.computed_at FROM PageRankResults pr INNER JOIN SeenPages sp ON pr.url = sp.url WHERE pr.is_latest = TRUE AND \(url ILIKE \$1\) ORDER BY pr.rank_score DESC LIMIT \$2`).
-					WithArgs("%golang%", int32(5)).
+				mock.ExpectQuery(actualQuery).
+					WithArgs("golang", int32(5), int32(0)).
 					WillReturnRows(rows)
 			},
 			expectedLen:   3,
@@ -45,12 +52,12 @@ func TestHandler_SearchPages(t *testing.T) {
 				Limit: 10,
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"url", "title", "body", "rank_score", "computed_at"}).
-					AddRow("https://golang.org/doc/tutorial", "Tutorial: Getting started", "In this tutorial you'll learn the basics...", 0.95, time.Now()).
-					AddRow("https://tutorial.golang.org", "Go Tutorial", "Complete guide to learning Go...", 0.90, time.Now())
+				rows := sqlmock.NewRows(mockCols).
+					AddRow("https://golang.org/doc/tutorial", "Tutorial: Getting started", "In this tutorial you'll learn the basics...", nil, 0.95, 0.9, 0.94, time.Now()).
+					AddRow("https://tutorial.golang.org", "Go Tutorial", "Complete guide to learning Go...", nil, 0.90, 0.85, 0.89, time.Now())
 
-				mock.ExpectQuery(`SELECT pr.url, sp.title, sp.body, pr.rank_score, pr.computed_at FROM PageRankResults pr INNER JOIN SeenPages sp ON pr.url = sp.url WHERE pr.is_latest = TRUE AND \(url ILIKE \$1 OR url ILIKE \$2\) ORDER BY pr.rank_score DESC LIMIT \$3`).
-					WithArgs("%golang%", "%tutorial%", int32(10)).
+				mock.ExpectQuery(actualQuery).
+					WithArgs("golang & tutorial", int32(10), int32(0)).
 					WillReturnRows(rows)
 			},
 			expectedLen:   2,
@@ -63,7 +70,7 @@ func TestHandler_SearchPages(t *testing.T) {
 				Limit: 10,
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				// No query expected since empty tokens should return early
+				// No query expected since empty tokens return early
 			},
 			expectedLen:   0,
 			expectedError: false,
@@ -72,14 +79,14 @@ func TestHandler_SearchPages(t *testing.T) {
 			name: "default limit applied when not provided",
 			request: &searcher.SearchRequest{
 				Query: "test",
-				Limit: 0, // Will default to 10
+				Limit: 0, // defaults to 10
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"url", "title", "body", "rank_score", "computed_at"}).
-					AddRow("https://test.com", "Test Page", "This is a test page body", 0.85, time.Now())
+				rows := sqlmock.NewRows(mockCols).
+					AddRow("https://test.com", "Test Page", nil, "A test page", 0.85, 0.7, 0.83, time.Now())
 
-				mock.ExpectQuery(`SELECT pr.url, sp.title, sp.body, pr.rank_score, pr.computed_at FROM PageRankResults pr INNER JOIN SeenPages sp ON pr.url = sp.url WHERE pr.is_latest = TRUE AND \(url ILIKE \$1\) ORDER BY pr.rank_score DESC LIMIT \$2`).
-					WithArgs("%test%", int32(10)).
+				mock.ExpectQuery(actualQuery).
+					WithArgs("test", int32(10), int32(0)).
 					WillReturnRows(rows)
 			},
 			expectedLen:   1,
@@ -92,8 +99,8 @@ func TestHandler_SearchPages(t *testing.T) {
 				Limit: 5,
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(`SELECT pr.url, sp.title, sp.body, pr.rank_score, pr.computed_at FROM PageRankResults pr INNER JOIN SeenPages sp ON pr.url = sp.url WHERE pr.is_latest = TRUE AND \(url ILIKE \$1\) ORDER BY pr.rank_score DESC LIMIT \$2`).
-					WithArgs("%error%", int32(5)).
+				mock.ExpectQuery(actualQuery).
+					WithArgs("error", int32(5), int32(0)).
 					WillReturnError(sql.ErrConnDone)
 			},
 			expectedLen:   0,
@@ -106,10 +113,10 @@ func TestHandler_SearchPages(t *testing.T) {
 				Limit: 10,
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"url", "title", "body", "rank_score", "computed_at"})
+				rows := sqlmock.NewRows(mockCols)
 
-				mock.ExpectQuery(`SELECT pr.url, sp.title, sp.body, pr.rank_score, pr.computed_at FROM PageRankResults pr INNER JOIN SeenPages sp ON pr.url = sp.url WHERE pr.is_latest = TRUE AND \(url ILIKE \$1\) ORDER BY pr.rank_score DESC LIMIT \$2`).
-					WithArgs("%nonexistent%", int32(10)).
+				mock.ExpectQuery(actualQuery).
+					WithArgs("nonexistent", int32(10), int32(0)).
 					WillReturnRows(rows)
 			},
 			expectedLen:   0,
@@ -122,11 +129,11 @@ func TestHandler_SearchPages(t *testing.T) {
 				Limit: 5,
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
-				rows := sqlmock.NewRows([]string{"url", "title", "body", "rank_score", "computed_at"}).
-					AddRow("https://test.com", nil, nil, 0.85, time.Now())
+				rows := sqlmock.NewRows(mockCols).
+					AddRow("https://test.com", nil, nil, nil, 0.85, 0.7, 0.83, time.Now())
 
-				mock.ExpectQuery(`SELECT pr.url, sp.title, sp.body, pr.rank_score, pr.computed_at FROM PageRankResults pr INNER JOIN SeenPages sp ON pr.url = sp.url WHERE pr.is_latest = TRUE AND \(url ILIKE \$1\) ORDER BY pr.rank_score DESC LIMIT \$2`).
-					WithArgs("%test%", int32(5)).
+				mock.ExpectQuery(actualQuery).
+					WithArgs("test", int32(5), int32(0)).
 					WillReturnRows(rows)
 			},
 			expectedLen:   1,
@@ -136,21 +143,16 @@ func TestHandler_SearchPages(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create mock database
 			db, mock, err := sqlmock.New()
 			require.NoError(t, err)
 			defer db.Close()
 
-			// Setup mock expectations
 			tt.mockSetup(mock)
 
-			// Create handler
 			handler := NewRPCServer(db)
 
-			// Execute test
 			resp, err := handler.SearchPages(context.Background(), tt.request)
 
-			// Verify results
 			if tt.expectedError {
 				require.Error(t, err)
 			} else {
@@ -158,7 +160,6 @@ func TestHandler_SearchPages(t *testing.T) {
 				require.NotNil(t, resp)
 				require.Len(t, resp.Pages, tt.expectedLen)
 
-				// Verify page structure if results exist
 				if tt.expectedLen > 0 {
 					for _, page := range resp.Pages {
 						require.NotEmpty(t, page.Url)
@@ -166,48 +167,41 @@ func TestHandler_SearchPages(t *testing.T) {
 				}
 			}
 
-			// Ensure all expectations were met
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
 }
 
 func TestHandler_SearchPages_Integration(t *testing.T) {
-	// Create mock database
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
 	handler := NewRPCServer(db)
 
-	// Setup mock data
-	computedAt := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	rows := sqlmock.NewRows([]string{"url", "title", "body", "rank_score", "computed_at"}).
-		AddRow("https://example.com/go/tutorial", "Go Tutorial Complete", "Learn Go programming from scratch...", 0.95, computedAt).
-		AddRow("https://golang.org", "The Go Programming Language", "Official Go website with documentation...", 0.92, computedAt).
-		AddRow("https://go.dev/learn", "Learn Go", "Interactive Go tutorials and guides...", 0.88, computedAt)
+	crawlTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	rows := sqlmock.NewRows(mockCols).
+		AddRow("https://example.com/go/tutorial", "Go Tutorial Complete", "Learn Go programming from scratch...", nil, 0.95, 0.9, 0.94, crawlTime).
+		AddRow("https://golang.org", "The Go Programming Language", "Official Go website with documentation...", nil, 0.92, 0.85, 0.91, crawlTime).
+		AddRow("https://go.dev/learn", "Learn Go", "Interactive Go tutorials and guides...", nil, 0.88, 0.80, 0.87, crawlTime)
 
-	mock.ExpectQuery(`SELECT pr.url, sp.title, sp.body, pr.rank_score, pr.computed_at FROM PageRankResults pr INNER JOIN SeenPages sp ON pr.url = sp.url WHERE pr.is_latest = TRUE AND \(url ILIKE \$1 OR url ILIKE \$2\) ORDER BY pr.rank_score DESC LIMIT \$3`).
-		WithArgs("%go%", "%tutorial%", int32(10)).
+	mock.ExpectQuery(actualQuery).
+		WithArgs("go & tutorial", int32(10), int32(0)).
 		WillReturnRows(rows)
 
-	// Execute search
 	resp, err := handler.SearchPages(context.Background(), &searcher.SearchRequest{
 		Query: "go tutorial",
 		Limit: 10,
 	})
 
-	// Verify
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.Len(t, resp.Pages, 3)
 
-	// Verify first result has all fields populated
 	require.Equal(t, "https://example.com/go/tutorial", resp.Pages[0].Url)
 	require.Equal(t, "Go Tutorial Complete", resp.Pages[0].Title)
 	require.Equal(t, "Learn Go programming from scratch...", resp.Pages[0].Body)
-	require.Equal(t, computedAt.Unix(), resp.Pages[0].LastSeen)
+	require.Equal(t, crawlTime.Unix(), resp.Pages[0].LastSeen)
 
-	// Ensure all expectations were met
 	require.NoError(t, mock.ExpectationsWereMet())
 }

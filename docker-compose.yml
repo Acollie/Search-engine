@@ -23,22 +23,6 @@ services:
     networks:
       - search-engine
 
-  elasticmq:
-    image: softwaremill/elasticmq-native:latest
-    container_name: search-engine-elasticmq
-    restart: unless-stopped
-    ports:
-      - "9324:9324"
-    volumes:
-      - ./elasticmq.conf:/opt/elasticmq.conf
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9324/?Action=ListQueues || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - search-engine
-
   spider:
     build:
       context: .
@@ -74,8 +58,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      elasticmq:
-        condition: service_healthy
       spider:
         condition: service_healthy
     environment:
@@ -83,11 +65,6 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_HOST: postgres
       DB_NAME: databaseName
-      QUEUE_URL: http://elasticmq:9324/000000000000/search-queue
-      SQS_ENDPOINT: http://elasticmq:9324
-      AWS_REGION: us-east-1
-      AWS_ACCESS_KEY_ID: local
-      AWS_SECRET_ACCESS_KEY: local
       SPIDER_HOST: spider
       SPIDER_PORT: "9090"
     ports:

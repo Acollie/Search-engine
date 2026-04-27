@@ -203,11 +203,12 @@ func TestScan_RunsUntilCancelled(t *testing.T) {
 	defer cancel()
 
 	callCount := 0
-	// Return invalid link to avoid the 10-second sleep when queue is empty
-	// The invalid URL will be quickly rejected by URL validator
+	// Return a URL once, then empty — prevents an infinite slog-write loop that
+	// saturates the stderr pipe and blocks the goroutine on wg.Wait().
 	mockQueueDB.On("GetExplore", ctx).Run(func(args mock.Arguments) {
 		callCount++
-	}).Return([]string{"http://localhost/test"}, nil)
+	}).Return([]string{"http://localhost/test"}, nil).Once()
+	mockQueueDB.On("GetExplore", ctx).Return([]string{}, nil)
 
 	// Mock RemoveLink to handle URL validator removing invalid URLs
 	mockQueueDB.On("RemoveLink", ctx, "http://localhost/test").Return(nil)

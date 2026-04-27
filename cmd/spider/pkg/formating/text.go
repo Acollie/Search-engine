@@ -5,7 +5,6 @@ import (
 	"net/url"
 	"path"
 	"strings"
-	"webcrawler/pkg/awsx/queue"
 )
 
 const (
@@ -27,19 +26,6 @@ func GetLinks(fetchingURL string, body string) ([]string, error) {
 	links = removeDepthLinks(links)
 
 	return links, nil
-}
-
-func ResolveLinkToQueueMessage(links []string) []queue.Message {
-	return convertLinksToQueueMessage(links)
-}
-
-func convertLinksToQueueMessage(links []string) []queue.Message {
-	messages := []queue.Message{}
-	for _, link := range links {
-		message := queue.Message{Url: link}
-		messages = append(messages, message)
-	}
-	return messages
 }
 
 func resolveURL(baseURL, relURL string) string {
