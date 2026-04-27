@@ -2,7 +2,7 @@
 
 ## Critical Fixes (Priority 1 - Do First)
 
-### 1. Fix WaitGroup Concurrency Bug in Spider
+### ~~1. Fix WaitGroup Concurrency Bug in Spider~~ ✅ Done
 **Issue**: Current implementation has `wg.Wait()` inside the loop, blocking on each goroutine individually and defeating parallelism.
 
 **Current Code** (`cmd/spider/handler/flow.go`):
@@ -34,7 +34,7 @@ wg.Wait()
 
 ---
 
-### 2. Add Graceful Shutdown with Signal Handling
+### ~~2. Add Graceful Shutdown with Signal Handling~~ ✅ Done
 **Issue**: Services don't handle SIGTERM/SIGINT properly and can't cleanly terminate.
 
 **Required Changes**:
@@ -65,7 +65,7 @@ go func() {
 
 ---
 
-### 3. Fix SQL Injection Vulnerability in Queue Operations
+### ~~3. Fix SQL Injection Vulnerability in Queue Operations~~ ✅ Done
 **Issue**: Queue operations use string formatting instead of parameterized queries.
 
 **Vulnerable Code** (`pkg/queue/type.go`):
@@ -86,7 +86,7 @@ _, err := d.Sql.ExecContext(ctx, AddLink, url)
 
 ---
 
-### 4. Configure Database Connection Pooling
+### ~~4. Configure Database Connection Pooling~~ ✅ Done
 **Issue**: Database connections not optimized with pooling configuration.
 
 **Current Code** (`pkg/db/postgres.go`):
@@ -109,7 +109,7 @@ c.SetConnMaxLifetime(5 * time.Minute)
 
 ---
 
-### 5. Enhance Health Checks with Readiness/Liveness Probes
+### ~~5. Enhance Health Checks with Readiness/Liveness Probes~~ ✅ Done
 **Issue**: Current health checks are too simplistic - just return 200 OK.
 
 **Current Code** (`pkg/health/health.go`):
@@ -231,7 +231,7 @@ LIMIT $1;
 
 ---
 
-### 10. Add Batch INSERT Operations for Queue AddLinks
+### ~~10. Add Batch INSERT Operations for Queue AddLinks~~ ✅ Done
 **Issue**: Sequential inserts are slow.
 
 **Current Code** (`pkg/queue/type.go`):
@@ -269,7 +269,7 @@ func (d Db) AddLinks(ctx context.Context, urls []string) error {
 
 ---
 
-### 11. Fix gRPC Bidirectional Streaming Infinite Loop
+### ~~11. Fix gRPC Bidirectional Streaming Infinite Loop~~ ✅ Done
 **Issue**: Spider's `GetSeenList` has infinite loop with no request consumption.
 
 **Current Code** (`cmd/spider/handler/rpc.go`):
@@ -317,7 +317,7 @@ func (c *RpcServer) GetSeenList(stream grpc.BidiStreamingServer[spider.SeenListR
 
 ---
 
-### 12. Add Comprehensive Metrics Collection
+### ~~12. Add Comprehensive Metrics Collection~~ ✅ Done
 **Issue**: Only 2 basic counters in Cartographer.
 
 **Add Metrics For**:
@@ -500,17 +500,17 @@ frontend/
 ## Timeline Recommendation
 
 ### Week 1 (Critical Fixes)
-- [ ] Day 1-2: Fix WaitGroup bug (#1)
-- [ ] Day 3-4: Add graceful shutdown (#2)
-- [ ] Day 5: Fix SQL injection (#3)
-- [ ] Day 6-7: Connection pooling (#4) + Health checks (#5)
+- [x] Day 1-2: Fix WaitGroup bug (#1)
+- [x] Day 3-4: Add graceful shutdown (#2)
+- [x] Day 5: Fix SQL injection (#3)
+- [x] Day 6-7: Connection pooling (#4) + Health checks (#5)
 
 ### Week 2 (Documentation & Deployment)
 - [ ] Day 1-3: Architecture diagrams and README update (#6)
 - [ ] Day 4-7: Deploy public demo (#7)
 
 ### Week 3+ (Before Interviews)
-- [ ] Production hardening (#8-12) as needed
+- [x] Production hardening (#10-12) done; circuit breakers (#8) + query optimisation (#9) remain
 - [ ] Design doc (#13) if applying to Google
 - [ ] Privacy features (#14) if applying to DuckDuckGo
 - [ ] Frontend (#15) for full-stack demonstration
@@ -521,7 +521,7 @@ frontend/
 
 ### Before Applying
 - [x] CLAUDE.md created
-- [ ] All Priority 1 items completed
+- [x] All Priority 1 items completed
 - [ ] Public demo deployed
 - [ ] Comprehensive README with architecture diagrams
 - [ ] No critical bugs or security vulnerabilities
