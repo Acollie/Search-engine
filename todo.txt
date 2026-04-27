@@ -51,7 +51,8 @@
 (B) Configure environment variables @deployment
     - Set: DB_USER, DB_PASSWORD, DB_HOST, DB_NAME
     - Set: LOG_LEVEL=info (ENVIRONMENT=production)
-    - Set: SEARCHER_HOST, SPIDER_GRPC_PORT for service discovery
+    - Set: SPIDER_HOST, SPIDER_PORT for service discovery
+    - No AWS/SQS credentials needed (queue is Postgres-backed)
     - Verify no hardcoded secrets in code
 
 (B) Enable monitoring in production @operations
@@ -305,6 +306,7 @@
 
 ## COMPLETED ITEMS (Reference)
 
+x SQS replaced with Postgres-backed crawl queue (pkg/queue) — no AWS dependency
 x Full microservices architecture (5 services)
 x gRPC communication layer
 x PostgreSQL persistence
