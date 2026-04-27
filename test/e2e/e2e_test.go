@@ -34,8 +34,7 @@ func TestE2E_SearchEngine(t *testing.T) {
 	// Start docker-compose
 	t.Log("Starting docker-compose environment...")
 	cmd := exec.CommandContext(ctx, "docker",
-		"compose",
-		"-f", "test/e2e/docker-compose.e2e.yml",
+		"compose", "-f", "test/e2e/docker-compose.e2e.yml",
 		"up", "-d", "--build")
 	cmd.Dir = "../../" // Run from repo root
 	output, err := cmd.CombinedOutput()

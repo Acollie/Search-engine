@@ -44,11 +44,13 @@ func (h *Handler) Listen(ctx context.Context) {
 
 // processBatch establishes a gRPC stream with Spider and processes incoming pages
 func (h *Handler) processBatch(ctx context.Context) error {
-	// Establish streaming connection with Spider
-	stream, err := h.spiderClient.GetSeenList(ctx)
+	result, err := h.breaker.Execute(func() (interface{}, error) {
+		return h.spiderClient.GetSeenList(ctx)
+	})
 	if err != nil {
 		return err
 	}
+	stream := result.(spider.Spider_GetSeenListClient)
 
 	// Request pages from Spider
 	req := &spider.SeenListRequest{

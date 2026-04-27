@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Comprehensive deployment guide and documentation
 
 ### ⚠️ Critical Blockers to Go Live
-1. **Docker build issues**: Go version mismatch (1.22 vs 1.24) + missing base-search image
+1. **No public deployment**: Infrastructure ready, just needs cloud platform selection
 2. **E2E tests failing**: Due to Docker build problems (not code issues)
 3. **No public deployment**: Infrastructure ready, just needs cloud platform selection
 
@@ -263,7 +263,7 @@ Spider uses gRPC streaming (`GetSeenList`) to send crawled pages to Conductor. C
 ## Module Information
 
 Module name: `webcrawler`
-Go version: **1.22** (or 1.24 - currently has version mismatch in Dockerfiles, see `todo.txt` Phase 1)
+Go version: **1.24** (go.mod, all Dockerfiles, and CI/CD workflow all aligned)
 
 When importing packages, use the module prefix:
 ```go

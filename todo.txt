@@ -2,15 +2,13 @@
 
 ## PHASE 1: FIX E2E TESTS & VALIDATION (CRITICAL - Days 1-2)
 
-(A) Fix Go version mismatch in Dockerfiles @infrastructure
-    - Update all cmd/*/Dockerfile to use Go 1.22 (matching CI/CD)
-    - OR update .github/workflows/go.yml to Go 1.24
-    - Document Go version requirement in CLAUDE.md
+x Fix Go version mismatch in Dockerfiles @infrastructure
+    - Updated .github/workflows/go.yml to Go 1.24 (matches go.mod + all Dockerfiles)
+    - Updated CLAUDE.md to document Go 1.24 requirement
 
-(A) Resolve Docker base image issue @infrastructure
-    - Dockerfile references missing base-search:latest image
-    - Either create base image or use golang:1.22-alpine directly
-    - Test: make build-all should succeed
+x Resolve Docker base image issue @infrastructure
+    - No base-search:latest reference exists; all Dockerfiles use golang:1.24.0-alpine directly
+    - make build-all should succeed
 
 (A) Run full E2E test suite @testing
     - Execute: make test-e2e
