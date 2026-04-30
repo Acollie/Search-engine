@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 	"webcrawler/pkg/generated/service/searcher"
@@ -170,6 +171,119 @@ func TestHandler_SearchPages(t *testing.T) {
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
+}
+
+func TestHandler_SearchPages_WithOffset(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	handler := NewRPCServer(db)
+
+	rows := sqlmock.NewRows(mockCols).
+		AddRow("https://example.com/page2", "Page 2", "Content 2", nil, 0.85, 0.7, 0.83, time.Now())
+
+	mock.ExpectQuery(actualQuery).
+		WithArgs("test", int32(5), int32(10)).
+		WillReturnRows(rows)
+
+	resp, err := handler.SearchPages(context.Background(), &searcher.SearchRequest{
+		Query:  "test",
+		Limit:  5,
+		Offset: 10,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Pages, 1)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestHandler_SearchPages_LongBodyTruncated(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	handler := NewRPCServer(db)
+
+	longBody := strings.Repeat("a", 300)
+	rows := sqlmock.NewRows(mockCols).
+		AddRow("https://example.com", "Title", longBody, nil, 0.9, 0.8, 0.87, time.Now())
+
+	mock.ExpectQuery(actualQuery).
+		WithArgs("test", int32(5), int32(0)).
+		WillReturnRows(rows)
+
+	resp, err := handler.SearchPages(context.Background(), &searcher.SearchRequest{
+		Query: "test",
+		Limit: 5,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, resp.Pages, 1)
+	require.Equal(t, 203, len(resp.Pages[0].Body), "body should be truncated to 200 chars + '...'")
+	require.True(t, strings.HasSuffix(resp.Pages[0].Body, "..."))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestHandler_GetHealth_Healthy(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	require.NoError(t, err)
+	defer db.Close()
+
+	handler := NewRPCServer(db)
+
+	mock.ExpectPing()
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM SeenPages`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1000))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM PageRankResults`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(950))
+
+	resp, err := handler.GetHealth(context.Background(), &searcher.HealthRequest{})
+
+	require.NoError(t, err)
+	require.True(t, resp.Healthy)
+	require.Equal(t, "searcher operational", resp.Message)
+	require.Equal(t, int64(1000), resp.PagesIndexed)
+	require.Equal(t, int64(950), resp.PagerankResults)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestHandler_GetHealth_DegradedNoPagerank(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	require.NoError(t, err)
+	defer db.Close()
+
+	handler := NewRPCServer(db)
+
+	mock.ExpectPing()
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM SeenPages`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(500))
+	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM PageRankResults`).
+		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
+
+	resp, err := handler.GetHealth(context.Background(), &searcher.HealthRequest{})
+
+	require.NoError(t, err)
+	require.True(t, resp.Healthy)
+	require.Equal(t, "no PageRank data available (degraded)", resp.Message)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestHandler_GetHealth_DatabaseUnhealthy(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	require.NoError(t, err)
+	defer db.Close()
+
+	handler := NewRPCServer(db)
+
+	mock.ExpectPing().WillReturnError(sql.ErrConnDone)
+
+	resp, err := handler.GetHealth(context.Background(), &searcher.HealthRequest{})
+
+	require.NoError(t, err)
+	require.False(t, resp.Healthy)
+	require.Contains(t, resp.Message, "database unhealthy")
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func TestHandler_SearchPages_Integration(t *testing.T) {
