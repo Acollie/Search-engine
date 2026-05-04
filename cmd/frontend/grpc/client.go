@@ -3,6 +3,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"time"
 	pb "webcrawler/pkg/generated/service/searcher"
 
@@ -20,6 +21,8 @@ type SearcherClient struct {
 
 // NewSearcherClient creates a new Searcher gRPC client
 func NewSearcherClient(address string) (*SearcherClient, error) {
+	slog.Info("Connecting to Searcher service", slog.String("address", address))
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -28,6 +31,7 @@ func NewSearcherClient(address string) (*SearcherClient, error) {
 		grpc.WithBlock(),
 	)
 	if err != nil {
+		slog.Error("Failed to connect to Searcher service", slog.String("address", address), slog.Any("error", err))
 		return nil, fmt.Errorf("failed to connect to searcher at %s: %w", address, err)
 	}
 
@@ -38,8 +42,15 @@ func NewSearcherClient(address string) (*SearcherClient, error) {
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
 			return counts.ConsecutiveFailures >= 3
 		},
+		OnStateChange: func(name string, from, to gobreaker.State) {
+			slog.Warn("Circuit breaker state changed",
+				slog.String("breaker", name),
+				slog.String("from", from.String()),
+				slog.String("to", to.String()))
+		},
 	})
 
+	slog.Info("Searcher gRPC client initialized", slog.String("address", address))
 	return &SearcherClient{
 		conn:    conn,
 		client:  pb.NewSearcherClient(conn),
@@ -57,9 +68,12 @@ func (c *SearcherClient) Search(ctx context.Context, query string, limit, offset
 		})
 	})
 	if err != nil {
+		slog.Error("Search request failed", slog.String("query", query), slog.Any("error", err))
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
-	return result.(*pb.SearchResponse), nil
+	resp := result.(*pb.SearchResponse)
+	slog.Info("Search request completed", slog.String("query", query), slog.Int("results", len(resp.Pages)))
+	return resp, nil
 }
 
 // CheckHealth checks if the Searcher service is healthy
@@ -74,6 +88,7 @@ func (c *SearcherClient) CheckHealth(ctx context.Context) (*pb.HealthResponse, e
 // Close closes the gRPC connection
 func (c *SearcherClient) Close() error {
 	if c.conn != nil {
+		slog.Info("Closing Searcher gRPC connection")
 		return c.conn.Close()
 	}
 	return nil
