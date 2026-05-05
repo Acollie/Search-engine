@@ -1,10 +1,11 @@
 package formating
 
 import (
-	"github.com/anaskhan96/soup"
 	"net/url"
 	"path"
 	"strings"
+
+	"github.com/anaskhan96/soup"
 )
 
 const (
@@ -23,6 +24,7 @@ func GetLinks(fetchingURL string, body string) ([]string, error) {
 	links = removeAnchors(links)
 	links = removeDuplicates(links)
 	links = removeMailTo(links)
+	links = removeNonHTMLLinks(links)
 	links = removeDepthLinks(links)
 
 	return links, nil
@@ -32,12 +34,15 @@ func resolveURL(baseURL, relURL string) string {
 	if strings.Contains(relURL, "http") {
 		return relURL
 	}
-	u, err := url.Parse(baseURL)
+	base, err := url.Parse(baseURL)
 	if err != nil {
 		return ""
 	}
-	u.Path = path.Join(u.Path, relURL)
-	return u.String()
+	ref, err := url.Parse(relURL)
+	if err != nil {
+		return ""
+	}
+	return base.ResolveReference(ref).String()
 }
 
 func removeDuplicates(links []string) []string {
@@ -97,6 +102,30 @@ func removeMailTo(links []string) []string {
 	return result
 }
 
+func removeNonHTMLLinks(links []string) []string {
+	blocked := map[string]struct{}{
+		".pdf": {}, ".doc": {}, ".docx": {}, ".xls": {}, ".xlsx": {},
+		".ppt": {}, ".pptx": {}, ".zip": {}, ".tar": {}, ".gz": {},
+		".mp3": {}, ".mp4": {}, ".avi": {}, ".mov": {}, ".wmv": {},
+		".jpg": {}, ".jpeg": {}, ".png": {}, ".gif": {}, ".svg": {},
+		".css": {}, ".js": {}, ".xml": {}, ".json": {}, ".csv": {},
+		".exe": {}, ".dmg": {}, ".iso": {}, ".bin": {},
+	}
+
+	var result []string
+	for _, link := range links {
+		u, err := url.Parse(link)
+		if err != nil {
+			continue
+		}
+		ext := strings.ToLower(path.Ext(u.Path))
+		if _, blocked := blocked[ext]; !blocked {
+			result = append(result, link)
+		}
+	}
+	return result
+}
+
 func removeLargeWebSites(links []string) []string {
 	largeWebsites := map[string]struct{}{
 		"facebook.com": {}, "twitter.com": {}, "instagram.com": {}, "youtube.com": {},
@@ -106,14 +135,19 @@ func removeLargeWebSites(links []string) []string {
 	}
 
 	var result []string
-	for i, link := range links {
-		url, _ := url.Parse(link)
-		if _, ok := largeWebsites[url.Hostname()]; ok {
-			continue
+	for _, link := range links {
+		parsed, err := url.Parse(link)
+		skip := false
+		if err == nil && parsed != nil {
+			if _, ok := largeWebsites[parsed.Hostname()]; ok {
+				skip = true
+			}
 		}
-		result = append(result, links[i])
-		if len(result) == 100 {
-			break
+		if !skip {
+			result = append(result, link)
+			if len(result) >= 100 {
+				break
+			}
 		}
 	}
 	return result
