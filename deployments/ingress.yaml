@@ -1,4 +1,7 @@
 ---
+# All external traffic enters through the single Traefik load balancer.
+# Replace search.yourdomain.com and metrics.yourdomain.com with your actual domain.
+# Both DNS A records should point to the same Traefik load balancer IP.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -7,23 +10,13 @@ metadata:
   labels:
     app: search-engine
   annotations:
-    kubernetes.io/ingress.class: nginx
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/rewrite-target: /
-    nginx.ingress.kubernetes.io/rate-limit: "100"
-    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    traefik.ingress.kubernetes.io/router.entrypoints: web
 spec:
-  tls:
-    - hosts:
-        - search-engine.example.com
-        - grafana.example.com
-      secretName: search-engine-tls
+  ingressClassName: traefik
   rules:
-    # Main search engine frontend
-    - host: search-engine.example.com
+    - host: search.yourdomain.com
       http:
         paths:
-          # Frontend web interface (root path)
           - path: /
             pathType: Prefix
             backend:
@@ -31,25 +24,8 @@ spec:
                 name: frontend
                 port:
                   number: 80
-          # Direct API access (optional, for debugging)
-          - path: /api/search
-            pathType: Prefix
-            backend:
-              service:
-                name: searcher
-                port:
-                  number: 9002
-          # Health checks
-          - path: /health
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend
-                port:
-                  number: 8080
 
-    # Grafana monitoring
-    - host: grafana.example.com
+    - host: metrics.yourdomain.com
       http:
         paths:
           - path: /
@@ -58,22 +34,9 @@ spec:
               service:
                 name: grafana
                 port:
-                  name: web
-
-    # Prometheus metrics
-    - host: search-engine.example.com
-      http:
-        paths:
-          - path: /metrics
-            pathType: Prefix
-            backend:
-              service:
-                name: prometheus
-                port:
-                  name: web
+                  number: 3000
 
 ---
-# Optional: Network Policy for internal service communication
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -85,7 +48,6 @@ spec:
     - Ingress
     - Egress
 
-  # Allow ingress from within namespace
   ingress:
     - from:
         - namespaceSelector:
@@ -97,9 +59,7 @@ spec:
             matchLabels:
               name: search-engine
 
-  # Allow egress to services, DNS, and external APIs
   egress:
-    # DNS
     - to:
         - namespaceSelector: {}
           podSelector:
@@ -109,21 +69,18 @@ spec:
         - protocol: UDP
           port: 53
 
-    # Kubernetes API
     - to:
         - namespaceSelector: {}
       ports:
         - protocol: TCP
           port: 443
 
-    # Internal services
     - to:
         - podSelector: {}
           namespaceSelector:
             matchLabels:
               name: search-engine
 
-    # External API calls (web crawling)
     - to:
         - namespaceSelector: {}
       ports:
@@ -131,37 +88,3 @@ spec:
           port: 80
         - protocol: TCP
           port: 443
-
----
-# Optional: Pod Security Policy (if using PSP)
-apiVersion: policy/v1beta1
-kind: PodSecurityPolicy
-metadata:
-  name: search-engine
-spec:
-  privileged: false
-  allowPrivilegeEscalation: false
-  requiredDropCapabilities:
-    - ALL
-  volumes:
-    - 'configMap'
-    - 'emptyDir'
-    - 'projected'
-    - 'secret'
-    - 'downwardAPI'
-    - 'persistentVolumeClaim'
-  hostNetwork: false
-  hostIPC: false
-  hostPID: false
-  runAsUser:
-    rule: 'MustRunAsNonRoot'
-  seLinux:
-    rule: 'MustRunAs'
-    seLinuxOptions:
-      level: 's0:c123,c456'
-  fsGroup:
-    rule: 'MustRunAs'
-    ranges:
-      - min: 1000
-        max: 65535
-  readOnlyRootFilesystem: true
