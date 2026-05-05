@@ -1,0 +1,14 @@
+# Copy this file to terraform.tfvars and adjust as needed.
+# terraform.tfvars is gitignored — safe to put overrides there.
+#
+# The DO API token is NOT set here. Export it before running terraform:
+#
+#   export DIGITALOCEAN_TOKEN=$(awk '/access-token:/{print $2}' \
+#     "$HOME/Library/Application Support/doctl/config.yaml")
+#
+# Then: terraform init && terraform apply
+
+# region      = "lon1"   # lon1=London, ams3=Amsterdam, fra1=Frankfurt
+# cluster_name = "search-engine"
+# node_size    = "s-4vcpu-8gb"   # minimum for K8s — do not go smaller
+# k8s_version  = "1.35.1-do.5"
