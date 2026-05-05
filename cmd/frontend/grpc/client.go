@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
 	pb "webcrawler/pkg/generated/service/searcher"
 
 	"github.com/sony/gobreaker"
@@ -23,16 +24,12 @@ type SearcherClient struct {
 func NewSearcherClient(address string) (*SearcherClient, error) {
 	slog.Info("Connecting to Searcher service", slog.String("address", address))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext(ctx, address,
+	conn, err := grpc.NewClient(address,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
 		slog.Error("Failed to connect to Searcher service", slog.String("address", address), slog.Any("error", err))
-		return nil, fmt.Errorf("failed to connect to searcher at %s: %w", address, err)
+		return nil, fmt.Errorf("failed to create searcher client at %s: %w", address, err)
 	}
 
 	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
