@@ -17,10 +17,12 @@ import (
 )
 
 type config struct {
-	Port         string `env:"PORT" envDefault:"3000"`
-	HealthPort   string `env:"HEALTH_PORT" envDefault:"8080"`
-	SearcherHost string `env:"SEARCHER_HOST" envDefault:"localhost"`
-	SearcherPort string `env:"SEARCHER_PORT" envDefault:"9002"`
+	Port         string  `env:"PORT" envDefault:"3000"`
+	HealthPort   string  `env:"HEALTH_PORT" envDefault:"8080"`
+	SearcherHost string  `env:"SEARCHER_HOST" envDefault:"localhost"`
+	SearcherPort string  `env:"SEARCHER_PORT" envDefault:"9002"`
+	RateLimitRPS float64 `env:"RATE_LIMIT_RPS" envDefault:"10"`
+	RateLimitBurst int   `env:"RATE_LIMIT_BURST" envDefault:"20"`
 }
 
 func main() {
@@ -57,10 +59,14 @@ func main() {
 	fs := http.FileServer(http.Dir("cmd/frontend/static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
+	// Apply per-IP+Host rate limiting to all user-facing traffic.
+	// Static assets are also wrapped so that scraper floods don't bypass limits.
+	rateLimited := handler.RateLimitMiddleware(cfg.RateLimitRPS, cfg.RateLimitBurst, mux)
+
 	// Main HTTP server for user traffic
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      mux,
+		Handler:      rateLimited,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
