@@ -2,7 +2,7 @@ package handler
 
 import (
 	"context"
-	"html/template"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -34,28 +34,26 @@ var (
 
 type SearchHandler struct {
 	searcherClient *grpcClient.SearcherClient
-	indexTemplate  *template.Template
-	resultsTemplate *template.Template
 }
 
 type SearchResult struct {
-	URL         string
-	Title       string
-	Snippet     string
-	LastCrawled string
+	URL         string `json:"url"`
+	Title       string `json:"title"`
+	Snippet     string `json:"snippet"`
+	LastCrawled string `json:"lastCrawled"`
 }
 
-type SearchPageData struct {
-	Query       string
-	Results     []SearchResult
-	ResultCount int
-	Page        int
-	NextPage    int
-	PrevPage    int
-	HasNext     bool
-	HasPrev     bool
-	SearchTime  float64
-	Error       string
+type SearchAPIResponse struct {
+	Results     []SearchResult `json:"results"`
+	ResultCount int            `json:"resultCount"`
+	Page        int            `json:"page"`
+	NextPage    int            `json:"nextPage"`
+	PrevPage    int            `json:"prevPage"`
+	HasNext     bool           `json:"hasNext"`
+	HasPrev     bool           `json:"hasPrev"`
+	SearchTime  float64        `json:"searchTime"`
+	Error       string         `json:"error,omitempty"`
+	Query       string         `json:"query"`
 }
 
 func NewSearchHandler(searcherAddr string) (*SearchHandler, error) {
@@ -63,106 +61,65 @@ func NewSearchHandler(searcherAddr string) (*SearchHandler, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Parse templates
-	indexTmpl, err := template.ParseFiles("cmd/frontend/templates/index.html")
-	if err != nil {
-		return nil, err
-	}
-
-	resultsTmpl, err := template.ParseFiles("cmd/frontend/templates/results.html")
-	if err != nil {
-		return nil, err
-	}
-
-	return &SearchHandler{
-		searcherClient: client,
-		indexTemplate:  indexTmpl,
-		resultsTemplate: resultsTmpl,
-	}, nil
+	return &SearchHandler{searcherClient: client}, nil
 }
 
-func (h *SearchHandler) HandleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-		return
-	}
-
-	if err := h.indexTemplate.Execute(w, nil); err != nil {
-		slog.Error("Failed to render index template", slog.Any("error", err))
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
-}
-
-func (h *SearchHandler) HandleSearch(w http.ResponseWriter, r *http.Request) {
+func (h *SearchHandler) HandleSearchAPI(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
+
+	w.Header().Set("Content-Type", "application/json")
 
 	query := r.URL.Query().Get("q")
 	if query == "" {
-		http.Redirect(w, r, "/", http.StatusSeeOther)
+		json.NewEncoder(w).Encode(SearchAPIResponse{Error: "query parameter required"}) //nolint:errcheck
 		return
 	}
 
-	// Parse page parameter
-	pageStr := r.URL.Query().Get("page")
 	page := 1
-	if pageStr != "" {
-		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
-			page = p
-		}
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
 	}
 
-	// Calculate offset (10 results per page)
 	limit := int32(10)
 	offset := int32((page - 1) * 10)
 
-	// Perform search
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
 	resp, err := h.searcherClient.Search(ctx, query, limit, offset)
-
 	duration := time.Since(startTime).Seconds()
 
 	if err != nil {
 		slog.Error("Search request failed", slog.Any("error", err), slog.String("query", query))
 		searchRequests.WithLabelValues("error").Inc()
 		searchDuration.WithLabelValues("error").Observe(duration)
-
-		data := SearchPageData{
-			Query:      query,
+		json.NewEncoder(w).Encode(SearchAPIResponse{ //nolint:errcheck
 			Error:      "Search service unavailable. Please try again later.",
+			Query:      query,
 			SearchTime: duration,
-		}
-
-		if err := h.resultsTemplate.Execute(w, data); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-		}
+			Results:    []SearchResult{},
+		})
 		return
 	}
 
 	searchRequests.WithLabelValues("success").Inc()
 	searchDuration.WithLabelValues("success").Observe(duration)
 
-	// Convert results
-	var results []SearchResult
-	for _, page := range resp.Pages {
+	results := make([]SearchResult, 0, len(resp.Pages))
+	for _, pg := range resp.Pages {
 		lastCrawled := ""
-		if page.LastSeen > 0 {
-			t := time.Unix(page.LastSeen, 0)
-			lastCrawled = t.Format("Jan 2, 2006")
+		if pg.LastSeen > 0 {
+			lastCrawled = time.Unix(pg.LastSeen, 0).Format("Jan 2, 2006")
 		}
-
 		results = append(results, SearchResult{
-			URL:         page.Url,
-			Title:       page.Title,
-			Snippet:     page.Body,
+			URL:         pg.Url,
+			Title:       pg.Title,
+			Snippet:     pg.Body,
 			LastCrawled: lastCrawled,
 		})
 	}
 
-	data := SearchPageData{
-		Query:       query,
+	json.NewEncoder(w).Encode(SearchAPIResponse{ //nolint:errcheck
 		Results:     results,
 		ResultCount: len(results),
 		Page:        page,
@@ -171,12 +128,8 @@ func (h *SearchHandler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 		HasNext:     len(results) == int(limit),
 		HasPrev:     page > 1,
 		SearchTime:  duration,
-	}
-
-	if err := h.resultsTemplate.Execute(w, data); err != nil {
-		slog.Error("Failed to render results template", slog.Any("error", err))
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-	}
+		Query:       query,
+	})
 }
 
 func (h *SearchHandler) Close() error {
