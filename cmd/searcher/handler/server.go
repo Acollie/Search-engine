@@ -29,7 +29,7 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 
 	// If no tokens, return empty response
 	if len(tokens) == 0 {
-		metrics.QueryDuration.WithLabelValues("fulltext").Observe(time.Since(start).Seconds())
+		metrics.QueryDuration.Observe(time.Since(start).Seconds())
 		metrics.QueriesProcessed.WithLabelValues("no_results").Inc()
 		return &searcher.SearchResponse{}, nil
 	}
@@ -70,8 +70,8 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 
 	rows, err := c.db.QueryContext(ctx, query, queryVector, limit, offset)
 	if err != nil {
-		metrics.QueryDuration.WithLabelValues("fulltext").Observe(time.Since(start).Seconds())
-		metrics.DatabaseErrors.WithLabelValues("query_failure").Inc()
+		metrics.QueryDuration.Observe(time.Since(start).Seconds())
+		metrics.DatabaseErrors.Inc()
 		metrics.QueriesProcessed.WithLabelValues("error").Inc()
 		return nil, fmt.Errorf("failed to query pages: %w", err)
 	}
@@ -117,14 +117,14 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 	}
 
 	if err := rows.Err(); err != nil {
-		metrics.QueryDuration.WithLabelValues("fulltext").Observe(time.Since(start).Seconds())
-		metrics.DatabaseErrors.WithLabelValues("iteration_failure").Inc()
+		metrics.QueryDuration.Observe(time.Since(start).Seconds())
+		metrics.DatabaseErrors.Inc()
 		metrics.QueriesProcessed.WithLabelValues("error").Inc()
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
-	metrics.QueryDuration.WithLabelValues("fulltext").Observe(time.Since(start).Seconds())
-	metrics.ResultsReturned.WithLabelValues("fulltext").Observe(float64(len(pages)))
+	metrics.QueryDuration.Observe(time.Since(start).Seconds())
+	metrics.ResultsReturned.Observe(float64(len(pages)))
 	if len(pages) > 0 {
 		metrics.QueriesProcessed.WithLabelValues("success").Inc()
 	} else {
