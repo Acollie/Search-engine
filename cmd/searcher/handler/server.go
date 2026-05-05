@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
+	"webcrawler/cmd/searcher/metrics"
 	"webcrawler/cmd/searcher/tokeniser"
 	"webcrawler/pkg/generated/service/searcher"
 	"webcrawler/pkg/generated/types/site"
@@ -22,10 +24,13 @@ func NewRPCServer(db *sql.DB) *Handler {
 	}
 }
 func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchRequest) (*searcher.SearchResponse, error) {
+	start := time.Now()
 	tokens := tokeniser.Tokenise(request.GetQuery())
 
 	// If no tokens, return empty response
 	if len(tokens) == 0 {
+		metrics.QueryDuration.Observe(time.Since(start).Seconds())
+		metrics.QueriesProcessed.WithLabelValues("no_results").Inc()
 		return &searcher.SearchResponse{}, nil
 	}
 
@@ -65,6 +70,9 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 
 	rows, err := c.db.QueryContext(ctx, query, queryVector, limit, offset)
 	if err != nil {
+		metrics.QueryDuration.Observe(time.Since(start).Seconds())
+		metrics.DatabaseErrors.Inc()
+		metrics.QueriesProcessed.WithLabelValues("error").Inc()
 		return nil, fmt.Errorf("failed to query pages: %w", err)
 	}
 	defer rows.Close()
@@ -109,7 +117,18 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 	}
 
 	if err := rows.Err(); err != nil {
+		metrics.QueryDuration.Observe(time.Since(start).Seconds())
+		metrics.DatabaseErrors.Inc()
+		metrics.QueriesProcessed.WithLabelValues("error").Inc()
 		return nil, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	metrics.QueryDuration.Observe(time.Since(start).Seconds())
+	metrics.ResultsReturned.Observe(float64(len(pages)))
+	if len(pages) > 0 {
+		metrics.QueriesProcessed.WithLabelValues("success").Inc()
+	} else {
+		metrics.QueriesProcessed.WithLabelValues("no_results").Inc()
 	}
 
 	return &searcher.SearchResponse{

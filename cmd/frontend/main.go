@@ -18,11 +18,13 @@ import (
 )
 
 type config struct {
-	Port         string `env:"PORT"          envDefault:"3000"`
-	HealthPort   string `env:"HEALTH_PORT"   envDefault:"8080"`
-	SearcherHost string `env:"SEARCHER_HOST" envDefault:"localhost"`
-	SearcherPort string `env:"SEARCHER_PORT" envDefault:"9002"`
-	UIDistPath   string `env:"UI_DIST_PATH"  envDefault:"cmd/frontend/ui/dist"`
+	Port           string  `env:"PORT"             envDefault:"3000"`
+	HealthPort     string  `env:"HEALTH_PORT"      envDefault:"8080"`
+	SearcherHost   string  `env:"SEARCHER_HOST"    envDefault:"localhost"`
+	SearcherPort   string  `env:"SEARCHER_PORT"    envDefault:"9002"`
+	UIDistPath     string  `env:"UI_DIST_PATH"     envDefault:"cmd/frontend/ui/dist"`
+	RateLimitRPS   float64 `env:"RATE_LIMIT_RPS"   envDefault:"10"`
+	RateLimitBurst int     `env:"RATE_LIMIT_BURST" envDefault:"20"`
 }
 
 func main() {
@@ -51,9 +53,11 @@ func main() {
 
 	mux.HandleFunc("/", spaHandler(cfg.UIDistPath))
 
+	rateLimited := handler.RateLimitMiddleware(cfg.RateLimitRPS, cfg.RateLimitBurst, mux)
+
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      mux,
+		Handler:      rateLimited,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,

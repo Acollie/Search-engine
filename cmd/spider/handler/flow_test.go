@@ -244,31 +244,101 @@ func BenchmarkScan_SinglePage(b *testing.B) {
 }
 
 // Test helper functions that could be added
-func TestHelper_ExtractDomain(t *testing.T) {
-	t.Skip("Helper function not exported, should be tested")
-	// If we extract a domain extraction function, test it:
-	// - Valid URLs
-	// - Invalid URLs
-	// - URLs with ports
-	// - URLs with paths
+func TestExtractDomain(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "simple URL", input: "https://example.com/path", expected: "example.com"},
+		{name: "URL with port", input: "https://example.com:8080/path", expected: "example.com"},
+		{name: "subdomain", input: "https://sub.example.com", expected: "sub.example.com"},
+		{name: "relative path (no host)", input: "not-a-url", expected: ""},
+		{name: "empty URL", input: "", expected: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractDomain(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
 
-func TestHelper_IsRetriableError(t *testing.T) {
-	t.Skip("Not implemented - should be added")
-	// Test error classification:
-	// - Network timeout -> retriable
-	// - DNS error -> retriable
-	// - 404 -> not retriable
-	// - 500 -> retriable
-	// - Context cancelled -> not retriable
+func TestIsRetriableError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{name: "nil error", err: nil, expected: false},
+		{name: "context cancelled", err: context.Canceled, expected: false},
+		{name: "context deadline exceeded", err: context.DeadlineExceeded, expected: true},
+		{name: "timeout error", err: errors.New("connection timeout"), expected: true},
+		{name: "connection refused", err: errors.New("connection refused"), expected: true},
+		{name: "connection reset", err: errors.New("connection reset by peer"), expected: true},
+		{name: "temporary failure", err: errors.New("temporary failure in name resolution"), expected: true},
+		{name: "503 service unavailable", err: errors.New("503 service unavailable"), expected: true},
+		{name: "502 bad gateway", err: errors.New("502 bad gateway"), expected: true},
+		{name: "504 gateway timeout", err: errors.New("504 gateway timeout"), expected: true},
+		{name: "too many requests", err: errors.New("429 too many requests"), expected: true},
+		{name: "404 not found", err: errors.New("404 not found"), expected: false},
+		{name: "403 forbidden", err: errors.New("403 forbidden"), expected: false},
+		{name: "generic error", err: errors.New("something went wrong"), expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isRetriableError(tt.err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
 }
 
-func TestHelper_ShouldRetry(t *testing.T) {
-	t.Skip("Not implemented - retry logic missing")
-	// Test retry logic:
-	// - Max retries reached
-	// - Exponential backoff
-	// - Jitter
+func TestClassifyError(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected string
+	}{
+		{name: "nil error", err: nil, expected: "unknown"},
+		{name: "timeout", err: errors.New("connection timeout"), expected: "timeout"},
+		{name: "404 not found", err: errors.New("404 not found"), expected: "not_found"},
+		{name: "page not found", err: errors.New("page not found"), expected: "not_found"},
+		{name: "403 forbidden", err: errors.New("403 forbidden"), expected: "forbidden"},
+		{name: "500 internal server error", err: errors.New("500 internal server error"), expected: "server_error"},
+		{name: "connection refused", err: errors.New("connection refused"), expected: "network"},
+		{name: "dns resolution failure", err: errors.New("dns lookup failed"), expected: "dns"},
+		{name: "unknown error", err: errors.New("something unexpected"), expected: "other"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := classifyError(tt.err)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestCalculateBackoff(t *testing.T) {
+	// Attempt 1: base*2^1 = 2s, Attempt 2: base*2^2 = 4s (with ±25% jitter)
+	for attempt := 1; attempt <= 3; attempt++ {
+		delay := calculateBackoff(attempt)
+		assert.Greater(t, delay, time.Duration(0), "backoff delay should be positive")
+		assert.LessOrEqual(t, delay, maxRetryDelay, "backoff should not exceed max")
+	}
+
+	// Verify exponential growth: attempt 2 delay base (4s) should dominate over attempt 1 (2s)
+	// even accounting for ±25% jitter: 4s*0.75=3s > 2s*1.25=2.5s
+	delay2 := calculateBackoff(2)
+	// At minimum, delay2 base (4s * 0.75 = 3s) > delay1 max (2s * 1.25 = 2.5s)
+	// So with jitter, delay2 with worst-case jitter should still exceed delay1 base
+	assert.Greater(t, float64(delay2), float64(baseRetryDelay)*1.5,
+		"attempt 2 should be larger than 1.5x base delay")
+
+	// Very high attempt numbers should be capped at maxRetryDelay
+	delayHigh := calculateBackoff(100)
+	assert.LessOrEqual(t, delayHigh, maxRetryDelay)
 }
 
 // Table-driven test for error scenarios

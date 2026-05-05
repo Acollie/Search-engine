@@ -52,6 +52,20 @@ func main() {
 	dbConfig := sqlx.New(pg, connType)
 	server := handler.New(dbConfig, config)
 
+	// Initialize observability and health check before DB operations so the
+	// container passes its health check even if AddLinks takes a while.
+	err = bootstrap.Observability()
+	if err != nil {
+		slog.Error("Failed to initialize OpenTelemetry", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	err = bootstrap.HealthCheck()
+	if err != nil {
+		slog.Error("Failed to initialize HealthCheck", slog.Any("error", err))
+		os.Exit(1)
+	}
+
 	initialLinks := []string{
 		"https://blog.alexcollie.com/",
 		"https://alexcollie.com",
@@ -98,19 +112,6 @@ func main() {
 			panic(err)
 		}
 		slog.Warn("Some initial links already exist in queue", slog.Any("error", err))
-	}
-	// Initialize OpenTelemetry
-	err = bootstrap.Observability()
-	if err != nil {
-		slog.Error("Failed to initialize OpenTelemetry", slog.Any("error", err))
-		os.Exit(1)
-	}
-
-	// Initialize HealthCheck
-	err = bootstrap.HealthCheck()
-	if err != nil {
-		slog.Error("Failed to initialize HealthCheck", slog.Any("error", err))
-		os.Exit(1)
 	}
 
 	// GRPC server
