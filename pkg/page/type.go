@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"webcrawler/cmd/spider/pkg/site"
 	"webcrawler/pkg/conn"
 	"webcrawler/pkg/slice"
@@ -41,7 +42,9 @@ func (d Db) SavePage(ctx context.Context, page site.Page) error {
 	if d.ConnType == conn.PG {
 		addPage = AddPagePG
 	}
-	_, err := d.Sql.ExecContext(ctx, addPage, page.URL, page.Title, page.Body, 0, slice.ArrayToString(page.Links))
+	title := strings.ToValidUTF8(page.Title, "")
+	body := strings.ToValidUTF8(page.Body, "")
+	_, err := d.Sql.ExecContext(ctx, addPage, page.URL, title, body, 0, slice.ArrayToString(page.Links))
 	return err
 }
 

@@ -4,8 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"strings"
+	"time"
+	"webcrawler/cmd/searcher/metrics"
 	"webcrawler/cmd/searcher/tokeniser"
 	"webcrawler/pkg/generated/service/searcher"
 	"webcrawler/pkg/generated/types/site"
@@ -23,17 +24,13 @@ func NewRPCServer(db *sql.DB) *Handler {
 	}
 }
 func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchRequest) (*searcher.SearchResponse, error) {
+	start := time.Now()
 	tokens := tokeniser.Tokenise(request.GetQuery())
-
-	slog.Info("Search request received",
-		slog.String("query", request.GetQuery()),
-		slog.Int("tokens", len(tokens)),
-		slog.Int("limit", int(request.GetLimit())),
-		slog.Int("offset", int(request.GetOffset())))
 
 	// If no tokens, return empty response
 	if len(tokens) == 0 {
-		slog.Info("No tokens extracted from query, returning empty response", slog.String("query", request.GetQuery()))
+		metrics.QueryDuration.Observe(time.Since(start).Seconds())
+		metrics.QueriesProcessed.WithLabelValues("no_results").Inc()
 		return &searcher.SearchResponse{}, nil
 	}
 
@@ -73,7 +70,9 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 
 	rows, err := c.db.QueryContext(ctx, query, queryVector, limit, offset)
 	if err != nil {
-		slog.Error("Database query failed", slog.String("query", queryVector), slog.Any("error", err))
+		metrics.QueryDuration.Observe(time.Since(start).Seconds())
+		metrics.DatabaseErrors.Inc()
+		metrics.QueriesProcessed.WithLabelValues("error").Inc()
 		return nil, fmt.Errorf("failed to query pages: %w", err)
 	}
 	defer rows.Close()
@@ -91,7 +90,6 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 		var crawlTime sql.NullTime
 
 		if err := rows.Scan(&url, &title, &body, &description, &pagerankScore, &textRelevance, &combinedScore, &crawlTime); err != nil {
-			slog.Error("Failed to scan search result row", slog.Any("error", err))
 			return nil, fmt.Errorf("failed to scan row: %w", err)
 		}
 
@@ -119,11 +117,20 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 	}
 
 	if err := rows.Err(); err != nil {
-		slog.Error("Error iterating search results", slog.Any("error", err))
+		metrics.QueryDuration.Observe(time.Since(start).Seconds())
+		metrics.DatabaseErrors.Inc()
+		metrics.QueriesProcessed.WithLabelValues("error").Inc()
 		return nil, fmt.Errorf("error iterating rows: %w", err)
 	}
 
-	slog.Info("Search completed", slog.String("query", request.GetQuery()), slog.Int("results", len(pages)))
+	metrics.QueryDuration.Observe(time.Since(start).Seconds())
+	metrics.ResultsReturned.Observe(float64(len(pages)))
+	if len(pages) > 0 {
+		metrics.QueriesProcessed.WithLabelValues("success").Inc()
+	} else {
+		metrics.QueriesProcessed.WithLabelValues("no_results").Inc()
+	}
+
 	return &searcher.SearchResponse{
 		Pages: pages,
 	}, nil
@@ -155,8 +162,6 @@ func (c *Handler) GetHealth(ctx context.Context, req *searcher.HealthRequest) (*
 
 	message := "searcher operational"
 	if pagerankCount == 0 {
-		slog.Warn("No PageRank data available, searcher operating in degraded mode",
-			slog.Int64("pagesIndexed", pagesCount))
 		message = "no PageRank data available (degraded)"
 	}
 
