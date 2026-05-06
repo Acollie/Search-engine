@@ -89,6 +89,17 @@ data:
       - record: job:up:instant
         expr: up
 
+      # Per-spider detailed metrics for dashboard
+      - record: spider:crawl_rate:1m
+        expr: rate(spider_pages_fetched_total[1m])
+
+      - record: spider:error_rate:1m
+        expr: rate(spider_pages_failed_total[1m]) / (rate(spider_pages_fetched_total[1m]) + rate(spider_pages_failed_total[1m]) + 0.0001)
+
+      # Cartographer status - last task run
+      - record: cartographer:last_task_timestamp:instant
+        expr: max(cartographer_task_completed_timestamp_seconds)
+
     # Low-overhead interval rules (30s) - for lightweight monitoring
     - name: search_engine_aggregates:30s
       interval: 30s
