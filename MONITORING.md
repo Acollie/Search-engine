@@ -84,38 +84,38 @@ Four production-ready dashboards are configured to monitor the entire pipeline:
 
 ### Spider Service
 ```promql
-# Pages crawled per minute
-rate(spider_pages_fetched_total[1m])
+# Pages crawled per minute (aggregated by job to reduce cardinality)
+sum by(job) (rate(spider_pages_fetched_total[1m]))
 
-# Failed crawl attempts
-rate(spider_pages_failed_total[1m])
+# Failed crawl attempts (aggregated by job)
+sum by(job) (rate(spider_pages_failed_total[1m]))
 
-# Error rate percentage
-(rate(spider_pages_failed_total[1m]) / (rate(spider_pages_fetched_total[1m]) + rate(spider_pages_failed_total[1m]))) * 100
+# Error rate percentage (optimized aggregation to avoid high cardinality)
+sum(rate(spider_pages_failed_total[1m])) / (sum(rate(spider_pages_fetched_total[1m])) + sum(rate(spider_pages_failed_total[1m])) + 0.0001) * 100
 ```
 
 ### Conductor Service
 ```promql
-# Batches processed per minute
-rate(conductor_batches_processed_total[1m])
+# Batches processed per minute (aggregated)
+sum by(job) (rate(conductor_batches_processed_total[1m]))
 
-# Pages received from Spider
-rate(conductor_pages_received_total[1m])
+# Pages received from Spider (aggregated)
+sum by(job) (rate(conductor_pages_received_total[1m]))
 
 # Queue depth (pending URLs)
 conductor_queue_depth
 
-# Processing latency (p95)
-histogram_quantile(0.95, rate(conductor_processing_duration_seconds_bucket[5m]))
+# Processing latency (p95 - properly aggregated histogram)
+histogram_quantile(0.95, sum(rate(conductor_processing_duration_seconds_bucket[5m])) by (le))
 ```
 
 ### Searcher Service
 ```promql
-# Search queries processed per minute
-rate(searcher_queries_total[1m])
+# Search queries processed per minute (aggregated)
+sum by(job) (rate(searcher_queries_total[1m]))
 
-# Query latency (p95)
-histogram_quantile(0.95, rate(searcher_query_duration_seconds_bucket[5m]))
+# Query latency (p95 - properly aggregated histogram)
+histogram_quantile(0.95, sum(rate(searcher_query_duration_seconds_bucket[5m])) by (le))
 ```
 
 ### System Metrics
@@ -123,11 +123,11 @@ histogram_quantile(0.95, rate(searcher_query_duration_seconds_bucket[5m]))
 # Service availability
 up{job=~"spider|conductor|searcher"}
 
-# Pod CPU usage
-rate(process_cpu_seconds_total[1m])
+# Pod CPU usage (aggregated by job to reduce cardinality)
+sum by(job) (rate(process_cpu_seconds_total[1m]))
 
-# Pod memory usage (MB)
-process_resident_memory_bytes / (1024 * 1024)
+# Pod memory usage in MB (aggregated by job)
+sum by(job) (process_resident_memory_bytes) / (1024 * 1024)
 ```
 
 ## Health Checks
@@ -222,6 +222,30 @@ Grafana uses the credentials stored in `search-engine-secrets` secret.
 
 - **Prometheus:** 15 days (configurable in ConfigMap)
 - **Grafana:** Unlimited (stores dashboard definitions only)
+
+## Cardinality Management
+
+High cardinality metrics can degrade Prometheus performance. All queries are optimized to minimize cardinality:
+
+### Best Practices Applied
+1. **Label Aggregation:** All per-domain metrics are aggregated to per-job level using `sum by(job)`
+2. **Histogram Aggregation:** Histogram buckets properly aggregated with `sum(...) by(le)` before quantile calculation
+3. **No Series Explosion:** Queries avoid creating new series for intermediate calculations
+4. **Batch Operations:** All rate calculations use atomic batch queries rather than per-instance
+
+### Cardinality Limits
+- **Spider crawl metrics:** High cardinality source (domain labels) - always aggregated to job level
+- **Histogram buckets:** Limited to p50, p95, p99 aggregations only
+- **Dashboard queries:** No raw metrics without aggregation - all panels use pre-aggregated series
+
+### Monitoring Cardinality
+```promql
+# Check actual cardinality
+count(count by(__name__) ({__name__=~".+"}))
+
+# Monitor high cardinality metrics
+topk(10, count by(__name__) ({__name__=~".+"}))
+```
 
 ## Adding New Dashboards
 

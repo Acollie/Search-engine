@@ -41,7 +41,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(conductor_processing_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(conductor_processing_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "p95 latency",
           "refId": "A",
           "datasourceUid": "prometheus"
@@ -98,7 +98,7 @@
       },
       "targets": [
         {
-          "expr": "rate(process_cpu_seconds_total[1m]) * 100",
+          "expr": "sum by(job) (rate(process_cpu_seconds_total[1m]))",
           "legendFormat": "{{job}}",
           "refId": "A",
           "datasourceUid": "prometheus"
@@ -117,7 +117,7 @@
       },
       "targets": [
         {
-          "expr": "process_resident_memory_bytes / (1024 * 1024)",
+          "expr": "sum by(job) (process_resident_memory_bytes) / (1024 * 1024)",
           "legendFormat": "{{job}}",
           "refId": "A",
           "datasourceUid": "prometheus"
@@ -136,8 +136,8 @@
       },
       "targets": [
         {
-          "expr": "rate(spider_pages_fetched_total[1m]) / 60",
-          "legendFormat": "Spider",
+          "expr": "sum by(job) (rate(spider_pages_fetched_total[1m]))",
+          "legendFormat": "Spider crawl rate",
           "refId": "A",
           "datasourceUid": "prometheus"
         }

@@ -22,7 +22,7 @@
       },
       "targets": [
         {
-          "expr": "(rate(spider_pages_failed_total[5m]) / (rate(spider_pages_fetched_total[5m]) + rate(spider_pages_failed_total[5m]) + 0.0001)) * 100",
+          "expr": "sum(rate(spider_pages_failed_total[1m])) / (sum(rate(spider_pages_fetched_total[1m])) + sum(rate(spider_pages_failed_total[1m])) + 0.0001) * 100",
           "legendFormat": "Error %",
           "refId": "A",
           "datasourceUid": "prometheus"

@@ -139,8 +139,8 @@
       },
       "targets": [
         {
-          "expr": "rate(process_cpu_seconds_total[1m])",
-          "legendFormat": "{{pod_name}}",
+          "expr": "sum by(job) (rate(process_cpu_seconds_total[1m]))",
+          "legendFormat": "{{job}}",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -158,8 +158,8 @@
       },
       "targets": [
         {
-          "expr": "process_resident_memory_bytes / (1024 * 1024)",
-          "legendFormat": "{{pod_name}}",
+          "expr": "sum by(job) (process_resident_memory_bytes) / (1024 * 1024)",
+          "legendFormat": "{{job}}",
           "refId": "A",
           "datasourceUid": "prometheus"
         }

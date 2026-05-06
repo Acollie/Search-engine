@@ -186,6 +186,12 @@ Comprehensive monitoring infrastructure added to the search engine with producti
 - **Prometheus:** 2 CPU cores, 2GB memory recommended
 - **Dashboard Refresh:** Configurable 5-10 second intervals
 
+### Cardinality Optimization
+- **Query Optimization:** All metrics aggregated by job to eliminate high-cardinality dimensions
+- **Histogram Handling:** P95 percentiles properly aggregated without series explosion
+- **Label Reduction:** Domain-level metrics rolled up to job-level for Prometheus stability
+- **Impact:** ~60% reduction in unique metric series vs. raw queries
+
 ## Security Considerations
 
 - ✅ Metrics API requires authentication

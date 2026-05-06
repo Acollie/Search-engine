@@ -22,8 +22,8 @@
       },
       "targets": [
         {
-          "expr": "rate(spider_pages_fetched_total[1m])",
-          "legendFormat": "Crawled/min",
+          "expr": "sum by(job) (rate(spider_pages_fetched_total[1m]))",
+          "legendFormat": "Spider crawl rate",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -41,8 +41,8 @@
       },
       "targets": [
         {
-          "expr": "(rate(spider_pages_failed_total[1m]) / (rate(spider_pages_fetched_total[1m]) + rate(spider_pages_failed_total[1m]) + 0.0001)) * 100",
-          "legendFormat": "Error %",
+          "expr": "sum by(job) (rate(spider_pages_fetched_total[1m]))",
+          "legendFormat": "Spider crawl rate",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
