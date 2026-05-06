@@ -66,7 +66,7 @@ func (h *Handler) processBatch(ctx context.Context) error {
 	req := &spider.SeenListRequest{
 		Limit: 100, // Request batches of 100 pages
 	}
-	slog.Info("processBatch: sending request to Spider", slog.Int32("limit", req.Limit))
+	slog.Info("processBatch: sending request to Spider", slog.Int("limit", int(req.Limit)))
 	if err := stream.Send(req); err != nil {
 		slog.Error("processBatch: failed to send request", slog.Any("error", err))
 		return err
