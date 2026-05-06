@@ -125,7 +125,7 @@ func main() {
 
 	// GRPC server
 	var opts []grpc.ServerOption
-	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", grpcx.SpiderPort))
+	lis, err := net.Listen("tcp4", fmt.Sprintf("0.0.0.0:%d", grpcx.SpiderPort))
 	if err != nil {
 		panic(err)
 	}
