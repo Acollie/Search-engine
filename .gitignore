@@ -1,6 +1,11 @@
 .env
+.env.local
 pkg/mocks/
 *.db
+
+# Test artifacts
+cover.out
+coverage.txt
 
 # Terraform
 terraform/.terraform/
