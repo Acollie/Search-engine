@@ -1,18 +1,20 @@
 {
   "title": "Search Engine - Data Pipeline",
-  "description": "Real-time data flow monitoring: Spider \u2192 Conductor \u2192 Searcher",
+  "description": "Production-optimized dashboard using pre-aggregated metrics",
   "tags": [
     "search-engine",
-    "pipeline"
+    "production"
   ],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
-  "refresh": "5s",
+  "refresh": "30s",
+  "uid": "pipeline-overview",
+  "id": 1,
   "panels": [
     {
       "id": 1,
-      "title": "Spider - Pages Crawled (per minute)",
+      "title": "Spider Pages Crawled/min",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -22,8 +24,8 @@
       },
       "targets": [
         {
-          "expr": "sum by(job) (rate(spider_pages_fetched_total[1m]))",
-          "legendFormat": "Spider crawl rate",
+          "expr": "job:spider_crawl_rate:1m",
+          "legendFormat": "Pages/min",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -31,18 +33,18 @@
     },
     {
       "id": 2,
-      "title": "Spider - Error Rate (%)",
+      "title": "Spider Error Rate %",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 0
       },
       "targets": [
         {
-          "expr": "sum by(job) (rate(spider_pages_fetched_total[1m]))",
-          "legendFormat": "Spider crawl rate",
+          "expr": "job:spider_error_rate:1m * 100",
+          "legendFormat": "Error %",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -50,7 +52,7 @@
     },
     {
       "id": 3,
-      "title": "Conductor - Batches Processed",
+      "title": "Conductor Batches Processed/min",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -60,7 +62,7 @@
       },
       "targets": [
         {
-          "expr": "rate(conductor_batches_processed_total[1m])",
+          "expr": "job:conductor_batches_rate:1m",
           "legendFormat": "Batches/min",
           "refId": "A",
           "datasourceUid": "prometheus"
@@ -69,18 +71,18 @@
     },
     {
       "id": 4,
-      "title": "Conductor - Queue Depth (Pending URLs)",
+      "title": "Conductor Queue Depth",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
+        "x": 0,
         "y": 8
       },
       "targets": [
         {
-          "expr": "conductor_queue_depth",
-          "legendFormat": "Pending",
+          "expr": "job:conductor_queue_depth:instant",
+          "legendFormat": "Pending URLs",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -88,17 +90,17 @@
     },
     {
       "id": 5,
-      "title": "Data Flow: Spider \u2192 Conductor",
+      "title": "Pages Received from Spider",
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 8,
+        "w": 6,
         "x": 0,
         "y": 16
       },
       "targets": [
         {
-          "expr": "rate(conductor_pages_received_total[1m])",
+          "expr": "job:conductor_pages_received_rate:1m",
           "legendFormat": "Pages/min",
           "refId": "A",
           "datasourceUid": "prometheus"
@@ -120,44 +122,25 @@
           },
           {
             "color": "green",
-            "value": 10
+            "value": 2
           }
         ]
       }
     },
     {
       "id": 6,
-      "title": "Searcher - Queries Processed",
+      "title": "Searcher Queries/min",
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 8,
-        "x": 8,
+        "w": 6,
+        "x": 0,
         "y": 16
       },
       "targets": [
         {
-          "expr": "rate(searcher_queries_total[1m])",
+          "expr": "job:searcher_queries_rate:1m",
           "legendFormat": "Queries/min",
-          "refId": "A",
-          "datasourceUid": "prometheus"
-        }
-      ]
-    },
-    {
-      "id": 7,
-      "title": "Pipeline Status",
-      "type": "stat",
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 16,
-        "y": 16
-      },
-      "targets": [
-        {
-          "expr": "count(up{job=~\"spider|conductor|searcher\"} == 1)",
-          "legendFormat": "Services UP",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -174,16 +157,14 @@
           },
           {
             "color": "yellow",
-            "value": 2
+            "value": 1
           },
           {
             "color": "green",
-            "value": 3
+            "value": 2
           }
         ]
       }
     }
-  ],
-  "uid": "pipeline-overview",
-  "id": 1
+  ]
 }

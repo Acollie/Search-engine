@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-recording-rules
+  namespace: search-engine
+  labels:
+    app: prometheus
+data:
+  recording-rules.yml: |
+    groups:
+    - name: search_engine_aggregates
+      interval: 15s
+      rules:
+      # Spider metrics - aggregated only
+      - record: job:spider_crawl_rate:1m
+        expr: sum(rate(spider_pages_fetched_total[1m]))
+
+      - record: job:spider_error_rate:1m
+        expr: sum(rate(spider_pages_failed_total[1m])) / (sum(rate(spider_pages_fetched_total[1m])) + sum(rate(spider_pages_failed_total[1m])) + 0.0001)
+
+      # Conductor metrics - aggregated only
+      - record: job:conductor_batches_rate:1m
+        expr: sum(rate(conductor_batches_processed_total[1m]))
+
+      - record: job:conductor_pages_received_rate:1m
+        expr: sum(rate(conductor_pages_received_total[1m]))
+
+      - record: job:conductor_queue_depth:instant
+        expr: conductor_queue_depth
+
+      # Searcher metrics - aggregated only
+      - record: job:searcher_queries_rate:1m
+        expr: sum(rate(searcher_queries_total[1m]))
+
+      # Latency metrics - pre-computed p95 without per-instance buckets
+      - record: job:conductor_latency_p95:5m
+        expr: histogram_quantile(0.95, sum without(instance, pod) (rate(conductor_processing_duration_seconds_bucket[5m])))
+
+      - record: job:spider_latency_p95:5m
+        expr: histogram_quantile(0.95, sum without(instance, pod) (rate(spider_crawl_duration_seconds_bucket[5m])))
+
+      - record: job:searcher_latency_p95:5m
+        expr: histogram_quantile(0.95, sum without(instance, pod) (rate(searcher_query_duration_seconds_bucket[5m])))
+
+      # System metrics - aggregated only
+      - record: job:cpu_usage:1m
+        expr: sum by(job) (rate(process_cpu_seconds_total[1m]))
+
+      - record: job:memory_usage_mb:instant
+        expr: sum by(job) (process_resident_memory_bytes) / (1024 * 1024)
+
+      # Service health - simple aggregation
+      - record: job:up:instant
+        expr: up

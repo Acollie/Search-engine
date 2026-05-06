@@ -1,187 +1,34 @@
 {
   "title": "Search Engine - Error Analysis",
-  "description": "Error tracking, fault detection, and service resilience monitoring",
-  "tags": [
-    "search-engine",
-    "errors"
-  ],
+  "description": "Error tracking using pre-aggregated metrics only",
+  "tags": ["search-engine", "errors"],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
-  "refresh": "5s",
+  "refresh": "30s",
+  "uid": "error-analysis",
+  "id": 4,
   "panels": [
     {
       "id": 1,
-      "title": "Spider Error Rate (%)",
+      "title": "Spider Error Rate %",
       "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 0
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(spider_pages_failed_total[1m])) / (sum(rate(spider_pages_fetched_total[1m])) + sum(rate(spider_pages_failed_total[1m])) + 0.0001) * 100",
-          "legendFormat": "Error %",
-          "refId": "A",
-          "datasourceUid": "prometheus"
-        }
-      ]
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "job:spider_error_rate:1m * 100", "legendFormat": "Error %", "refId": "A", "datasourceUid": "prometheus"}]
     },
     {
       "id": 2,
-      "title": "Conductor Error Rate (%)",
+      "title": "Conductor Latency P95 (ms)",
       "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "targets": [
-        {
-          "expr": "(rate(conductor_errors_total[5m]) / (rate(conductor_pages_received_total[5m]) + rate(conductor_errors_total[5m]) + 0.0001)) * 100",
-          "legendFormat": "Error %",
-          "refId": "A",
-          "datasourceUid": "prometheus"
-        }
-      ]
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "job:conductor_latency_p95:5m * 1000", "legendFormat": "p95", "refId": "A", "datasourceUid": "prometheus"}]
     },
     {
       "id": 3,
-      "title": "Searcher Error Rate (%)",
+      "title": "Queue Depth Trend",
       "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "targets": [
-        {
-          "expr": "(rate(searcher_errors_total[5m]) / (rate(searcher_queries_total[5m]) + rate(searcher_errors_total[5m]) + 0.0001)) * 100",
-          "legendFormat": "Error %",
-          "refId": "A",
-          "datasourceUid": "prometheus"
-        }
-      ]
-    },
-    {
-      "id": 4,
-      "title": "Circuit Breaker State",
-      "type": "stat",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
-      "targets": [
-        {
-          "expr": "gobreaker_state{name=~\"spider|conductor|searcher\"}",
-          "legendFormat": "{{name}}",
-          "refId": "A",
-          "datasourceUid": "prometheus"
-        }
-      ]
-    },
-    {
-      "id": 5,
-      "title": "Spider Failure Types (Last 5m)",
-      "type": "piechart",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 16
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(spider_errors_total[5m])) by (error_type)",
-          "legendFormat": "{{error_type}}",
-          "refId": "A",
-          "datasourceUid": "prometheus"
-        }
-      ]
-    },
-    {
-      "id": 6,
-      "title": "Database Error Rate",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 16
-      },
-      "targets": [
-        {
-          "expr": "rate(conductor_database_errors_total[5m])",
-          "legendFormat": "{{operation}}",
-          "refId": "A",
-          "datasourceUid": "prometheus"
-        }
-      ]
-    },
-    {
-      "id": 7,
-      "title": "gRPC Stream Errors",
-      "type": "stat",
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 0,
-        "y": 24
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(grpc_server_handled_total{grpc_code!=\"OK\"}[5m]))",
-          "legendFormat": "Errors/sec",
-          "refId": "A",
-          "datasourceUid": "prometheus"
-        }
-      ]
-    },
-    {
-      "id": 8,
-      "title": "Connection Timeouts (Last 5m)",
-      "type": "stat",
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 8,
-        "y": 24
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(grpc_server_handled_total{grpc_code=\"DeadlineExceeded\"}[5m]))",
-          "legendFormat": "Timeouts/sec",
-          "refId": "A",
-          "datasourceUid": "prometheus"
-        }
-      ]
-    },
-    {
-      "id": 9,
-      "title": "Circuit Breaker Trips",
-      "type": "stat",
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 16,
-        "y": 24
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(gobreaker_trips_total[5m]))",
-          "legendFormat": "Trips/sec",
-          "refId": "A",
-          "datasourceUid": "prometheus"
-        }
-      ]
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
+      "targets": [{"expr": "job:conductor_queue_depth:instant", "legendFormat": "Pending URLs", "refId": "A", "datasourceUid": "prometheus"}]
     }
-  ],
-  "uid": "error-analysis",
-  "id": 4
+  ]
 }
