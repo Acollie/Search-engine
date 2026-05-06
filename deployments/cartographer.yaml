@@ -51,9 +51,11 @@ spec:
           serviceAccountName: cartographer
           restartPolicy: OnFailure
           terminationGracePeriodSeconds: 120
+          imagePullSecrets:
+            - name: registry-search-engine
           containers:
             - name: cartographer
-              image: cartographer:latest
+              image: registry.digitalocean.com/search-engine/cartographer:latest
               imagePullPolicy: IfNotPresent
               ports:
                 - name: health
@@ -100,18 +102,18 @@ spec:
                       key: LOG_LEVEL
               resources:
                 requests:
-                  cpu: 1
-                  memory: 1Gi
+                  cpu: 200m
+                  memory: 512Mi
                 limits:
-                  cpu: 4
-                  memory: 4Gi
+                  cpu: 2
+                  memory: 2Gi
               livenessProbe:
                 httpGet:
-                  path: /healthz
+                  path: /health
                   port: health
                   scheme: HTTP
                 initialDelaySeconds: 30
-                periodSeconds: 10
+                periodSeconds: 30
                 timeoutSeconds: 5
                 failureThreshold: 3
               securityContext:

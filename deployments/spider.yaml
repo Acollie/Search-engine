@@ -34,7 +34,7 @@ metadata:
     app: spider
     version: v1
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -54,11 +54,13 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: spider
+      imagePullSecrets:
+        - name: registry-search-engine
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       containers:
         - name: spider
-          image: spider:latest
+          image: registry.digitalocean.com/search-engine/spider:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: grpc
@@ -113,14 +115,14 @@ spec:
                   key: LOG_LEVEL
           resources:
             requests:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 450m
+              memory: 100Mi
             limits:
               cpu: 2
-              memory: 1Gi
+              memory: 512Mi
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /health
               port: health
               scheme: HTTP
             initialDelaySeconds: 30
@@ -129,7 +131,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /ready
+              path: /health
               port: health
               scheme: HTTP
             initialDelaySeconds: 10
@@ -199,7 +201,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: spider
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
   metrics:
     - type: Resource

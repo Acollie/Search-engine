@@ -30,7 +30,7 @@ metadata:
     app: conductor
     version: v1
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -50,11 +50,13 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: conductor
+      imagePullSecrets:
+        - name: registry-search-engine
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       containers:
         - name: conductor
-          image: conductor:latest
+          image: registry.digitalocean.com/search-engine/conductor:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: health
@@ -108,7 +110,7 @@ spec:
               memory: 1Gi
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /health
               port: health
               scheme: HTTP
             initialDelaySeconds: 30
@@ -117,7 +119,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /ready
+              path: /health
               port: health
               scheme: HTTP
             initialDelaySeconds: 10
@@ -183,7 +185,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: conductor
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 8
   metrics:
     - type: Resource
