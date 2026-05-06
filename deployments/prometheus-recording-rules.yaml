@@ -7,8 +7,44 @@ metadata:
     app: prometheus
 data:
   recording-rules.yml: |
+    global:
+      # Configurable evaluation interval - adjust based on latency requirements
+      # Default: 15s (balances accuracy vs. overhead)
+      # Options: 5s (high freq), 15s (default), 30s (low overhead), 60s (minimal)
+      evaluation_interval: 15s
+
     groups:
-    - name: search_engine_aggregates
+    # Short interval rules (5s) - for real-time dashboards
+    - name: search_engine_aggregates:5s
+      interval: 5s
+      rules:
+      # Real-time rate metrics
+      - record: job:spider_crawl_rate:5s
+        expr: sum(rate(spider_pages_fetched_total[5s]))
+
+      - record: job:conductor_batches_rate:5s
+        expr: sum(rate(conductor_batches_processed_total[5s]))
+
+      - record: job:conductor_pages_received_rate:5s
+        expr: sum(rate(conductor_pages_received_total[5s]))
+
+      - record: job:searcher_queries_rate:5s
+        expr: sum(rate(searcher_queries_total[5s]))
+
+      - record: job:spider_error_rate:5s
+        expr: sum(rate(spider_pages_failed_total[5s])) / (sum(rate(spider_pages_fetched_total[5s])) + sum(rate(spider_pages_failed_total[5s])) + 0.0001)
+
+      - record: job:conductor_queue_depth:instant
+        expr: conductor_queue_depth
+
+      - record: job:cpu_usage:5s
+        expr: sum by(job) (rate(process_cpu_seconds_total[5s]))
+
+      - record: job:memory_usage_mb:instant
+        expr: sum by(job) (process_resident_memory_bytes) / (1024 * 1024)
+
+    # Standard interval rules (15s) - balanced accuracy and overhead
+    - name: search_engine_aggregates:15s
       interval: 15s
       rules:
       # Spider metrics - aggregated only
@@ -52,3 +88,41 @@ data:
       # Service health - simple aggregation
       - record: job:up:instant
         expr: up
+
+    # Low-overhead interval rules (30s) - for lightweight monitoring
+    - name: search_engine_aggregates:30s
+      interval: 30s
+      rules:
+      - record: job:spider_crawl_rate:30s
+        expr: sum(rate(spider_pages_fetched_total[30s]))
+
+      - record: job:conductor_batches_rate:30s
+        expr: sum(rate(conductor_batches_processed_total[30s]))
+
+      - record: job:spider_error_rate:30s
+        expr: sum(rate(spider_pages_failed_total[30s])) / (sum(rate(spider_pages_fetched_total[30s])) + sum(rate(spider_pages_failed_total[30s])) + 0.0001)
+
+      - record: job:conductor_latency_p95:30s
+        expr: histogram_quantile(0.95, sum without(instance, pod) (rate(conductor_processing_duration_seconds_bucket[30s])))
+
+      - record: job:cpu_usage:30s
+        expr: sum by(job) (rate(process_cpu_seconds_total[30s]))
+
+    # Very low-overhead interval rules (60s) - for minimal resource usage
+    - name: search_engine_aggregates:60s
+      interval: 60s
+      rules:
+      - record: job:spider_crawl_rate:60s
+        expr: sum(rate(spider_pages_fetched_total[1m]))
+
+      - record: job:conductor_batches_rate:60s
+        expr: sum(rate(conductor_batches_processed_total[1m]))
+
+      - record: job:spider_error_rate:60s
+        expr: sum(rate(spider_pages_failed_total[1m])) / (sum(rate(spider_pages_fetched_total[1m])) + sum(rate(spider_pages_failed_total[1m])) + 0.0001)
+
+      - record: job:conductor_latency_p95:60s
+        expr: histogram_quantile(0.95, sum without(instance, pod) (rate(conductor_processing_duration_seconds_bucket[1m])))
+
+      - record: job:cpu_usage:60s
+        expr: sum by(job) (rate(process_cpu_seconds_total[1m]))

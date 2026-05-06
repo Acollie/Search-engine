@@ -1,11 +1,14 @@
 {
   "title": "Search Engine - System Health",
-  "description": "Infrastructure health using pre-aggregated metrics only",
-  "tags": ["search-engine", "health"],
+  "description": "Infrastructure health using pre-aggregated metrics only\n\nConfigurable refresh: 5s (high-freq), 15s (default), 30s (low-overhead), 60s (minimal)",
+  "tags": [
+    "search-engine",
+    "health"
+  ],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
-  "refresh": "30s",
+  "refresh": "15s",
   "uid": "system-health",
   "id": 3,
   "panels": [
@@ -13,24 +16,86 @@
       "id": 1,
       "title": "Service Availability",
       "type": "stat",
-      "gridPos": {"h": 4, "w": 12, "x": 0, "y": 0},
-      "targets": [{"expr": "count(job:up:instant == 1)", "legendFormat": "Services UP", "refId": "A", "datasourceUid": "prometheus"}],
-      "color": {"mode": "thresholds"},
-      "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 3}, {"color": "green", "value": 4}]}
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "count(job:up:instant == 1)",
+          "legendFormat": "Services UP",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ],
+      "color": {
+        "mode": "thresholds"
+      },
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {
+            "color": "red",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 3
+          },
+          {
+            "color": "green",
+            "value": 4
+          }
+        ]
+      }
     },
     {
       "id": 2,
       "title": "CPU Usage by Service",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
-      "targets": [{"expr": "job:cpu_usage:1m * 100", "legendFormat": "{{job}}", "refId": "A", "datasourceUid": "prometheus"}]
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "expr": "job:cpu_usage:1m * 100",
+          "legendFormat": "{{job}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
     },
     {
       "id": 3,
       "title": "Memory Usage (MB)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
-      "targets": [{"expr": "job:memory_usage_mb:instant", "legendFormat": "{{job}}", "refId": "A", "datasourceUid": "prometheus"}]
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "expr": "job:memory_usage_mb:instant",
+          "legendFormat": "{{job}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
     }
+  ],
+  "refreshIntervals": [
+    "5s",
+    "15s",
+    "30s",
+    "60s",
+    "1m",
+    "5m"
   ]
 }

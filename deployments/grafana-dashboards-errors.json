@@ -1,11 +1,14 @@
 {
   "title": "Search Engine - Error Analysis",
-  "description": "Error tracking using pre-aggregated metrics only",
-  "tags": ["search-engine", "errors"],
+  "description": "Error tracking using pre-aggregated metrics only\n\nConfigurable refresh: 5s (high-freq), 15s (default), 30s (low-overhead), 60s (minimal)",
+  "tags": [
+    "search-engine",
+    "errors"
+  ],
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
-  "refresh": "30s",
+  "refresh": "15s",
   "uid": "error-analysis",
   "id": 4,
   "panels": [
@@ -13,22 +16,66 @@
       "id": 1,
       "title": "Spider Error Rate %",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
-      "targets": [{"expr": "job:spider_error_rate:1m * 100", "legendFormat": "Error %", "refId": "A", "datasourceUid": "prometheus"}]
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "job:spider_error_rate:1m * 100",
+          "legendFormat": "Error %",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
     },
     {
       "id": 2,
       "title": "Conductor Latency P95 (ms)",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
-      "targets": [{"expr": "job:conductor_latency_p95:5m * 1000", "legendFormat": "p95", "refId": "A", "datasourceUid": "prometheus"}]
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "job:conductor_latency_p95:5m * 1000",
+          "legendFormat": "p95",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
     },
     {
       "id": 3,
       "title": "Queue Depth Trend",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
-      "targets": [{"expr": "job:conductor_queue_depth:instant", "legendFormat": "Pending URLs", "refId": "A", "datasourceUid": "prometheus"}]
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "job:conductor_queue_depth:instant",
+          "legendFormat": "Pending URLs",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
     }
+  ],
+  "refreshIntervals": [
+    "5s",
+    "15s",
+    "30s",
+    "60s",
+    "1m",
+    "5m"
   ]
 }

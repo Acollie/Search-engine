@@ -1,6 +1,6 @@
 {
   "title": "Search Engine - Data Pipeline",
-  "description": "Production-optimized dashboard using pre-aggregated metrics",
+  "description": "Production-optimized dashboard using pre-aggregated metrics. Configurable refresh: 5s (high-freq), 15s (default), 30s (low-overhead), 60s (minimal)",
   "tags": [
     "search-engine",
     "production"
@@ -8,7 +8,8 @@
   "timezone": "browser",
   "schemaVersion": 39,
   "version": 1,
-  "refresh": "30s",
+  "refresh": "15s",
+  "refreshIntervals": ["5s", "15s", "30s", "60s", "1m", "5m"],
   "uid": "pipeline-overview",
   "id": 1,
   "panels": [

@@ -76,6 +76,102 @@ All panels query ONLY recording rules. Zero cardinality issues.
 - `job:conductor_latency_p95:5m * 1000` - Latency trend
 - `job:conductor_queue_depth:instant` - Queue depth
 
+## Configurable Intervals
+
+All recording rules and dashboards support multiple evaluation intervals:
+
+### Rule Group Intervals
+
+**5s (High-Frequency)** - Real-time monitoring
+- Use for: Alert thresholds, live dashboards
+- Overhead: High CPU impact
+- Best for: <100 servers
+
+```promql
+job:spider_crawl_rate:5s      # Rate window: 5 seconds
+job:cpu_usage:5s              # CPU window: 5 seconds
+```
+
+**15s (Default - Recommended)**
+- Use for: Production monitoring
+- Overhead: Balanced
+- Best for: Most deployments
+- Provides: Good accuracy with minimal overhead
+
+```promql
+job:spider_crawl_rate:1m      # Rate window: 1 minute
+job:conductor_latency_p95:5m  # P95 window: 5 minutes
+job:cpu_usage:1m              # CPU window: 1 minute
+```
+
+**30s (Low-Overhead)**
+- Use for: Lightweight monitoring
+- Overhead: 50% less than 15s
+- Best for: >500 servers, cost-sensitive
+
+```promql
+job:spider_crawl_rate:30s     # Rate window: 30 seconds
+job:cpu_usage:30s             # CPU window: 30 seconds
+```
+
+**60s (Minimal)**
+- Use for: Long-term trending only
+- Overhead: Minimal
+- Best for: Large clusters, archival
+
+```promql
+job:spider_crawl_rate:60s     # Rate window: 1 minute
+job:cpu_usage:60s             # CPU window: 1 minute
+```
+
+### Dashboard Refresh Configuration
+
+All Grafana dashboards have configurable refresh intervals:
+
+```json
+{
+  "refresh": "15s",
+  "refreshIntervals": ["5s", "15s", "30s", "60s", "1m", "5m"]
+}
+```
+
+**Click the refresh dropdown in Grafana to switch intervals:**
+- 5s - Real-time (high network traffic)
+- 15s - Default (recommended)
+- 30s - Low bandwidth
+- 60s+ - Minimal polling
+
+### Performance by Interval
+
+| Interval | Rules Eval | Memory | CPU Impact | Best Use |
+|----------|-----------|--------|-----------|----------|
+| 5s | Every 5s | Higher | ~5% overhead | Real-time alerts |
+| 15s | Every 15s | Moderate | ~1% overhead | Production (default) |
+| 30s | Every 30s | Moderate | ~0.5% overhead | Large clusters |
+| 60s | Every 60s | Lower | ~0.25% overhead | Long-term trending |
+
+### How to Change Intervals
+
+**At deployment time:**
+Edit `prometheus-recording-rules.yaml` to disable unnecessary rule groups:
+
+```yaml
+groups:
+- name: search_engine_aggregates:5s
+  interval: 5s
+  # ... rules
+
+# Comment out if not needed:
+# - name: search_engine_aggregates:15s
+#   interval: 15s
+```
+
+**In Grafana:**
+1. Open dashboard
+2. Click refresh icon (top right)
+3. Select desired interval
+4. Applies immediately
+
 ## Available Recording Rules
 
 All available pre-aggregated metrics (zero cardinality):
