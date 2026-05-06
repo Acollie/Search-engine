@@ -1,0 +1,139 @@
+{
+  "dashboard": {
+    "title": "Search Engine - Error Analysis",
+    "description": "Error tracking, fault detection, and service resilience monitoring",
+    "tags": ["search-engine", "errors"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Spider Error Rate (%)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "(rate(spider_pages_failed_total[5m]) / (rate(spider_pages_fetched_total[5m]) + rate(spider_pages_failed_total[5m]) + 0.0001)) * 100",
+            "legendFormat": "Error %",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Conductor Error Rate (%)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "(rate(conductor_errors_total[5m]) / (rate(conductor_pages_received_total[5m]) + rate(conductor_errors_total[5m]) + 0.0001)) * 100",
+            "legendFormat": "Error %",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Searcher Error Rate (%)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "(rate(searcher_errors_total[5m]) / (rate(searcher_queries_total[5m]) + rate(searcher_errors_total[5m]) + 0.0001)) * 100",
+            "legendFormat": "Error %",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Circuit Breaker State",
+        "type": "stat",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "gobreaker_state{name=~\"spider|conductor|searcher\"}",
+            "legendFormat": "{{name}}",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Spider Failure Types (Last 5m)",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "sum(rate(spider_errors_total[5m])) by (error_type)",
+            "legendFormat": "{{error_type}}",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Database Error Rate",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "rate(conductor_database_errors_total[5m])",
+            "legendFormat": "{{operation}}",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "gRPC Stream Errors",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 0, "y": 24},
+        "targets": [
+          {
+            "expr": "sum(rate(grpc_server_handled_total{grpc_code!=\"OK\"}[5m]))",
+            "legendFormat": "Errors/sec",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Connection Timeouts (Last 5m)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 8, "y": 24},
+        "targets": [
+          {
+            "expr": "sum(rate(grpc_server_handled_total{grpc_code=\"DeadlineExceeded\"}[5m]))",
+            "legendFormat": "Timeouts/sec",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Circuit Breaker Trips",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 16, "y": 24},
+        "targets": [
+          {
+            "expr": "sum(rate(gobreaker_trips_total[5m]))",
+            "legendFormat": "Trips/sec",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      }
+    ]
+  }
+}

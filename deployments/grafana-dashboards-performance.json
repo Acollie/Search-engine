@@ -1,0 +1,139 @@
+{
+  "dashboard": {
+    "title": "Search Engine - Performance Metrics",
+    "description": "Latency, throughput, and resource efficiency across the pipeline",
+    "tags": ["search-engine", "performance"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Spider Crawl Latency (p95)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(spider_crawl_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 latency",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Conductor Processing Latency (p95)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(conductor_processing_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 latency",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Searcher Query Latency (p95)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(searcher_query_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 latency",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Cartographer Sweep Duration",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(cartographer_sweep_duration_seconds_sum[5m]) / rate(cartographer_sweep_duration_seconds_count[5m])",
+            "legendFormat": "avg sweep time",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "CPU Usage by Service",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total[1m]) * 100",
+            "legendFormat": "{{job}}",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Memory Usage by Service (MB)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes / (1024 * 1024)",
+            "legendFormat": "{{job}}",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Throughput: Pages/Second",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 0, "y": 24},
+        "targets": [
+          {
+            "expr": "rate(spider_pages_fetched_total[1m]) / 60",
+            "legendFormat": "Spider",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Queue Wait Time Estimate (sec)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 8, "y": 24},
+        "targets": [
+          {
+            "expr": "conductor_queue_depth / (rate(conductor_pages_received_total[1m]) + 0.001)",
+            "legendFormat": "Wait time",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Database Query Latency (p95)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 16, "y": 24},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(sql_query_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      }
+    ]
+  }
+}

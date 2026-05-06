@@ -1,0 +1,214 @@
+{
+  "dashboard": {
+    "title": "Search Engine - System Health",
+    "description": "Infrastructure status, resource availability, and service dependencies",
+    "tags": ["search-engine", "health"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "10s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Service Availability",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "count(up{job=~\"spider|conductor|searcher|cartographer\"} == 1)",
+            "legendFormat": "Services UP",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ],
+        "color": {"mode": "thresholds"},
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"color": "red", "value": null},
+            {"color": "yellow", "value": 3},
+            {"color": "green", "value": 4}
+          ]
+        }
+      },
+      {
+        "id": 2,
+        "title": "Database Connection Pool Usage",
+        "type": "gauge",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "(postgres_connection_pool_used / postgres_connection_pool_max) * 100",
+            "legendFormat": "Pool %",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "max": 100,
+            "min": 0,
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Disk Space Available",
+        "type": "gauge",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "(node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"}) * 100",
+            "legendFormat": "Free %",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "max": 100,
+            "min": 0,
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Memory Pressure",
+        "type": "gauge",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+            "legendFormat": "Used %",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "max": 100,
+            "min": 0,
+            "unit": "percent"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Pod CPU Usage",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "rate(process_cpu_seconds_total[1m])",
+            "legendFormat": "{{pod_name}}",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Pod Memory Usage (MB)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "targets": [
+          {
+            "expr": "process_resident_memory_bytes / (1024 * 1024)",
+            "legendFormat": "{{pod_name}}",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "gRPC Connection Health",
+        "type": "status-history",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "grpc_connection_health",
+            "legendFormat": "{{service}}",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Kubernetes Node Status",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "expr": "kube_node_status_condition{condition=\"Ready\",status=\"true\"}",
+            "legendFormat": "{{node}}",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Metrics-Server Health",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 0, "y": 20},
+        "targets": [
+          {
+            "expr": "up{job=\"metrics-server\"}",
+            "legendFormat": "metrics-server",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ],
+        "color": {"mode": "thresholds"},
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"color": "red", "value": null},
+            {"color": "green", "value": 1}
+          ]
+        }
+      },
+      {
+        "id": 10,
+        "title": "PVC Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 8, "y": 20},
+        "targets": [
+          {
+            "expr": "kube_persistentvolumeclaim_status_phase{persistentvolumeclaim=\"postgres-data\"}",
+            "legendFormat": "postgres-data",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ],
+        "color": {"mode": "thresholds"},
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"color": "red", "value": null},
+            {"color": "yellow", "value": 1},
+            {"color": "green", "value": 2}
+          ]
+        }
+      },
+      {
+        "id": 11,
+        "title": "Pod Restart Count",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 16, "y": 20},
+        "targets": [
+          {
+            "expr": "sum(rate(kube_pod_container_status_restarts_total[1h]))",
+            "legendFormat": "Restarts/hour",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      }
+    ]
+  }
+}
