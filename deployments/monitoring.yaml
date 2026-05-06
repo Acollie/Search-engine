@@ -333,6 +333,11 @@ spec:
             name: grafana-datasources
         - name: grafana-dashboards-config
           configMap:
+            name: grafana-dashboards-config
+        - name: grafana-dashboards
+          configMap:
+            name: grafana-dashboards
+
 ---
 apiVersion: v1
 kind: ConfigMap
