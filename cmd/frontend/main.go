@@ -12,6 +12,7 @@ import (
 	"time"
 	"webcrawler/cmd/frontend/handler"
 	"webcrawler/pkg/bootstrap"
+	dbx "webcrawler/pkg/db"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -25,6 +26,11 @@ type config struct {
 	UIDistPath     string  `env:"UI_DIST_PATH"     envDefault:"cmd/frontend/ui/dist"`
 	RateLimitRPS   float64 `env:"RATE_LIMIT_RPS"   envDefault:"10"`
 	RateLimitBurst int     `env:"RATE_LIMIT_BURST" envDefault:"20"`
+	DBUser         string  `env:"DB_USER"          envDefault:"postgres"`
+	DBPassword     string  `env:"DB_PASSWORD"      envDefault:""`
+	DBHost         string  `env:"DB_HOST"          envDefault:"localhost"`
+	DBPort         int     `env:"DB_PORT"          envDefault:"5432"`
+	DBName         string  `env:"DB_NAME"          envDefault:"databaseName"`
 }
 
 func main() {
@@ -39,6 +45,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	db, _, err := dbx.Postgres(cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
+	if err != nil {
+		slog.Error("Failed to connect to database", slog.Any("error", err))
+		os.Exit(1)
+	}
+	defer db.Close()
+
 	searcherAddr := fmt.Sprintf("%s:%s", cfg.SearcherHost, cfg.SearcherPort)
 	searchHandler, err := handler.NewSearchHandler(searcherAddr)
 	if err != nil {
@@ -47,9 +60,12 @@ func main() {
 	}
 	defer searchHandler.Close()
 
+	statsHandler := handler.NewStatsHandler(db)
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/search", searchHandler.HandleSearchAPI)
+	mux.HandleFunc("/api/stats", statsHandler.Handle)
 
 	mux.HandleFunc("/", spaHandler(cfg.UIDistPath))
 

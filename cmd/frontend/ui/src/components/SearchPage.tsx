@@ -1,8 +1,15 @@
-import { useState, FormEvent } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 
 interface Props {
   onSearch: (query: string) => void
   onAbout: () => void
+}
+
+interface Stats {
+  pagesIndexed: number
+  domainsCount: number
+  linksIndexed: number
+  queueDepth: number
 }
 
 const LOGO = `
@@ -17,8 +24,22 @@ function now() {
   return new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC'
 }
 
+function fmtNum(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+  return n.toLocaleString()
+}
+
 export default function SearchPage({ onSearch, onAbout }: Props) {
   const [query, setQuery] = useState('')
+  const [stats, setStats] = useState<Stats | null>(null)
+
+  useEffect(() => {
+    fetch('/api/stats')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((data: Stats) => setStats(data))
+      .catch(() => { /* stats unavailable — panel stays hidden */ })
+  }, [])
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -94,6 +115,32 @@ export default function SearchPage({ onSearch, onAbout }: Props) {
             <span className="sys-ok">■ READY</span>
           </div>
         </div>
+
+        {stats && (
+          <div className="sys-panel" style={{ marginTop: '1rem' }}>
+            <span className="sys-panel-title">// INDEX STATISTICS</span>
+            <div className="sys-row dim">
+              <span>METRIC</span><span>VALUE</span>
+            </div>
+            <hr className="divider" />
+            <div className="sys-row">
+              <span>PAGES INDEXED</span>
+              <span className="sys-ok">{fmtNum(stats.pagesIndexed)}</span>
+            </div>
+            <div className="sys-row">
+              <span>UNIQUE DOMAINS</span>
+              <span className="sys-ok">{fmtNum(stats.domainsCount)}</span>
+            </div>
+            <div className="sys-row">
+              <span>LINKS DISCOVERED</span>
+              <span className="sys-ok">{fmtNum(stats.linksIndexed)}</span>
+            </div>
+            <div className="sys-row">
+              <span>CRAWL QUEUE DEPTH</span>
+              <span className="sys-ok">{fmtNum(stats.queueDepth)}</span>
+            </div>
+          </div>
+        )}
       </div>
     </>
   )

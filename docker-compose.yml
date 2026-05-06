@@ -137,6 +137,8 @@ services:
     container_name: search-engine-frontend
     restart: unless-stopped
     depends_on:
+      postgres:
+        condition: service_healthy
       searcher:
         condition: service_healthy
     environment:
@@ -144,6 +146,10 @@ services:
       HEALTH_PORT: "8080"
       SEARCHER_HOST: searcher
       SEARCHER_PORT: "9091"
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_HOST: postgres
+      DB_NAME: databaseName
     ports:
       - "3000:3000"
       - "8005:8080"
