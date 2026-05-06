@@ -13,14 +13,13 @@ import (
 
 const (
 	MaxBodyLength    = 10000
-	MaxResponseBytes = 10 * 1024 * 1024 // 10MB max response size
+	MaxResponseBytes = 1 * 1024 * 1024 // 1MB — keeps per-worker DOM tree small
 )
 
 func NewPage(fetchURL string) (Page, string, error) {
 	client := &http.Client{
 		Timeout: time.Second * 10,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			// Limit redirects to 5
 			if len(via) >= 5 {
 				return fmt.Errorf("too many redirects")
 			}
@@ -28,13 +27,11 @@ func NewPage(fetchURL string) (Page, string, error) {
 		},
 	}
 
-	// Create request with proper User-Agent
 	req, err := http.NewRequest("GET", fetchURL, nil)
 	if err != nil {
 		return Page{}, "", fmt.Errorf("create request: %w", err)
 	}
 
-	// Set User-Agent to identify the crawler
 	req.Header.Set("User-Agent", "AlexCollieBot/1.0 (+https://alexcollie.com/bot; crawler@alexcollie.com)")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
@@ -46,7 +43,6 @@ func NewPage(fetchURL string) (Page, string, error) {
 
 	defer resp.Body.Close()
 
-	// Check Content-Type to avoid parsing non-HTML content
 	contentType := resp.Header.Get("Content-Type")
 	if contentType != "" && !strings.Contains(strings.ToLower(contentType), "text/html") {
 		return Page{}, "", fmt.Errorf("not HTML content: %s", contentType)
@@ -56,15 +52,12 @@ func NewPage(fetchURL string) (Page, string, error) {
 		return Page{}, "", fmt.Errorf("status code error: %d %s", resp.StatusCode, resp.Status)
 	}
 
-	// Limit response body size to prevent OOM
 	limitedReader := io.LimitReader(resp.Body, MaxResponseBytes)
 	body, err := io.ReadAll(limitedReader)
-
 	if err != nil {
 		return Page{}, "", err
 	}
 
-	// Check if we hit the limit
 	if len(body) >= MaxResponseBytes {
 		return Page{}, "", fmt.Errorf("response body too large (>%d bytes)", MaxResponseBytes)
 	}
@@ -114,51 +107,47 @@ func NewWebsite(urlFull string, links []string) Website {
 	}
 }
 
-// This function gets all of the text from a soup file
+// fetchText extracts visible text from key HTML elements, stopping once
+// MaxBodyLength is reached to avoid O(N²) string growth on large DOM trees.
 func fetchText(root *soup.Root) string {
-	res := ""
-	for _, node := range root.FindAll("p") {
-		res += node.FullText()
-	}
-	for _, node := range root.FindAll("h1") {
-		res += node.FullText()
-	}
-	for _, node := range root.FindAll("h2") {
-		res += node.FullText()
-	}
-	for _, node := range root.FindAll("div") {
-		res += node.FullText()
-	}
-	for _, node := range root.FindAll("span") {
-		res += node.FullText()
-	}
+	var sb strings.Builder
+	sb.Grow(MaxBodyLength)
 
+	tags := []string{"p", "h1", "h2", "div", "span"}
+	for _, tag := range tags {
+		for _, node := range root.FindAll(tag) {
+			sb.WriteString(node.FullText())
+			if sb.Len() >= MaxBodyLength {
+				goto done
+			}
+		}
+	}
+done:
+	res := sb.String()
 	res = strings.ReplaceAll(res, "\n", "")
 	res = strings.ReplaceAll(res, "\t", "")
 	res = strings.ReplaceAll(res, "\r", "")
 	res = strings.ReplaceAll(res, "  ", " ")
-	res = strings.ReplaceAll(res, "\u00A0", " ") // Non-breaking space
-	res = strings.ReplaceAll(res, "\f", "")      // Form feed
-	res = strings.ReplaceAll(res, "\v", "")      // Vertical tab
-	res = strings.ReplaceAll(res, "\u200B", "")  // Zero-width space
+	res = strings.ReplaceAll(res, " ", " ")
+	res = strings.ReplaceAll(res, "\f", "")
+	res = strings.ReplaceAll(res, "\v", "")
+	res = strings.ReplaceAll(res, "​", "")
 	res = strings.TrimSpace(res)
 
-	if len(res) < MaxBodyLength {
-		return res
+	if len(res) > MaxBodyLength {
+		return res[:MaxBodyLength]
 	}
-	return res[:MaxBodyLength]
+	return res
 }
 
 func stripHTML(text *string) {
 	re := regexp.MustCompile("<[^>]*>")
 	*text = re.ReplaceAllString(*text, "")
-
 }
 
 func scriptEmptyLines(text *string) {
 	re := regexp.MustCompile(`(?m)^\s*$[\r\n]*|<[^>]*>`)
 	*text = re.ReplaceAllString(*text, "")
-
 }
 
 func stripJavascript(text *string) {
@@ -170,4 +159,3 @@ func stripCSS(text *string) {
 	re := regexp.MustCompile("(?i)<style[^>]*>(.*?)</style>")
 	*text = re.ReplaceAllString(*text, "")
 }
-

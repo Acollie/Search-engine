@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -22,17 +23,24 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-const (
-	databaseName = "databaseName"
-)
+func dbPort() int {
+	if p := os.Getenv("DB_PORT"); p != "" {
+		if n, err := strconv.Atoi(p); err == nil {
+			return n
+		}
+	}
+	return 5432
+}
+
+func dbName() string {
+	if n := os.Getenv("DB_NAME"); n != "" {
+		return n
+	}
+	return "databaseName"
+}
 
 func main() {
-	// Load .env file
-	//err := godotenv.Load()
 	ctx := context.Background()
-	//if err != nil {
-	//	log.Fatalf("Failed to load .env file with error: %v", err)
-	//}
 	var err error
 
 	config := config.Fetch()
@@ -41,8 +49,9 @@ func main() {
 		os.Getenv("DB_USER"),
 		os.Getenv("DB_PASSWORD"),
 		os.Getenv("DB_HOST"),
-		5432,
-		databaseName,
+		dbPort(),
+		dbName(),
+		os.Getenv("DB_SSL_MODE"),
 	)
 	if err != nil {
 		panic(err)
