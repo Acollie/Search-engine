@@ -12,6 +12,23 @@
   "refreshIntervals": ["5s", "15s", "30s", "60s", "1m", "5m"],
   "uid": "pipeline-overview",
   "id": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "interval",
+        "type": "custom",
+        "value": "1m",
+        "options": [
+          { "text": "5s", "value": "5s" },
+          { "text": "15s (default)", "value": "1m" },
+          { "text": "30s", "value": "30s" },
+          { "text": "60s", "value": "60s" }
+        ],
+        "multi": false,
+        "current": { "text": "15s (default)", "value": "1m" }
+      }
+    ]
+  },
   "panels": [
     {
       "id": 1,
@@ -25,7 +42,7 @@
       },
       "targets": [
         {
-          "expr": "job:spider_crawl_rate:1m",
+          "expr": "job:spider_crawl_rate:$interval",
           "legendFormat": "{{__name__}}",
           "refId": "A",
           "datasourceUid": "prometheus"
@@ -44,7 +61,7 @@
       },
       "targets": [
         {
-          "expr": "job:spider_error_rate:1m * 100",
+          "expr": "job:spider_error_rate:$interval * 100",
           "legendFormat": "{{__name__}}",
           "refId": "A",
           "datasourceUid": "prometheus"
@@ -63,7 +80,7 @@
       },
       "targets": [
         {
-          "expr": "job:conductor_batches_rate:1m",
+          "expr": "job:conductor_batches_rate:$interval",
           "legendFormat": "{{__name__}}",
           "refId": "A",
           "datasourceUid": "prometheus"
@@ -101,7 +118,7 @@
       },
       "targets": [
         {
-          "expr": "job:conductor_pages_received_rate:1m",
+          "expr": "job:conductor_pages_received_rate:$interval",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -139,7 +156,7 @@
       },
       "targets": [
         {
-          "expr": "job:searcher_queries_rate:1m",
+          "expr": "job:searcher_queries_rate:$interval",
           "refId": "A",
           "datasourceUid": "prometheus"
         }

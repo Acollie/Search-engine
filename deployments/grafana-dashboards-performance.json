@@ -11,6 +11,23 @@
   "refresh": "15s",
   "uid": "performance-metrics",
   "id": 2,
+  "templating": {
+    "list": [
+      {
+        "name": "interval",
+        "type": "custom",
+        "value": "1m",
+        "options": [
+          { "text": "5s", "value": "5s" },
+          { "text": "15s (default)", "value": "1m" },
+          { "text": "30s", "value": "30s" },
+          { "text": "60s", "value": "60s" }
+        ],
+        "multi": false,
+        "current": { "text": "15s (default)", "value": "1m" }
+      }
+    ]
+  },
   "panels": [
     {
       "id": 1,
@@ -81,7 +98,7 @@
       },
       "targets": [
         {
-          "expr": "job:cpu_usage:1m * 100",
+          "expr": "job:cpu_usage:$interval * 100",
           "legendFormat": "{{job}}",
           "refId": "A",
           "datasourceUid": "prometheus"
