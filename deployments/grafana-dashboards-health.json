@@ -25,7 +25,6 @@
       "targets": [
         {
           "expr": "count(job:up:instant == 1)",
-          "legendFormat": "Services UP",
           "refId": "A",
           "datasourceUid": "prometheus"
         }

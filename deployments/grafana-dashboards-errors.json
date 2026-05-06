@@ -18,14 +18,14 @@
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 0
       },
       "targets": [
         {
           "expr": "job:spider_error_rate:1m * 100",
-          "legendFormat": "Error %",
+          "legendFormat": "Spider Error %",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -33,12 +33,31 @@
     },
     {
       "id": 2,
+      "title": "Spider Latency P95 (ms)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "job:spider_latency_p95:5m * 1000",
+          "legendFormat": "p95",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 3,
       "title": "Conductor Latency P95 (ms)",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
+        "w": 8,
+        "x": 16,
         "y": 0
       },
       "targets": [
@@ -51,12 +70,12 @@
       ]
     },
     {
-      "id": 3,
+      "id": 4,
       "title": "Queue Depth Trend",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
         "y": 8
       },
@@ -64,6 +83,25 @@
         {
           "expr": "job:conductor_queue_depth:instant",
           "legendFormat": "Pending URLs",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Searcher Queries/min",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "job:searcher_queries_rate:1m",
+          "legendFormat": "Queries/min",
           "refId": "A",
           "datasourceUid": "prometheus"
         }

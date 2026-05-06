@@ -26,7 +26,7 @@
       "targets": [
         {
           "expr": "job:spider_crawl_rate:1m",
-          "legendFormat": "Pages/min",
+          "legendFormat": "{{__name__}}",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -39,13 +39,13 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 0
       },
       "targets": [
         {
           "expr": "job:spider_error_rate:1m * 100",
-          "legendFormat": "Error %",
+          "legendFormat": "{{__name__}}",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -64,7 +64,7 @@
       "targets": [
         {
           "expr": "job:conductor_batches_rate:1m",
-          "legendFormat": "Batches/min",
+          "legendFormat": "{{__name__}}",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -77,13 +77,13 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 8
       },
       "targets": [
         {
           "expr": "job:conductor_queue_depth:instant",
-          "legendFormat": "Pending URLs",
+          "legendFormat": "{{__name__}}",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -91,7 +91,7 @@
     },
     {
       "id": 5,
-      "title": "Pages Received from Spider",
+      "title": "Pages Received/min",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -102,7 +102,6 @@
       "targets": [
         {
           "expr": "job:conductor_pages_received_rate:1m",
-          "legendFormat": "Pages/min",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -135,13 +134,12 @@
       "gridPos": {
         "h": 4,
         "w": 6,
-        "x": 0,
+        "x": 6,
         "y": 16
       },
       "targets": [
         {
           "expr": "job:searcher_queries_rate:1m",
-          "legendFormat": "Queries/min",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
