@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 	"webcrawler/cmd/frontend/handler"
@@ -17,29 +18,27 @@ import (
 )
 
 type config struct {
-	Port         string  `env:"PORT" envDefault:"3000"`
-	HealthPort   string  `env:"HEALTH_PORT" envDefault:"8080"`
-	SearcherHost string  `env:"SEARCHER_HOST" envDefault:"localhost"`
-	SearcherPort string  `env:"SEARCHER_PORT" envDefault:"9002"`
-	RateLimitRPS float64 `env:"RATE_LIMIT_RPS" envDefault:"10"`
-	RateLimitBurst int   `env:"RATE_LIMIT_BURST" envDefault:"20"`
+	Port           string  `env:"PORT"             envDefault:"3000"`
+	HealthPort     string  `env:"HEALTH_PORT"      envDefault:"8080"`
+	SearcherHost   string  `env:"SEARCHER_HOST"    envDefault:"localhost"`
+	SearcherPort   string  `env:"SEARCHER_PORT"    envDefault:"9002"`
+	UIDistPath     string  `env:"UI_DIST_PATH"     envDefault:"cmd/frontend/ui/dist"`
+	RateLimitRPS   float64 `env:"RATE_LIMIT_RPS"   envDefault:"10"`
+	RateLimitBurst int     `env:"RATE_LIMIT_BURST" envDefault:"20"`
 }
 
 func main() {
-	// Parse configuration
 	cfg := config{}
 	if err := env.Parse(&cfg); err != nil {
 		slog.Error("Failed to parse environment config", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	// Initialize observability
 	if err := bootstrap.Observability(); err != nil {
 		slog.Error("Failed to initialize OpenTelemetry", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	// Initialize gRPC client to Searcher service
 	searcherAddr := fmt.Sprintf("%s:%s", cfg.SearcherHost, cfg.SearcherPort)
 	searchHandler, err := handler.NewSearchHandler(searcherAddr)
 	if err != nil {
@@ -48,22 +47,14 @@ func main() {
 	}
 	defer searchHandler.Close()
 
-	// Create HTTP router
 	mux := http.NewServeMux()
 
-	// Register handlers
-	mux.HandleFunc("/", searchHandler.HandleIndex)
-	mux.HandleFunc("/search", searchHandler.HandleSearch)
+	mux.HandleFunc("/api/search", searchHandler.HandleSearchAPI)
 
-	// Serve static files
-	fs := http.FileServer(http.Dir("cmd/frontend/static"))
-	mux.Handle("/static/", http.StripPrefix("/static/", fs))
+	mux.HandleFunc("/", spaHandler(cfg.UIDistPath))
 
-	// Apply per-IP+Host rate limiting to all user-facing traffic.
-	// Static assets are also wrapped so that scraper floods don't bypass limits.
 	rateLimited := handler.RateLimitMiddleware(cfg.RateLimitRPS, cfg.RateLimitBurst, mux)
 
-	// Main HTTP server for user traffic
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      rateLimited,
@@ -72,20 +63,18 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Health check server
 	healthMux := http.NewServeMux()
 	healthMux.HandleFunc("/health", handler.HealthCheckHandler)
 	healthMux.HandleFunc("/ready", handler.ReadinessHandler)
 	healthMux.Handle("/metrics", promhttp.Handler())
 
 	healthServer := &http.Server{
-		Addr:         ":" + cfg.HealthPort,
-		Handler:      healthMux,
-		ReadTimeout:  5 * time.Second,
+		Addr:        ":" + cfg.HealthPort,
+		Handler:     healthMux,
+		ReadTimeout: 5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
 
-	// Start health server in background
 	go func() {
 		slog.Info("Starting health check server", slog.String("port", cfg.HealthPort))
 		if err := healthServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -93,7 +82,6 @@ func main() {
 		}
 	}()
 
-	// Handle graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
@@ -112,7 +100,6 @@ func main() {
 		}
 	}()
 
-	// Start main server
 	slog.Info("Starting frontend server", slog.String("port", cfg.Port))
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		slog.Error("Server error", slog.Any("error", err))
@@ -120,4 +107,17 @@ func main() {
 	}
 
 	slog.Info("Server stopped gracefully")
+}
+
+// spaHandler serves a React SPA: static assets from dist, index.html for all other paths.
+func spaHandler(distPath string) http.HandlerFunc {
+	fs := http.FileServer(http.Dir(distPath))
+	return func(w http.ResponseWriter, r *http.Request) {
+		absPath := filepath.Join(distPath, filepath.Clean("/"+r.URL.Path))
+		if _, err := os.Stat(absPath); os.IsNotExist(err) {
+			http.ServeFile(w, r, filepath.Join(distPath, "index.html"))
+			return
+		}
+		fs.ServeHTTP(w, r)
+	}
 }
