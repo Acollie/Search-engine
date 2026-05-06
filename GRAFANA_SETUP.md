@@ -1,321 +1,195 @@
-# Grafana Dashboard Setup
+# Grafana Dashboards Setup Guide
 
-## Overview
+## Quick Start
 
-This guide explains how to access and use the Grafana dashboard for monitoring the search engine.
-
-## Dashboard Features
-
-The Search Engine Overview dashboard provides:
-
-1. **Search Requests per Second** - Real-time request rate by status (success/error)
-2. **Search Latency** - p50, p95, and p99 latency percentiles
-3. **Total Searches** - Count of successful searches in the last hour
-4. **Error Rate** - Percentage of failed searches
-5. **Service Status** - Health status of all 5 microservices
-
-## Accessing Grafana
-
-### Docker Compose
-
+### 1. Port Forward to Grafana
 ```bash
-# Grafana is available at:
-http://localhost:3001
-
-# Default credentials:
-Username: admin
-Password: admin (or check GRAFANA_PASSWORD in .env)
+kubectl port-forward svc/grafana 3000:3000 -n search-engine &
 ```
 
-### Kubernetes
+Then access: **http://localhost:3000**
 
-```bash
-# Port forward to access Grafana
-kubectl port-forward svc/grafana 3000:3000 -n search-engine
+### 2. Default Login
+- **Username:** admin
+- **Password:** admin (change on first login!)
 
-# Access at:
-http://localhost:3000
+### 3. Add Prometheus Data Source
+1. Go to Configuration → Data Sources
+2. Click "Add data source"
+3. Select "Prometheus"
+4. URL: `http://prometheus:9090`
+5. Click "Save & Test"
 
-# Get the admin password
-kubectl get secret search-engine-secrets -n search-engine -o jsonpath='{.data.GRAFANA_PASSWORD}' | base64 --decode
-```
+---
 
-## Dashboard Locations
+## Dashboards Available
 
-### Auto-provisioned (Kubernetes)
+### 1. **Pipeline Overview** 
+Real-time monitoring of data flow: Spider → Conductor → Searcher
 
-The dashboard is automatically provisioned when you deploy monitoring:
+**Key Panels:**
+- Spider pages crawled (per minute) - shows active crawling rate
+- Spider error rate (%) - detects crawling issues
+- Conductor batches processed - shows indexing throughput
+- Conductor queue depth - identifies backlogs
+- Data flow rate - monitors pipeline health
+- Searcher queries - tracks search usage
+- Pipeline status - shows service availability
 
-```bash
-kubectl apply -f deployments/monitoring.yaml
-```
+**Alerts to set:**
+- Error rate > 25% (Spider)
+- Queue depth > 50,000 URLs
+- Zero batches processed for > 5 minutes
 
-Navigate to: **Dashboards → Search Engine → Search Engine Overview**
+### 2. **Performance Metrics**
+Latency, throughput, and performance analysis
 
-### Manual Import
+**Key Panels:**
+- Page processing latency (P95) - target: < 100ms
+- Search query latency (P95) - target: < 500ms
+- Spider throughput - expected: 100-150 pages/min
+- Conductor throughput - scales with spider
+- Peak throughput tracking
+- Queue wait time estimation
 
-If the dashboard is not automatically loaded:
+### 3. **System Health**
+Infrastructure and service health monitoring
 
-1. Open Grafana
-2. Click **+** (Create) in the left sidebar
-3. Select **Import**
-4. Upload `deployments/grafana-dashboard.json`
-5. Select **Prometheus** as the data source
-6. Click **Import**
+**Key Panels:**
+- Pod CPU/Memory usage - capacity planning
+- Service status (up/down) - availability
+- Database connectivity - data persistence
+- Disk space available
+- Network I/O rates
+- System uptime
 
-## Dashboard Panels Explained
+### 4. **Error Analysis**
+Error rates, failures, and issue detection
 
-### 1. Search Requests per Second
+**Key Panels:**
+- Spider error rate with thresholds
+- Conductor processing errors
+- Circuit breaker state
+- gRPC stream errors
+- Database connection errors
+- Timeout occurrences
 
-**What it shows:** Rate of search requests over time
-**Metrics:** `rate(frontend_search_requests_total[5m])`
-**Colors:**
-- Green: Successful requests
-- Red: Failed requests
+---
 
-**What to watch for:**
-- Sudden drops (service issues)
-- High error rate (backend problems)
-- Spikes (traffic surge, potential DDoS)
+## Key Prometheus Queries
 
-### 2. Search Latency (p50, p95, p99)
-
-**What it shows:** Search response time percentiles
-**Metrics:** `histogram_quantile(0.XX, rate(frontend_search_duration_seconds_bucket[5m]))`
-
-**Interpretation:**
-- **p50** (median): Half of requests complete faster
-- **p95**: 95% of requests complete faster
-- **p99**: 99% of requests complete faster (worst-case)
-
-**What to watch for:**
-- p99 > 2s: Poor user experience
-- Increasing trend: Performance degradation
-- Large gap between p50 and p99: Inconsistent performance
-
-### 3. Total Searches (1h)
-
-**What it shows:** Total successful searches in the last hour
-**Metrics:** `increase(frontend_search_requests_total{status="success"}[1h])`
-
-**Use cases:**
-- Traffic monitoring
-- Usage analytics
-- Capacity planning
-
-### 4. Error Rate
-
-**What it shows:** Percentage of failed searches
-**Metrics:** `rate(frontend_search_requests_total{status="error"}[5m]) / rate(frontend_search_requests_total[5m])`
-
-**Thresholds:**
-- Green: < 1% (healthy)
-- Yellow: 1-5% (warning)
-- Red: > 5% (critical)
-
-**What to watch for:**
-- > 1%: Investigate immediately
-- Sudden spike: Deployment issue or backend failure
-
-### 5. Service Status
-
-**What it shows:** Health status of all microservices
-**Metrics:** `up{job="<service>"}`
-
-**Colors:**
-- Green (1): Service is up
-- Red (0): Service is down
-
-**Services monitored:**
-- Frontend
-- Searcher
-- Spider
-- Conductor
-- Cartographer
-
-## Setting Up Alerts
-
-### Example Alert: High Error Rate
-
-1. Click on the **Error Rate** panel
-2. Click **Edit**
-3. Go to **Alert** tab
-4. Click **Create Alert**
-5. Set condition:
-   - WHEN: `avg()` OF `query(A, 5m, now)` IS ABOVE `0.05`
-   - FOR: `5m`
-6. Add notification channel
-7. Save
-
-### Example Alert: Service Down
-
-1. Create new alert rule in Prometheus
-2. Add to `deployments/monitoring.yaml` under alert-rules ConfigMap:
-
-```yaml
-- alert: ServiceDown
-  expr: up{namespace="search-engine"} == 0
-  for: 1m
-  labels:
-    severity: critical
-  annotations:
-    summary: "Service {{ $labels.job }} is down"
-    description: "{{ $labels.job }} has been down for more than 1 minute"
-```
-
-## Customizing the Dashboard
-
-### Adding a New Panel
-
-1. Click **Add panel** (top right)
-2. Select **Add a new panel**
-3. Enter PromQL query in **Metrics browser**
-4. Configure visualization
-5. Click **Apply**
-
-### Example Queries
-
-**Request rate by endpoint:**
+### Data Pipeline Flow
 ```promql
-rate(http_requests_total[5m])
+rate(spider_pages_fetched_total[1m])          # Pages crawled/min
+rate(conductor_pages_received_total[1m])      # Pages processed/min
+rate(searcher_queries_total[1m])              # Queries/min
+conductor_queue_depth                         # Pending URLs
 ```
 
-**Memory usage:**
+### Error Metrics
 ```promql
-container_memory_usage_bytes{namespace="search-engine"}
+(rate(spider_pages_failed_total[1m]) / (rate(spider_pages_fetched_total[1m]) + rate(spider_pages_failed_total[1m]))) * 100
+rate(conductor_errors_total[1m])
+conductor_circuit_breaker_state               # 0=closed, 1=open
 ```
 
-**CPU usage:**
+### Performance (Latency)
 ```promql
-rate(container_cpu_usage_seconds_total{namespace="search-engine"}[5m])
+histogram_quantile(0.95, rate(conductor_processing_duration_seconds_bucket[5m]))
+histogram_quantile(0.95, rate(searcher_query_duration_seconds_bucket[5m]))
+histogram_quantile(0.5, rate(searcher_query_duration_seconds_bucket[5m]))
 ```
 
-**Database connections:**
+### Resource Usage
 ```promql
-pg_stat_activity_count{namespace="search-engine"}
+rate(container_cpu_usage_seconds_total{pod=~"spider.*|conductor.*|searcher.*"}[1m])
+container_memory_usage_bytes{pod=~"spider.*|conductor.*|searcher.*"} / 1024 / 1024
 ```
 
-**Query duration:**
-```promql
-histogram_quantile(0.95, rate(postgres_query_duration_seconds_bucket[5m]))
+---
+
+## Manual Dashboard Setup
+
+### Create Dashboard from Scratch
+1. Click "+" → Dashboard
+2. Add panels for key metrics:
+   - Pages crawled: `rate(spider_pages_fetched_total[1m])`
+   - Pages processed: `rate(conductor_pages_received_total[1m])`
+   - Queue depth: `conductor_queue_depth`
+   - Error rate: `(rate(spider_pages_failed_total[1m]) / (rate(spider_pages_fetched_total[1m]) + rate(spider_pages_failed_total[1m]))) * 100`
+   - Search latency P95: `histogram_quantile(0.95, rate(searcher_query_duration_seconds_bucket[5m]))`
+
+### Set Refresh Rates
+- **Real-time monitoring:** 5 seconds
+- **Detailed analysis:** 10 seconds
+- **Infrastructure:** 15-30 seconds
+
+---
+
+## Alert Configuration
+
+### High Error Rate
+```
+Condition: spider_error_rate > 25%
+Duration: 5 minutes
+Action: Notify Slack #alerts
 ```
 
-## Advanced Features
+### Queue Backlog
+```
+Condition: conductor_queue_depth > 50000
+Duration: 10 minutes
+Action: Page on-call engineer
+```
 
-### Variables
+### Service Down
+```
+Condition: up{job=~"spider|conductor|searcher"} == 0
+Duration: 1 minute
+Action: Critical alert
+```
 
-Add variables for dynamic filtering:
-
-1. Dashboard settings → Variables → Add variable
-2. Name: `service`
-3. Type: `Query`
-4. Query: `label_values(up{namespace="search-engine"}, job)`
-5. Use in panels: `up{job="$service"}`
-
-### Annotations
-
-Show deployment events on graphs:
-
-1. Dashboard settings → Annotations
-2. Add annotation query
-3. Example: Show pod restarts
-   ```promql
-   changes(kube_pod_container_status_restarts_total{namespace="search-engine"}[5m]) > 0
-   ```
-
-### Template Dashboard
-
-Save as template for other environments:
-
-1. Dashboard settings → JSON Model
-2. Replace hardcoded values with variables
-3. Export and commit to Git
+---
 
 ## Troubleshooting
 
-### Dashboard Not Showing Data
+### No Metrics Showing
+1. Verify Prometheus is scraping:
+   - Check: http://localhost:9090/targets
+   - All services should show "UP"
 
-**Check Prometheus is scraping targets:**
-```bash
-# Open Prometheus
-kubectl port-forward svc/prometheus 9090:9090 -n search-engine
+2. Check metric names:
+   - In Prometheus graph view, type `up` and execute
+   - Should see metrics for your services
 
-# Go to: http://localhost:9090/targets
-# Verify all targets are "UP"
-```
+3. Verify data source:
+   - Configuration → Data Sources
+   - Ensure URL is `http://prometheus:9090`
+   - Click "Save & Test"
 
-**Check metrics are being exported:**
-```bash
-# Test frontend metrics endpoint
-curl http://localhost:8005/metrics | grep frontend_search
-```
+### Dashboards Not Loading
+1. Refresh browser (Ctrl+F5)
+2. Check Grafana logs: `kubectl logs deployment/grafana -n search-engine`
+3. Verify Prometheus connection in data sources
 
-### Missing Panels
-
-**Verify Prometheus data source:**
-1. Configuration → Data Sources
-2. Click **Prometheus**
-3. Click **Test** (should show "Data source is working")
-
-**Check PromQL queries:**
-1. Edit panel
-2. Click **Query inspector**
-3. View query results
-
-### No Kubernetes Metrics
-
-**Install metrics-server:**
-```bash
-kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
-```
-
-**Install kube-state-metrics:**
-```bash
-kubectl apply -f https://github.com/kubernetes/kube-state-metrics/tree/main/examples/standard
-```
+---
 
 ## Best Practices
 
-### 1. Set Time Range
+✅ **Set refresh rate to 5s for live monitoring**
+✅ **Create specific alerts for business metrics**
+✅ **Document metric meanings in descriptions**
+✅ **Share dashboards with team**
+✅ **Review dashboards weekly for trends**
+✅ **Archive metrics after 90 days**
 
-- **Development:** Last 1 hour
-- **Production:** Last 24 hours
-- **Debugging:** Last 15 minutes with auto-refresh
+---
 
-### 2. Use Annotations
+## Dashboard Files
 
-Mark deployments, incidents, and scaling events
+Pre-built dashboards available in:
+- `deployments/grafana-dashboards-pipeline.json`
+- `deployments/grafana-dashboards-performance.json`
+- `deployments/grafana-dashboards-health.json`
+- `deployments/grafana-dashboards-errors.json`
 
-### 3. Export Snapshots
-
-Share dashboard snapshots for incident reports
-
-### 4. Create Alerts
-
-Don't rely on manual monitoring - set up alerts for:
-- Service down
-- High error rate (> 1%)
-- High latency (p95 > 1s)
-- High CPU/memory usage
-
-### 5. Regular Review
-
-Review metrics weekly to:
-- Identify trends
-- Plan capacity
-- Optimize performance
-
-## Useful Links
-
-- **Prometheus Querying:** https://prometheus.io/docs/prometheus/latest/querying/basics/
-- **Grafana Docs:** https://grafana.com/docs/grafana/latest/
-- **Dashboard Examples:** https://grafana.com/grafana/dashboards/
-
-## Support
-
-If you encounter issues:
-
-1. Check Prometheus targets: http://localhost:9090/targets
-2. Verify metrics are exposed: `curl http://localhost:8005/metrics`
-3. Check Grafana logs: `kubectl logs -f deployment/grafana -n search-engine`
-4. Test PromQL queries in Prometheus UI before adding to Grafana

@@ -1,0 +1,129 @@
+{
+  "dashboard": {
+    "title": "Search Engine - Data Pipeline",
+    "description": "Real-time data flow monitoring: Spider → Conductor → Searcher",
+    "tags": ["search-engine", "pipeline"],
+    "timezone": "browser",
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "5s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Spider - Pages Crawled (per minute)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "rate(spider_pages_fetched_total[1m])",
+            "legendFormat": "Crawled/min",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Spider - Error Rate (%)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "(rate(spider_pages_failed_total[1m]) / (rate(spider_pages_fetched_total[1m]) + rate(spider_pages_failed_total[1m]) + 0.0001)) * 100",
+            "legendFormat": "Error %",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Conductor - Batches Processed",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "targets": [
+          {
+            "expr": "rate(conductor_batches_processed_total[1m])",
+            "legendFormat": "Batches/min",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Conductor - Queue Depth (Pending URLs)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "targets": [
+          {
+            "expr": "conductor_queue_depth",
+            "legendFormat": "Pending",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Data Flow: Spider → Conductor",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 0, "y": 16},
+        "targets": [
+          {
+            "expr": "rate(conductor_pages_received_total[1m])",
+            "legendFormat": "Pages/min",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ],
+        "color": {"mode": "thresholds"},
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"color": "red", "value": null},
+            {"color": "yellow", "value": 1},
+            {"color": "green", "value": 10}
+          ]
+        }
+      },
+      {
+        "id": 6,
+        "title": "Searcher - Queries Processed",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 8, "y": 16},
+        "targets": [
+          {
+            "expr": "rate(searcher_queries_total[1m])",
+            "legendFormat": "Queries/min",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Pipeline Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 8, "x": 16, "y": 16},
+        "targets": [
+          {
+            "expr": "count(up{job=~\"spider|conductor|searcher\"} == 1)",
+            "legendFormat": "Services UP",
+            "refId": "A",
+            "datasourceUid": "prometheus"
+          }
+        ],
+        "color": {"mode": "thresholds"},
+        "thresholds": {
+          "mode": "absolute",
+          "steps": [
+            {"color": "red", "value": null},
+            {"color": "yellow", "value": 2},
+            {"color": "green", "value": 3}
+          ]
+        }
+      }
+    ]
+  }
+}
