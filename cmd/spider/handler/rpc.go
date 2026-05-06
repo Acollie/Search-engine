@@ -18,9 +18,7 @@ type RpcServer struct {
 }
 
 func (c *RpcServer) GetHealth(ctx context.Context, req *spider.HealthRequest) (*spider.HealthResponse, error) {
-	// Try to get all pages to verify database connectivity
-	// If this fails, the database is unhealthy
-	_, err := c.db.Page.GetAllPages(ctx)
+	count, err := c.db.Page.NumberOfPages(ctx)
 	if err != nil {
 		return &spider.HealthResponse{
 			Status: &spider.Status{
@@ -32,13 +30,11 @@ func (c *RpcServer) GetHealth(ctx context.Context, req *spider.HealthRequest) (*
 		}, nil
 	}
 
-	// Service is healthy if we can query the database
 	return &spider.HealthResponse{
 		Status: &spider.Status{
-			Healthy:     true,
-			Tps:         0,
-			SeenSites:   0, // Could count from GetAllPages but that's expensive
-			QueuedSites: 0, // Would need to add GetQueueDepth method
+			Healthy:   true,
+			Tps:       0,
+			SeenSites: int64(count),
 		},
 	}, nil
 }

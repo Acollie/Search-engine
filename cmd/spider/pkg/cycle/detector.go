@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+const (
+	maxSeenURLs    = 500_000
+	seenURLsTTL    = 15 * time.Minute
+	maxPatternSize = 1_000
+)
+
 // Detector detects crawl cycles and URL patterns
 type Detector struct {
 	// Track URLs seen in current crawl session
@@ -28,7 +34,7 @@ func NewDetector(maxPatternCount int) *Detector {
 		seenURLs:        make(map[string]time.Time),
 		patterns:        make(map[string]int),
 		maxPatternCount: maxPatternCount,
-		cleanupInterval: 10 * time.Minute,
+		cleanupInterval: 2 * time.Minute,
 		stopCleanup:     make(chan struct{}),
 	}
 
@@ -55,6 +61,16 @@ func (d *Detector) IsCycle(url string) bool {
 func (d *Detector) MarkSeen(url string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+
+	// Evict oldest entries when the map hits the cap to bound memory usage
+	if len(d.seenURLs) >= maxSeenURLs {
+		cutoff := time.Now().Add(-seenURLsTTL / 2)
+		for u, seenAt := range d.seenURLs {
+			if seenAt.Before(cutoff) {
+				delete(d.seenURLs, u)
+			}
+		}
+	}
 
 	d.seenURLs[url] = time.Now()
 }
@@ -98,12 +114,12 @@ func (d *Detector) cleanupRoutine() {
 	}
 }
 
-// cleanup removes old seen URLs (older than 1 hour)
+// cleanup removes old seen URLs (older than seenURLsTTL)
 func (d *Detector) cleanup() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	cutoff := time.Now().Add(-1 * time.Hour)
+	cutoff := time.Now().Add(-seenURLsTTL)
 
 	for url, seenAt := range d.seenURLs {
 		if seenAt.Before(cutoff) {
@@ -111,8 +127,7 @@ func (d *Detector) cleanup() {
 		}
 	}
 
-	// Reset pattern counts periodically
-	if len(d.patterns) > 10000 {
+	if len(d.patterns) > maxPatternSize {
 		d.patterns = make(map[string]int)
 	}
 }

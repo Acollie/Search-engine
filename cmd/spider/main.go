@@ -149,6 +149,9 @@ func main() {
 		// Give crawler time to finish current batch
 		time.Sleep(2 * time.Second)
 
+		// Stop background goroutines (robots cache, rate limiter, cycle detector)
+		server.Close()
+
 		// Stop gRPC server
 		grpcServer.GracefulStop()
 		pg.Close()
