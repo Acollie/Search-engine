@@ -7,6 +7,10 @@ pkg/mocks/
 cover.out
 coverage.txt
 
+# Work-in-progress / local notes
+todo.txt
+TODO.txt
+
 # Terraform
 terraform/.terraform/
 terraform/*.tfstate
