@@ -26,8 +26,10 @@ func (h *Handler) Listen(ctx context.Context) {
 			slog.Info("Context cancelled, stopping listener")
 			return
 		default:
+			slog.Info("Listen loop: calling processBatch")
 			if err := h.processBatch(ctx); err != nil {
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					slog.Info("processBatch cancelled or deadline exceeded")
 					return
 				}
 				if status.Code(err) == codes.Unavailable {
@@ -44,40 +46,51 @@ func (h *Handler) Listen(ctx context.Context) {
 
 // processBatch establishes a gRPC stream with Spider and processes incoming pages
 func (h *Handler) processBatch(ctx context.Context) error {
+	slog.Info("processBatch: starting batch processing")
 	// Add 30-second timeout to prevent indefinite blocking on stream operations
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
+	slog.Info("processBatch: calling Spider.GetSeenList")
 	result, err := h.breaker.Execute(func() (interface{}, error) {
 		return h.spiderClient.GetSeenList(ctx)
 	})
 	if err != nil {
+		slog.Error("processBatch: GetSeenList failed", slog.Any("error", err))
 		return err
 	}
+	slog.Info("processBatch: GetSeenList returned successfully, casting stream")
 	stream := result.(spider.Spider_GetSeenListClient)
 
 	// Request pages from Spider
 	req := &spider.SeenListRequest{
 		Limit: 100, // Request batches of 100 pages
 	}
+	slog.Info("processBatch: sending request to Spider", slog.Int32("limit", req.Limit))
 	if err := stream.Send(req); err != nil {
+		slog.Error("processBatch: failed to send request", slog.Any("error", err))
 		return err
 	}
+	slog.Info("processBatch: request sent, waiting to receive response")
 
 	// Process incoming pages
 	for {
 		select {
 		case <-ctx.Done():
+			slog.Info("processBatch: context cancelled while waiting for response")
 			return ctx.Err()
 		default:
+			slog.Info("processBatch: calling stream.Recv() to get pages")
 			resp, err := stream.Recv()
 			if err == io.EOF {
-				slog.Debug("Stream ended normally")
+				slog.Info("processBatch: stream ended normally (EOF)")
 				return nil
 			}
 			if err != nil {
+				slog.Error("processBatch: stream.Recv() failed", slog.Any("error", err))
 				return err
 			}
+			slog.Info("processBatch: received response with pages", slog.Int("page_count", len(resp.SeenSites)))
 
 			// Process each page in the response
 			for _, page := range resp.SeenSites {
