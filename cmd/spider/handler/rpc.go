@@ -70,26 +70,32 @@ func (c *RpcServer) _GetSeenList(ctx context.Context, request *spider.SeenListRe
 }
 
 func (c *RpcServer) GetSeenList(conn grpc.BidiStreamingServer[spider.SeenListRequest, spider.SeenListResponse]) error {
+	fmt.Println("GetSeenList: Stream opened, waiting for requests")
 	for {
 		// Receive request from client
 		request, err := conn.Recv()
 		if err == io.EOF {
-			// Client has finished sending
+			fmt.Println("GetSeenList: Client closed stream")
 			return nil
 		}
 		if err != nil {
+			fmt.Printf("GetSeenList: Failed to receive request: %v\n", err)
 			return err
 		}
+
+		fmt.Printf("GetSeenList: Received request (limit=%d, offset=%d)\n", request.Limit, request.Offset)
 
 		// Process and send response
 		response, err := c._GetSeenList(conn.Context(), request)
 		if err != nil {
+			fmt.Printf("GetSeenList: Failed to process request: %v\n", err)
 			return err
 		}
 
+		fmt.Printf("GetSeenList: Sending response with %d pages\n", len(response.SeenSites))
 		if err := conn.Send(response); err != nil {
+			fmt.Printf("GetSeenList: Failed to send response: %v\n", err)
 			return err
 		}
-		fmt.Println("Sending response")
 	}
 }

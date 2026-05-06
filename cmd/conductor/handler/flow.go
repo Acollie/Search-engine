@@ -44,6 +44,10 @@ func (h *Handler) Listen(ctx context.Context) {
 
 // processBatch establishes a gRPC stream with Spider and processes incoming pages
 func (h *Handler) processBatch(ctx context.Context) error {
+	// Add 30-second timeout to prevent indefinite blocking on stream operations
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	result, err := h.breaker.Execute(func() (interface{}, error) {
 		return h.spiderClient.GetSeenList(ctx)
 	})
