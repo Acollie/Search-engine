@@ -24,6 +24,7 @@ type conf struct {
 	DBHost            string `env:"DB_HOST"`
 	DBPort            int    `env:"DB_PORT" envDefault:"5432"`
 	DBName            string `env:"DB_NAME" envDefault:"databaseName"`
+	DBSSLMode         string `env:"DB_SSL_MODE" envDefault:"disable"`
 	SweepCount        int    `env:"SWEEP_COUNT" envDefault:"100"`
 	SweepBreath       int    `env:"SWEEP_BREATH" envDefault:"100000"`
 	EnableHTTPTrigger bool   `env:"ENABLE_HTTP_TRIGGER" envDefault:"false"`
@@ -80,7 +81,7 @@ func main() {
 	}
 
 	// Connect to database
-	db, _, err := dbx.Postgres(cfg.DBUsername, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
+	db, _, err := dbx.Postgres(cfg.DBUsername, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName, cfg.DBSSLMode)
 	if err != nil {
 		slog.Error("Failed to connect to database", slog.Any("error", err))
 	}

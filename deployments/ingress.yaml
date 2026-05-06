@@ -1,7 +1,7 @@
 ---
 # All external traffic enters through the single Traefik load balancer.
-# Replace search.yourdomain.com and metrics.yourdomain.com with your actual domain.
-# Both DNS A records should point to the same Traefik load balancer IP.
+# HTTP (port 80) redirects permanently to HTTPS via Traefik's web→websecure redirect.
+# Certificates are issued automatically by Let's Encrypt via cert-manager.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -10,11 +10,17 @@ metadata:
   labels:
     app: search-engine
   annotations:
-    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - search.collie.codes
+        - metrics.collie.codes
+      secretName: search-engine-tls
   rules:
-    - host: search.yourdomain.com
+    - host: search.collie.codes
       http:
         paths:
           - path: /
@@ -25,7 +31,7 @@ spec:
                 port:
                   number: 80
 
-    - host: metrics.yourdomain.com
+    - host: metrics.collie.codes
       http:
         paths:
           - path: /
@@ -35,56 +41,3 @@ spec:
                 name: grafana
                 port:
                   number: 3000
-
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: search-engine-network-policy
-  namespace: search-engine
-spec:
-  podSelector: {}
-  policyTypes:
-    - Ingress
-    - Egress
-
-  ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              name: search-engine
-    - from:
-        - podSelector: {}
-          namespaceSelector:
-            matchLabels:
-              name: search-engine
-
-  egress:
-    - to:
-        - namespaceSelector: {}
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-
-    - to:
-        - namespaceSelector: {}
-      ports:
-        - protocol: TCP
-          port: 443
-
-    - to:
-        - podSelector: {}
-          namespaceSelector:
-            matchLabels:
-              name: search-engine
-
-    - to:
-        - namespaceSelector: {}
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443

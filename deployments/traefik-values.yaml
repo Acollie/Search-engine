@@ -8,19 +8,17 @@
 # After install, get the single load balancer IP:
 #   kubectl get svc -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 # Point BOTH DNS A records (search.yourdomain.com, metrics.yourdomain.com) to this IP.
+#
+# Default chart port mapping: container listens on 8000 (web) and 8443 (websecure),
+# LoadBalancer service exposes 80 and 443. No root or NET_BIND_SERVICE needed.
 
 service:
   type: LoadBalancer
 
-ports:
-  web:
-    port: 80
-    expose:
-      default: true
-  websecure:
-    port: 443
-    expose:
-      default: true
+additionalArguments:
+  - "--entrypoints.web.http.redirections.entrypoint.to=:443"
+  - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+  - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
 
 ingressClass:
   enabled: true

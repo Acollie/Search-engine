@@ -13,7 +13,7 @@ spec:
   ports:
     - name: grpc
       port: 9002
-      targetPort: 9002
+      targetPort: 9091
       protocol: TCP
     - name: health
       port: 8080
@@ -34,7 +34,7 @@ metadata:
     app: searcher
     version: v1
 spec:
-  replicas: 3
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -54,11 +54,13 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: searcher
+      imagePullSecrets:
+        - name: registry-search-engine
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       containers:
         - name: searcher
-          image: searcher:latest
+          image: registry.digitalocean.com/search-engine/searcher:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: grpc
@@ -113,14 +115,14 @@ spec:
                   key: LOG_LEVEL
           resources:
             requests:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 450m
+              memory: 256Mi
             limits:
               cpu: 2
               memory: 1Gi
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /health
               port: health
               scheme: HTTP
             initialDelaySeconds: 30
@@ -129,7 +131,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /ready
+              path: /health
               port: health
               scheme: HTTP
             initialDelaySeconds: 10
@@ -183,7 +185,7 @@ metadata:
   name: searcher
   namespace: search-engine
 spec:
-  minAvailable: 2
+  minAvailable: 0
   selector:
     matchLabels:
       app: searcher
@@ -199,7 +201,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: searcher
-  minReplicas: 3
+  minReplicas: 1
   maxReplicas: 15
   metrics:
     - type: Resource
@@ -215,22 +217,3 @@ spec:
           type: Utilization
           averageUtilization: 80
 
----
-# Optional: Kubernetes Service for external traffic (LoadBalancer/Ingress)
-apiVersion: v1
-kind: Service
-metadata:
-  name: searcher-api
-  namespace: search-engine
-  labels:
-    app: searcher
-    tier: api
-spec:
-  type: LoadBalancer
-  selector:
-    app: searcher
-  ports:
-    - name: grpc
-      port: 9002
-      targetPort: 9002
-      protocol: TCP

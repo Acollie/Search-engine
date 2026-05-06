@@ -107,9 +107,9 @@ data:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
             regex: spider
-          - source_labels: [__meta_kubernetes_pod_container_port_name]
-            action: keep
-            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:8080
 
       - job_name: 'conductor'
         kubernetes_sd_configs:
@@ -121,9 +121,9 @@ data:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
             regex: conductor
-          - source_labels: [__meta_kubernetes_pod_container_port_name]
-            action: keep
-            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:8080
 
       - job_name: 'cartographer'
         kubernetes_sd_configs:
@@ -135,9 +135,9 @@ data:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
             regex: cartographer
-          - source_labels: [__meta_kubernetes_pod_container_port_name]
-            action: keep
-            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:8080
 
       - job_name: 'searcher'
         kubernetes_sd_configs:
@@ -149,9 +149,9 @@ data:
           - source_labels: [__meta_kubernetes_pod_label_app]
             action: keep
             regex: searcher
-          - source_labels: [__meta_kubernetes_pod_container_port_name]
-            action: keep
-            regex: metrics
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:8080
 
 ---
 apiVersion: apps/v1
@@ -172,6 +172,10 @@ spec:
         app: prometheus
     spec:
       serviceAccountName: prometheus
+      securityContext:
+        fsGroup: 65534
+        runAsUser: 65534
+        runAsGroup: 65534
       containers:
         - name: prometheus
           image: prom/prometheus:latest
@@ -221,20 +225,19 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: prometheus
-spec:
-  rules:
-    - apiGroups: [""]
-      resources:
-        - nodes
-        - nodes/proxy
-        - services
-        - endpoints
-        - pods
-      verbs: ["get", "list", "watch"]
-    - apiGroups: ["extensions"]
-      resources:
-        - ingresses
-      verbs: ["get", "list", "watch"]
+rules:
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/proxy
+      - services
+      - endpoints
+      - pods
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+    verbs: ["get", "list", "watch"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -286,6 +289,10 @@ spec:
       labels:
         app: grafana
     spec:
+      securityContext:
+        fsGroup: 472
+        runAsUser: 472
+        runAsGroup: 472
       containers:
         - name: grafana
           image: grafana/grafana:latest
@@ -387,119 +394,120 @@ data:
       "tags": ["search-engine", "microservices"],
       "timezone": "browser",
       "schemaVersion": 16,
-      "version": 1,
-      "refresh": "10s",
-      "time": {
-        "from": "now-1h",
-        "to": "now"
-      },
+      "version": 3,
+      "refresh": "15s",
+      "time": {"from": "now-1h", "to": "now"},
       "panels": [
         {
           "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
           "id": 1,
           "title": "Search Requests per Second",
-          "type": "graph",
+          "type": "timeseries",
           "targets": [
             {
-              "expr": "rate(frontend_search_requests_total[5m])",
-              "legendFormat": "{{status}}",
+              "expr": "sum(rate(searcher_queries_processed_total{status=\"success\"}[5m]))",
+              "legendFormat": "success",
               "refId": "A"
+            },
+            {
+              "expr": "sum(rate(searcher_queries_processed_total{status=\"no_results\"}[5m]))",
+              "legendFormat": "no results",
+              "refId": "B"
             }
           ],
-          "yaxes": [{"format": "reqps", "label": "Requests/sec"}]
+          "fieldConfig": {"defaults": {"unit": "reqps"}}
         },
         {
           "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
           "id": 2,
           "title": "Search Latency (p50, p95, p99)",
-          "type": "graph",
+          "type": "timeseries",
           "targets": [
             {
-              "expr": "histogram_quantile(0.50, rate(frontend_search_duration_seconds_bucket[5m]))",
+              "expr": "histogram_quantile(0.50, sum(rate(searcher_query_duration_seconds_bucket[5m])) by (le))",
               "legendFormat": "p50",
               "refId": "A"
             },
             {
-              "expr": "histogram_quantile(0.95, rate(frontend_search_duration_seconds_bucket[5m]))",
+              "expr": "histogram_quantile(0.95, sum(rate(searcher_query_duration_seconds_bucket[5m])) by (le))",
               "legendFormat": "p95",
               "refId": "B"
             },
             {
-              "expr": "histogram_quantile(0.99, rate(frontend_search_duration_seconds_bucket[5m]))",
+              "expr": "histogram_quantile(0.99, sum(rate(searcher_query_duration_seconds_bucket[5m])) by (le))",
               "legendFormat": "p99",
               "refId": "C"
             }
           ],
-          "yaxes": [{"format": "s", "label": "Duration"}]
+          "fieldConfig": {"defaults": {"unit": "s"}}
         },
         {
-          "gridPos": {"h": 6, "w": 6, "x": 0, "y": 8},
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 8},
           "id": 3,
-          "title": "Total Searches (1h)",
+          "title": "Searches (1h)",
           "type": "stat",
           "targets": [
             {
-              "expr": "increase(frontend_search_requests_total{status=\"success\"}[1h])",
+              "expr": "sum(increase(searcher_queries_processed_total{status=\"success\"}[1h]))",
               "refId": "A"
             }
           ],
-          "options": {
-            "colorMode": "value",
-            "graphMode": "area",
-            "textMode": "value"
-          },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "decimals": 0
-            }
-          }
+          "options": {"colorMode": "value", "graphMode": "area", "textMode": "value"},
+          "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}}
         },
         {
-          "gridPos": {"h": 6, "w": 6, "x": 6, "y": 8},
+          "gridPos": {"h": 4, "w": 4, "x": 4, "y": 8},
           "id": 4,
-          "title": "Error Rate",
+          "title": "No Results Rate (5m)",
           "type": "stat",
           "targets": [
             {
-              "expr": "rate(frontend_search_requests_total{status=\"error\"}[5m]) / rate(frontend_search_requests_total[5m])",
+              "expr": "sum(rate(searcher_queries_processed_total{status=\"no_results\"}[5m])) / sum(rate(searcher_queries_processed_total[5m]))",
               "refId": "A"
             }
           ],
-          "options": {
-            "colorMode": "value",
-            "textMode": "value"
-          },
+          "options": {"colorMode": "background", "textMode": "value"},
           "fieldConfig": {
             "defaults": {
               "unit": "percentunit",
+              "noValue": "0%",
               "thresholds": {
                 "mode": "absolute",
                 "steps": [
                   {"color": "green", "value": null},
-                  {"color": "yellow", "value": 0.01},
-                  {"color": "red", "value": 0.05}
+                  {"color": "yellow", "value": 0.3},
+                  {"color": "red", "value": 0.6}
                 ]
               }
             }
           }
         },
         {
-          "gridPos": {"h": 6, "w": 12, "x": 12, "y": 8},
+          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 8},
+          "id": 10,
+          "title": "Avg Results Returned",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "sum(rate(searcher_results_returned_sum[5m])) / sum(rate(searcher_results_returned_count[5m]))",
+              "refId": "A"
+            }
+          ],
+          "options": {"colorMode": "value", "textMode": "value"},
+          "fieldConfig": {"defaults": {"unit": "short", "decimals": 1, "noValue": "N/A"}}
+        },
+        {
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
           "id": 5,
           "title": "Service Status",
           "type": "stat",
           "targets": [
-            {"expr": "up{job=\"frontend\"}", "legendFormat": "Frontend", "refId": "A"},
-            {"expr": "up{job=\"searcher\"}", "legendFormat": "Searcher", "refId": "B"},
-            {"expr": "up{job=\"spider\"}", "legendFormat": "Spider", "refId": "C"},
-            {"expr": "up{job=\"conductor\"}", "legendFormat": "Conductor", "refId": "D"},
-            {"expr": "up{job=\"cartographer\"}", "legendFormat": "Cartographer", "refId": "E"}
+            {"expr": "max(up{job=\"searcher\"})", "legendFormat": "Searcher", "refId": "A"},
+            {"expr": "max(up{job=\"spider\"})", "legendFormat": "Spider", "refId": "B"},
+            {"expr": "max(up{job=\"conductor\"})", "legendFormat": "Conductor", "refId": "C"},
+            {"expr": "max(up{job=\"cartographer\"}) OR vector(0)", "legendFormat": "Cartographer", "refId": "D"}
           ],
-          "options": {
-            "colorMode": "value",
-            "textMode": "name"
-          },
+          "options": {"colorMode": "background", "textMode": "name", "orientation": "horizontal"},
           "fieldConfig": {
             "defaults": {
               "thresholds": {
@@ -510,11 +518,109 @@ data:
                 ]
               },
               "mappings": [
-                {"type": "value", "value": "0", "text": "Down"},
-                {"type": "value", "value": "1", "text": "Up"}
+                {"type": "value", "options": {"0": {"text": "Down"}, "1": {"text": "Up"}}}
               ]
             }
           }
+        },
+        {
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 12},
+          "id": 6,
+          "title": "Active Crawls",
+          "type": "stat",
+          "targets": [
+            {"expr": "sum(spider_active_crawls)", "refId": "A"}
+          ],
+          "options": {"colorMode": "value", "graphMode": "area", "textMode": "value"},
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "decimals": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "yellow", "value": 1},
+                  {"color": "green", "value": 5}
+                ]
+              }
+            }
+          }
+        },
+        {
+          "gridPos": {"h": 4, "w": 4, "x": 4, "y": 12},
+          "id": 7,
+          "title": "Spider Queue Depth",
+          "type": "stat",
+          "targets": [
+            {"expr": "sum(spider_queue_depth)", "refId": "A"}
+          ],
+          "options": {"colorMode": "value", "graphMode": "area", "textMode": "value"},
+          "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}}
+        },
+        {
+          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 12},
+          "id": 11,
+          "title": "Robots Blocked (total)",
+          "type": "stat",
+          "targets": [
+            {"expr": "sum(spider_robots_blocked_total)", "refId": "A"}
+          ],
+          "options": {"colorMode": "value", "textMode": "value"},
+          "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}}
+        },
+        {
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "id": 8,
+          "title": "Conductor Ingestion Rate",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(conductor_pages_received_total[5m]))",
+              "legendFormat": "received/sec",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(conductor_new_pages_stored_total[5m]))",
+              "legendFormat": "new stored/sec",
+              "refId": "B"
+            },
+            {
+              "expr": "sum(rate(conductor_duplicates_found_total[5m]))",
+              "legendFormat": "duplicates/sec",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {"defaults": {"unit": "reqps"}}
+        },
+        {
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "id": 9,
+          "title": "Spider Failures by Reason",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(spider_pages_failed_total{reason=\"not_found\"}[5m]))",
+              "legendFormat": "404 not found",
+              "refId": "A"
+            },
+            {
+              "expr": "sum(rate(spider_pages_failed_total{reason=\"cycle\"}[5m]))",
+              "legendFormat": "cycle detected",
+              "refId": "B"
+            },
+            {
+              "expr": "sum(rate(spider_pages_failed_total{reason=\"forbidden\"}[5m]))",
+              "legendFormat": "403 forbidden",
+              "refId": "C"
+            },
+            {
+              "expr": "sum(rate(spider_pages_failed_total{reason=\"server_error\"}[5m]))",
+              "legendFormat": "5xx server error",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": {"defaults": {"unit": "reqps"}}
         }
       ]
     }

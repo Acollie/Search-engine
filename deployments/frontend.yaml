@@ -7,7 +7,7 @@ metadata:
     app: frontend
     component: web
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: frontend
@@ -17,10 +17,12 @@ spec:
         app: frontend
         component: web
     spec:
+      imagePullSecrets:
+      - name: registry-search-engine
       containers:
       - name: frontend
-        image: 967991486854.dkr.ecr.eu-west-1.amazonaws.com/frontend:latest
-        imagePullPolicy: Always
+        image: registry.digitalocean.com/search-engine/frontend:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
           name: http
@@ -56,7 +58,7 @@ spec:
         resources:
           requests:
             memory: "128Mi"
-            cpu: "250m"
+            cpu: "150m"
           limits:
             memory: "512Mi"
             cpu: "1000m"
@@ -92,7 +94,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: frontend
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 10
   metrics:
   - type: Resource
