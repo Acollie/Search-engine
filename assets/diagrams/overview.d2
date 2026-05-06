@@ -1,30 +1,28 @@
-Spider:{
-    DB:{
-        SeenList
-    }
-    Cache(LRU):{
-       SeenWebsite
-    }
-    StackExploreList
+direction: right
 
-}
+User: "👤 User"
+Frontend: "🎨 Frontend\n(React UI)"
+Searcher: "🔍 Searcher\n(gRPC :9002)"
+Conductor: "📦 Conductor\n(Hub)"
+Spider: "🕷️ Spider\n(Crawler)"
+Cartographer: "📊 Cartographer\n(PageRank)"
+PostgreSQL: "🗄️ PostgreSQL\n(Central DB)"
 
-Spider.DB->Conductor.OverallSeenList: "Poll seen pages"
-Conductor.OverallSeenList->CrawlDB.OverallSeenList: "Add Seen pages"
-Cartographer.GenerateWeights<-CrawlDB.OverallSeenList: "Get list of websites"
-Cartographer.GenerateWeights->CrawlDB.GraphWeights: "Build graph weights"
-Connectome->CrawlDB.OverallSeenList :"Search Results"
-Connectome->CrawlDB.GraphWeights :"Ranking"
+User -> Frontend: "Search query"
+Frontend -> Searcher: "gRPC search"
+Searcher -> PostgreSQL: "Full-text\nsearch"
+PostgreSQL -> Searcher: "Results +\nPageRank"
+Searcher -> Frontend: "Ranked\nresults"
+Frontend -> User: "Display results"
 
-Conductor:{
+Spider -> Conductor: "gRPC stream\ncrawled pages"
+Conductor -> PostgreSQL: "Deduplicate\n& store"
+PostgreSQL -> Conductor: "Check for\nduplicates"
+Conductor -> Spider: "Backpressure"
 
-}
-Cartographer:{
-    GenerateWeights
-}
+Cartographer -> PostgreSQL: "Read all\npages"
+PostgreSQL -> Cartographer: "Page graph"
+Cartographer -> PostgreSQL: "Write\nPageRank"
 
-CrawlDB:{
-   OverallSeenList
-   GraphWeights
-}
+Spider -> PostgreSQL: "Local SQLite\ncache"
 

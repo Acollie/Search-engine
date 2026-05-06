@@ -1,19 +1,25 @@
-Spider: {
-    DB:{
-        Queue
-        SeenList
-    }
-    http:{
-        Seen:"/seen"
-        Health:"/health"
-    }
+direction: down
 
-    Crawler:{
+Queue: "PostgreSQL Queue\n(URLs to crawl)"
+Crawler: "🕷️ Crawler\n(10 semaphore)"
+URLValidator: "🛡️ URL Validator\n(SSRF, Private IPs)"
+RateLimiter: "⏱️ Rate Limiter\n(2 req/sec/domain)"
+RobotsTxt: "🤖 robots.txt Cache\n(24h TTL)"
+HTTPFetch: "🌐 HTTP Fetch\n(Max 10MB, 5 redirects)"
+LinkExtractor: "🔗 Link Extractor\n(Canonicalization)"
+CycleDetector: "🔄 Cycle Detector\n(Pagination traps)"
+Conductor: "📦 Conductor\n(gRPC stream)"
+LocalCache: "💾 SQLite Cache\n(Visited URLs)"
+HealthCheck: "❤️ Health Check\n(/health)"
 
-    }
-
-
-    http.Seen->DB.SeenList: "Show seen pages"
-    Crawler->DB.Queue: "Get Pages to explore"
-    Crawler->DB.SeenList: "Add pages seen"
-}
+Queue -> Crawler: "Fetch next URL"
+Crawler -> URLValidator: "Validate URL"
+URLValidator -> RateLimiter: "✓ Valid"
+RateLimiter -> RobotsTxt: "Within limits"
+RobotsTxt -> HTTPFetch: "Not blocked"
+HTTPFetch -> LinkExtractor: "200 + HTML"
+LinkExtractor -> CycleDetector: "Extract links"
+CycleDetector -> LocalCache: "Check cache"
+LocalCache -> Conductor: "Stream new pages"
+Conductor -> Queue: "Add discovered URLs"
+LocalCache -> Crawler: "Mark as seen"

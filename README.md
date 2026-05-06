@@ -2,7 +2,7 @@
 
 [![Go](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml/badge.svg)](https://github.com/Acollie/Go-Webcrawler/actions/workflows/go.yml)
 
-A production-grade distributed web search engine built in Go with five microservices, PostgreSQL persistence, and PageRank-based relevance ranking.
+A production-grade distributed web search engine, built using Go with five microservices, PostgreSQL persistence, and PageRank-based relevance ranking.
 
 ## ✨ Recent Updates
 
@@ -484,7 +484,7 @@ spec:
     spec:
       containers:
       - name: spider
-        image: 967991486854.dkr.ecr.eu-west-1.amazonaws.com/spider:latest
+        image: <YOUR_ACCOUNT_ID>.dkr.ecr.eu-west-1.amazonaws.com/spider:latest
         ports:
         - containerPort: 9001
           name: grpc
@@ -533,7 +533,7 @@ spec:
         spec:
           containers:
           - name: cartographer
-            image: 967991486854.dkr.ecr.eu-west-1.amazonaws.com/cartographer:latest
+            image: <YOUR_ACCOUNT_ID>.dkr.ecr.eu-west-1.amazonaws.com/cartographer:latest
             env:
             - name: DB_USER
               valueFrom:
@@ -734,7 +734,7 @@ View diagrams in `assets/diagrams/`
 
 ## License 📄
 
-[Add your license information here]
+MIT License - See [LICENSE](LICENSE) file for details.
 
 ---
 
