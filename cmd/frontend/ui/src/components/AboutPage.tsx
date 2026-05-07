@@ -1,12 +1,33 @@
-import { useState, FormEvent } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 import { useTextScramble } from '../hooks/useTextScramble'
 
 interface Props {
   onSearch: (q: string) => void
 }
 
+interface Stats {
+  pagesIndexed: number
+  crawledLast24h: number
+  queueDepth: number
+  crawlRatePerHr: number
+}
+
+function fmtNum(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+  return n.toLocaleString()
+}
+
 export default function AboutPage({ onSearch }: Props) {
   const [query, setQuery] = useState('')
+  const [stats, setStats] = useState<Stats | null>(null)
+
+  useEffect(() => {
+    fetch('/api/stats')
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then((data: Stats) => setStats(data))
+      .catch(() => {})
+  }, [])
 
   const { output: title, replay: replayTitle } = useTextScramble('MICHICHUSA', 900)
   const { output: kanji, replay: replayKanji } = useTextScramble('道草', 700)
@@ -93,14 +114,24 @@ export default function AboutPage({ onSearch }: Props) {
           </div>
 
           <div className="about-card">
-            <h2 className="about-card-title">// STACK</h2>
+            <h2 className="about-card-title">// INDEX</h2>
             <div className="about-stat-grid">
-              <div className="about-stat"><span className="about-stat-val">Go 1.24</span><span className="about-stat-label">language</span></div>
-              <div className="about-stat"><span className="about-stat-val">gRPC</span><span className="about-stat-label">transport</span></div>
-              <div className="about-stat"><span className="about-stat-val">PostgreSQL</span><span className="about-stat-label">storage</span></div>
-              <div className="about-stat"><span className="about-stat-val">0.85</span><span className="about-stat-label">pagerank damping</span></div>
-              <div className="about-stat"><span className="about-stat-val">GIN</span><span className="about-stat-label">full-text index</span></div>
-              <div className="about-stat"><span className="about-stat-val">Prometheus</span><span className="about-stat-label">metrics</span></div>
+              <div className="about-stat">
+                <span className="about-stat-val">{stats ? fmtNum(stats.pagesIndexed) : '—'}</span>
+                <span className="about-stat-label">pages indexed</span>
+              </div>
+              <div className="about-stat">
+                <span className="about-stat-val">{stats ? fmtNum(stats.crawledLast24h) : '—'}</span>
+                <span className="about-stat-label">crawled last 24h</span>
+              </div>
+              <div className="about-stat">
+                <span className="about-stat-val">{stats ? fmtNum(stats.queueDepth) : '—'}</span>
+                <span className="about-stat-label">queued to crawl</span>
+              </div>
+              <div className="about-stat">
+                <span className="about-stat-val">{stats ? fmtNum(stats.crawlRatePerHr) : '—'}</span>
+                <span className="about-stat-label">pages / hour</span>
+              </div>
             </div>
           </div>
 
