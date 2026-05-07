@@ -7,9 +7,9 @@ interface Props {
 
 interface Stats {
   pagesIndexed: number
-  domainsCount: number
-  linksIndexed: number
+  crawledLast24h: number
   queueDepth: number
+  crawlRatePerHr: number
 }
 
 function fmtNum(n: number): string {
@@ -121,16 +121,16 @@ export default function AboutPage({ onSearch }: Props) {
                 <span className="about-stat-label">pages indexed</span>
               </div>
               <div className="about-stat">
-                <span className="about-stat-val">{stats ? fmtNum(stats.domainsCount) : '—'}</span>
-                <span className="about-stat-label">unique domains</span>
-              </div>
-              <div className="about-stat">
-                <span className="about-stat-val">{stats ? fmtNum(stats.linksIndexed) : '—'}</span>
-                <span className="about-stat-label">links discovered</span>
+                <span className="about-stat-val">{stats ? fmtNum(stats.crawledLast24h) : '—'}</span>
+                <span className="about-stat-label">crawled last 24h</span>
               </div>
               <div className="about-stat">
                 <span className="about-stat-val">{stats ? fmtNum(stats.queueDepth) : '—'}</span>
                 <span className="about-stat-label">queued to crawl</span>
+              </div>
+              <div className="about-stat">
+                <span className="about-stat-val">{stats ? fmtNum(stats.crawlRatePerHr) : '—'}</span>
+                <span className="about-stat-label">pages / hour</span>
               </div>
             </div>
           </div>

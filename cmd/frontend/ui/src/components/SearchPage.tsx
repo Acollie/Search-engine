@@ -7,9 +7,9 @@ interface Props {
 
 interface Stats {
   pagesIndexed: number
-  domainsCount: number
-  linksIndexed: number
+  crawledLast24h: number
   queueDepth: number
+  crawlRatePerHr: number
 }
 
 const LOGO = `
@@ -128,16 +128,16 @@ export default function SearchPage({ onSearch, onAbout }: Props) {
               <span className="sys-ok">{fmtNum(stats.pagesIndexed)}</span>
             </div>
             <div className="sys-row">
-              <span>UNIQUE DOMAINS</span>
-              <span className="sys-ok">{fmtNum(stats.domainsCount)}</span>
-            </div>
-            <div className="sys-row">
-              <span>LINKS DISCOVERED</span>
-              <span className="sys-ok">{fmtNum(stats.linksIndexed)}</span>
+              <span>CRAWLED LAST 24H</span>
+              <span className="sys-ok">{fmtNum(stats.crawledLast24h)}</span>
             </div>
             <div className="sys-row">
               <span>CRAWL QUEUE DEPTH</span>
               <span className="sys-ok">{fmtNum(stats.queueDepth)}</span>
+            </div>
+            <div className="sys-row">
+              <span>PAGES / HOUR</span>
+              <span className="sys-ok">{fmtNum(stats.crawlRatePerHr)}</span>
             </div>
           </div>
         )}

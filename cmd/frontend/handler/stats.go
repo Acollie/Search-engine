@@ -11,10 +11,10 @@ import (
 )
 
 type StatsResponse struct {
-	PagesIndexed int64 `json:"pagesIndexed"`
-	DomainsCount int64 `json:"domainsCount"`
-	LinksIndexed int64 `json:"linksIndexed"`
-	QueueDepth   int64 `json:"queueDepth"`
+	PagesIndexed   int64 `json:"pagesIndexed"`
+	CrawledLast24h int64 `json:"crawledLast24h"`
+	QueueDepth     int64 `json:"queueDepth"`
+	CrawlRatePerHr int64 `json:"crawlRatePerHr"`
 }
 
 type StatsHandler struct {
@@ -60,9 +60,9 @@ func (h *StatsHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(stats) //nolint:errcheck
 }
 
-// fetchStats queries live counts with a single round-trip.
-// pg_class.reltuples gives a fast O(1) estimate; we fall back to COUNT(*) when
-// the table hasn't been analyzed yet (reltuples = -1).
+// fetchStats queries live counts in a single round-trip.
+// pg_class.reltuples gives a fast O(1) approximate total; crawl window counts
+// use indexed timestamp ranges and are bounded by the 5-minute cache.
 func (h *StatsHandler) fetchStats(ctx context.Context) (*StatsResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -75,15 +75,11 @@ func (h *StatsHandler) fetchStats(ctx context.Context) (*StatsResponse, error) {
 				THEN (SELECT reltuples::bigint FROM pg_class WHERE relname = 'seenpages')
 				ELSE (SELECT COUNT(*) FROM SeenPages)
 			END,
-			COALESCE((SELECT COUNT(DISTINCT domain) FROM SeenPages WHERE domain IS NOT NULL AND is_indexable = true), 0),
-			CASE
-				WHEN (SELECT reltuples FROM pg_class WHERE relname = 'links') >= 0
-				THEN (SELECT reltuples::bigint FROM pg_class WHERE relname = 'links')
-				ELSE (SELECT COUNT(*) FROM Links)
-			END,
-			COALESCE((SELECT COUNT(*) FROM Queue WHERE status = 'pending'), 0)
+			COALESCE((SELECT COUNT(*) FROM SeenPages WHERE crawl_time >= now() - interval '24 hours'), 0),
+			COALESCE((SELECT COUNT(*) FROM Queue WHERE status = 'pending'), 0),
+			COALESCE((SELECT COUNT(*) FROM SeenPages WHERE crawl_time >= now() - interval '1 hour'), 0)
 	`)
-	if err := row.Scan(&stats.PagesIndexed, &stats.DomainsCount, &stats.LinksIndexed, &stats.QueueDepth); err != nil {
+	if err := row.Scan(&stats.PagesIndexed, &stats.CrawledLast24h, &stats.QueueDepth, &stats.CrawlRatePerHr); err != nil {
 		return nil, err
 	}
 	return &stats, nil
