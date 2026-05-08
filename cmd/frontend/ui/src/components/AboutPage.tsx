@@ -152,6 +152,8 @@ export default function AboutPage({ onSearch }: Props) {
 
       <footer className="about-footer">
         <span className="about-dim">MICHICHUSA · 道草 · DISTRIBUTED WEB INDEX</span>
+        <br style={{ marginBottom: '8px' }} />
+        <a href="https://www.alexcollie.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--o-dim)', textDecoration: 'none', borderBottom: '1px solid var(--o-border)', paddingBottom: '2px' }}>by Alex Collie</a>
       </footer>
 
     </div>
