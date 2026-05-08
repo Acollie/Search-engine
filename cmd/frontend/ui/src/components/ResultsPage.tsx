@@ -126,6 +126,10 @@ export default function ResultsPage({ query, onSearch, onHome, onAbout }: Props)
           </>
         )}
       </main>
+
+      <footer style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)', textAlign: 'center', fontSize: '0.72em', color: 'var(--p-dim)' }}>
+        <a href="https://www.alexcollie.com" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none', borderBottom: '1px solid var(--border)', paddingBottom: '2px' }}>by Alex Collie</a>
+      </footer>
     </>
   )
 }
