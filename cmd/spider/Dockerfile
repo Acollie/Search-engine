@@ -1,28 +1,27 @@
-FROM golang:latest
+FROM golang:1.24.0-alpine AS builder
 
-# Set working directory
+RUN apk add --no-cache git ca-certificates tzdata
+
 WORKDIR /app
 
-# Copy go.mod and go.sum
 COPY go.mod go.sum ./
-
-# Download dependencies
 RUN go mod download
 
-# Copy the entire project
 COPY . .
 
-# Build the application
-#RUN go build -o spider cmd/spider/main.go
-RUN GOOS=linux GOARCH=amd64 go build -o spider cmd/spider/main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s' \
+    -o spider \
+    cmd/spider/main.go
 
+FROM alpine:latest
 
-# Expose ports
-EXPOSE 9090 9090
-# Used for health check
-EXPOSE 8080 8080
-# Used for metrics
-EXPOSE 80 80
+RUN apk --no-cache add ca-certificates curl
 
-# Run the application
+WORKDIR /app
+
+COPY --from=builder /app/spider .
+
+EXPOSE 9090 8080
+
 CMD ["./spider"]

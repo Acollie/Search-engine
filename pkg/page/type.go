@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"webcrawler/cmd/spider/pkg/site"
 	"webcrawler/pkg/conn"
 	"webcrawler/pkg/slice"
@@ -21,6 +22,7 @@ type DbiPage interface {
 	UpdatePage(ctx context.Context, page site.Page) error
 	GetPage(ctx context.Context, url string) (*site.Page, error)
 	GetAllPages(ctx context.Context) ([]site.Page, error)
+	GetPagesPaginated(ctx context.Context, limit, offset int32) ([]site.Page, error)
 	DeletePage(ctx context.Context, url string) error
 	NumberOfPages(ctx context.Context) (int, error)
 	CreateIndex(ctx context.Context) error
@@ -40,7 +42,9 @@ func (d Db) SavePage(ctx context.Context, page site.Page) error {
 	if d.ConnType == conn.PG {
 		addPage = AddPagePG
 	}
-	_, err := d.Sql.ExecContext(ctx, addPage, page.URL, page.Title, page.Body, 0, slice.ArrayToString(page.Links))
+	title := strings.ToValidUTF8(page.Title, "")
+	body := strings.ToValidUTF8(page.Body, "")
+	_, err := d.Sql.ExecContext(ctx, addPage, page.URL, title, body, 0, slice.ArrayToString(page.Links))
 	return err
 }
 
@@ -95,6 +99,36 @@ func (d Db) NumberOfPages(ctx context.Context) (int, error) {
 }
 func (d Db) GetAllPages(ctx context.Context) ([]site.Page, error) {
 	rows, err := d.Sql.QueryContext(ctx, GetAllPages)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var pages []site.Page
+	for rows.Next() {
+		var page site.Page
+		var links string
+		err := rows.Scan(&page.URL, &page.Title, &page.Body, &page.ProminenceValue, &links)
+		if err != nil {
+			return nil, err
+		}
+		page.Links = slice.StringToArray(links)
+		pages = append(pages, page)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return pages, nil
+}
+
+func (d Db) GetPagesPaginated(ctx context.Context, limit, offset int32) ([]site.Page, error) {
+	query := GetPagesPaginated
+	if d.ConnType == conn.PG {
+		query = GetPagesPaginatedPG
+	}
+	rows, err := d.Sql.QueryContext(ctx, query, limit, offset)
 	if err != nil {
 		return nil, err
 	}

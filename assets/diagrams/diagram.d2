@@ -1,55 +1,50 @@
 direction: right
-k8s.ingestion.conductor -> db.seenPages: "Save seen pages"
 
-k8s.ingestion.conductor -> sqs: "Add pages to be explored"
-k8s.ingestion.spider <- sqs: "Fetch pages to explore"
-externalTraffic -> k8s.lb
-k8s.lb -> k8s.monitoring.grafana
-k8s.evaluation.cartography <- db.seenPages: "Fetch pages for evaluation"
-k8s.evaluation.cartography -> db.IndexedPages: "Save pages with prominence value"
-k8s.lb->k8s.Search.front-end
-k8s.Search.front-end -> k8s.Search.searcher: "Prarse requests"
-k8s.Search.searcher -> db.IndexedPages: "Fetch requests from db"
+internet: "Internet 🌐"
+user: "User"
+
 k8s: {
-  lb: {
-    icon: "https://icon.icepanel.io/Technology/svg/Traefik-Proxy.svg"
-    label: "Traefik"
+  label: "Kubernetes Cluster (DigitalOcean)"
+
+  lb: "⚙️ Traefik Ingress\n(LoadBalancer)"
+
+  crawl: {
+    label: "🕷️ Crawl Layer"
+    spider: "Spider\n(gRPC :9001)"
+    conductor: "Conductor\n(Hub)"
+    spider <-> conductor: "gRPC stream\ncrawled pages"
   }
-  monitoring: {
-    label: "Monitoring"
-    grafana: {
-      icon: "https://upload.wikimedia.org/wikipedia/commons/a/a1/Grafana_logo.svg"
-      label: "Grafana"
-    }
-    prometheus: {
-      icon: https://icon.icepanel.io/Technology/svg/Prometheus.svg
-        label: "Prometheus"
-    }
+
+  rank: {
+    label: "📊 Ranking Layer"
+    cartographer: "Cartographer\n(CronJob)"
   }
-  ingestion: {
-    label: "Ingestion"
-    spider
-    conductor
-    spider <-> conductor: "Get the explored sites"
-  }
-  evaluation: {
-    label: "Evaluation"
-  }
+
   search: {
-    label: "Search"
-    searcher
-    front-end
+    label: "🔍 Search Layer"
+    frontend: "Frontend\n(HTTP)"
+    searcher: "Searcher\n(gRPC :9002)"
+    frontend <-> searcher: "gRPC search"
+  }
+
+  observability: {
+    label: "📊 Monitoring"
+    prometheus: "Prometheus"
+    grafana: "Grafana"
+    prometheus -> grafana: "Metrics"
   }
 }
-db: {
-  icon: "https://icons.terrastruct.com/dev%2Fpostgresql.svg"
-  label: "Database"
-}
-k8s: {
-  icon: "https://icons.terrastruct.com/azure%2F_Companies%2FKubernetes.svg"
-  label: "Kubernetes"
-}
-sqs: {
-  icon: https://icons.terrastruct.com/aws%2FApplication%20Integration%2FAmazon-Simple-Queue-Service-SQS.svg
-  label: "Links queue"
-}
+
+database: "🗄️ PostgreSQL\n(Managed)"
+
+user -> internet: "Browser"
+internet -> k8s.lb: "search.collie.codes:443"
+k8s.lb -> k8s.search.frontend: "HTTP"
+k8s.search.searcher -> database: "Full-text search\n& PageRank"
+k8s.crawl.spider -> database: "SQLite cache"
+k8s.crawl.conductor -> database: "Deduplicate\n& store"
+k8s.rank.cartographer -> database: "PageRank\ncomputation"
+k8s.crawl.spider -> internet: "HTTP crawl"
+k8s.observability.prometheus -> k8s.crawl.spider: "/metrics"
+k8s.observability.prometheus -> k8s.crawl.conductor: "/metrics"
+k8s.observability.prometheus -> k8s.search.searcher: "/metrics"

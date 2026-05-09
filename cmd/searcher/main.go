@@ -23,6 +23,7 @@ type conf struct {
 	DBUsername string `env:"DB_USER"`
 	DBPassword string `env:"DB_PASSWORD"`
 	DBHost     string `env:"DB_HOST"`
+	DBPort     int    `env:"DB_PORT" envDefault:"5432"`
 	DBName     string `env:"DB_NAME" envDefault:"databaseName"`
 }
 
@@ -35,7 +36,7 @@ func main() {
 	}
 
 	// Connect to database
-	db, _, err := dbx.Postgres(cfg.DBUsername, cfg.DBPassword, cfg.DBHost, 5432, cfg.DBName)
+	db, _, err := dbx.Postgres(cfg.DBUsername, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName)
 	if err != nil {
 		slog.Error("Failed to connect to database", "err", err)
 		os.Exit(1)

@@ -30,7 +30,7 @@ metadata:
     app: conductor
     version: v1
 spec:
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -50,11 +50,13 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: conductor
+      imagePullSecrets:
+        - name: registry-search-engine
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       containers:
         - name: conductor
-          image: conductor:latest
+          image: registry.digitalocean.com/search-engine/conductor:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: health
@@ -84,28 +86,6 @@ spec:
                 configMapKeyRef:
                   name: search-engine-config
                   key: DB_NAME
-            - name: QUEUE_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: search-engine-config
-                  key: QUEUE_URL
-            - name: AWS_REGION
-              valueFrom:
-                configMapKeyRef:
-                  name: search-engine-config
-                  key: AWS_REGION
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: search-engine-secrets
-                  key: AWS_ACCESS_KEY_ID
-                  optional: true
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: search-engine-secrets
-                  key: AWS_SECRET_ACCESS_KEY
-                  optional: true
             - name: CONDUCTOR_HEALTH_PORT
               valueFrom:
                 configMapKeyRef:
@@ -123,14 +103,14 @@ spec:
                   key: LOG_LEVEL
           resources:
             requests:
-              cpu: 500m
+              cpu: 150m
               memory: 512Mi
             limits:
               cpu: 2
               memory: 1Gi
           livenessProbe:
             httpGet:
-              path: /healthz
+              path: /health
               port: health
               scheme: HTTP
             initialDelaySeconds: 30
@@ -139,7 +119,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /ready
+              path: /health
               port: health
               scheme: HTTP
             initialDelaySeconds: 10
@@ -205,7 +185,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: conductor
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 8
   metrics:
     - type: Resource

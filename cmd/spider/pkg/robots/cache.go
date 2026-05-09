@@ -12,6 +12,8 @@ type CacheEntry struct {
 	Error     error
 }
 
+const maxCacheEntries = 100_000
+
 // Cache implements a TTL-based cache for robots.txt rules
 type Cache struct {
 	entries     map[string]*CacheEntry
@@ -61,6 +63,16 @@ func (c *Cache) Get(domain string) (*CacheEntry, bool) {
 func (c *Cache) Set(domain string, allowed bool, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
+	// Evict expired entries when at capacity to bound memory usage
+	if len(c.entries) >= maxCacheEntries {
+		cutoff := time.Now().Add(-c.ttl)
+		for d, entry := range c.entries {
+			if entry.FetchedAt.Before(cutoff) {
+				delete(c.entries, d)
+			}
+		}
+	}
 
 	c.entries[domain] = &CacheEntry{
 		Allowed:   allowed,

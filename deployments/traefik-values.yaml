@@ -1,0 +1,43 @@
+# Traefik Helm values
+# Install with:
+#   helm repo add traefik https://traefik.github.io/charts && helm repo update
+#   helm upgrade --install traefik traefik/traefik \
+#     --namespace kube-system \
+#     --values deployments/traefik-values.yaml
+#
+# After install, get the single load balancer IP:
+#   kubectl get svc -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+# Point BOTH DNS A records (search.yourdomain.com, metrics.yourdomain.com) to this IP.
+#
+# Default chart port mapping: container listens on 8000 (web) and 8443 (websecure),
+# LoadBalancer service exposes 80 and 443. No root or NET_BIND_SERVICE needed.
+
+service:
+  type: LoadBalancer
+
+additionalArguments:
+  - "--entrypoints.web.http.redirections.entrypoint.to=:443"
+  - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+  - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
+
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+
+providers:
+  kubernetesCRD:
+    enabled: true
+  kubernetesIngress:
+    enabled: true
+
+logs:
+  general:
+    level: INFO
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

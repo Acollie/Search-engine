@@ -15,15 +15,18 @@ import (
 	dbx "webcrawler/pkg/db"
 
 	"github.com/caarlos0/env/v11"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type conf struct {
-	DBUsername       string `env:"DB_USER"`
-	DBPassword       string `env:"DB_PASSWORD"`
-	DBHost           string `env:"DB_HOST"`
-	DBName           string `env:"DB_NAME" envDefault:"databaseName"`
-	SweepCount       int    `env:"SWEEP_COUNT" envDefault:"100"`
-	SweepBreath      int    `env:"SWEEP_BREATH" envDefault:"100000"`
+	DBUsername        string `env:"DB_USER"`
+	DBPassword        string `env:"DB_PASSWORD"`
+	DBHost            string `env:"DB_HOST"`
+	DBPort            int    `env:"DB_PORT" envDefault:"5432"`
+	DBName            string `env:"DB_NAME" envDefault:"databaseName"`
+	DBSSLMode         string `env:"DB_SSL_MODE" envDefault:"disable"`
+	SweepCount        int    `env:"SWEEP_COUNT" envDefault:"100"`
+	SweepBreath       int    `env:"SWEEP_BREATH" envDefault:"100000"`
 	EnableHTTPTrigger bool   `env:"ENABLE_HTTP_TRIGGER" envDefault:"false"`
 }
 
@@ -78,7 +81,7 @@ func main() {
 	}
 
 	// Connect to database
-	db, _, err := dbx.Postgres(cfg.DBUsername, cfg.DBPassword, cfg.DBHost, 5432, cfg.DBName)
+	db, _, err := dbx.Postgres(cfg.DBUsername, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName, cfg.DBSSLMode)
 	if err != nil {
 		slog.Error("Failed to connect to database", slog.Any("error", err))
 	}
@@ -95,7 +98,7 @@ func main() {
 	h := handler.New(db, cfg.SweepCount, cfg.SweepBreath)
 
 	// Start health check server in background
-	healthServer := startHealthServer(db, h, cfg.EnableHTTPTrigger)
+	healthServer := startHealthServer(db, &h, cfg.EnableHTTPTrigger)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -166,6 +169,8 @@ func startHealthServer(db interface{ PingContext(context.Context) error }, h tra
 			"status": "ready",
 		})
 	})
+
+	mux.Handle("/metrics", promhttp.Handler())
 
 	// Add HTTP trigger endpoint for E2E testing
 	if enableHTTPTrigger {

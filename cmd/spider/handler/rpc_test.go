@@ -44,6 +44,14 @@ func (m *MockPageDB) GetAllPages(ctx context.Context) ([]site.Page, error) {
 	return args.Get(0).([]site.Page), args.Error(1)
 }
 
+func (m *MockPageDB) GetPagesPaginated(ctx context.Context, limit, offset int32) ([]site.Page, error) {
+	args := m.Called(ctx, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]site.Page), args.Error(1)
+}
+
 func (m *MockPageDB) DeletePage(ctx context.Context, url string) error {
 	args := m.Called(ctx, url)
 	return args.Error(0)
@@ -196,7 +204,7 @@ func Test_GetSeenList_Success(t *testing.T) {
 	ctx := context.Background()
 
 	// Setup mock expectations
-	mockPageDB.On("GetAllPages", ctx).Return(pages, nil)
+	mockPageDB.On("GetPagesPaginated", ctx, int32(100), int32(0)).Return(pages, nil)
 
 	// Create mock stream
 	mockStream := NewMockSpiderStream()
@@ -237,7 +245,7 @@ func Test_GetSeenList_EmptyDatabase(t *testing.T) {
 	ctx := context.Background()
 
 	// Mock empty pages
-	mockPageDB.On("GetAllPages", ctx).Return([]site.Page{}, nil)
+	mockPageDB.On("GetPagesPaginated", ctx, int32(100), int32(0)).Return([]site.Page{}, nil)
 
 	mockStream := NewMockSpiderStream()
 
@@ -272,7 +280,7 @@ func Test_GetSeenList_DatabaseError(t *testing.T) {
 	ctx := context.Background()
 
 	// Mock database error
-	mockPageDB.On("GetAllPages", ctx).Return(nil, assert.AnError)
+	mockPageDB.On("GetPagesPaginated", ctx, int32(100), int32(0)).Return(nil, assert.AnError)
 
 	mockStream := NewMockSpiderStream()
 
@@ -328,7 +336,7 @@ func Test_GetSeenList_SendError(t *testing.T) {
 		{URL: "https://example.com", Title: "Example"},
 	}
 
-	mockPageDB.On("GetAllPages", ctx).Return(pages, nil)
+	mockPageDB.On("GetPagesPaginated", ctx, int32(100), int32(0)).Return(pages, nil)
 
 	mockStream := NewMockSpiderStream()
 
@@ -362,8 +370,8 @@ func Test_GetSeenList_MultipleRequests(t *testing.T) {
 		{URL: "https://example.com", Title: "Example"},
 	}
 
-	// GetAllPages called multiple times
-	mockPageDB.On("GetAllPages", ctx).Return(pages, nil).Times(3)
+	// GetPagesPaginated called multiple times
+	mockPageDB.On("GetPagesPaginated", ctx, int32(100), int32(0)).Return(pages, nil).Times(3)
 
 	mockStream := NewMockSpiderStream()
 
@@ -412,7 +420,8 @@ func Test_GetSeenList_RespectsLimit(t *testing.T) {
 		}
 	}
 
-	mockPageDB.On("GetAllPages", ctx).Return(pages, nil)
+	// DB returns only the requested 10 pages (pagination handled at DB layer)
+	mockPageDB.On("GetPagesPaginated", ctx, int32(10), int32(0)).Return(pages[:10], nil)
 
 	mockStream := NewMockSpiderStream()
 
@@ -422,7 +431,6 @@ func Test_GetSeenList_RespectsLimit(t *testing.T) {
 	mockStream.On("Recv").Return(request, nil).Once()
 	mockStream.On("Context").Return(ctx)
 	mockStream.On("Send", mock.MatchedBy(func(resp *spider.SeenListResponse) bool {
-		// FIXED: Now returns exactly 10 as requested
 		return len(resp.SeenSites) == 10
 	})).Return(nil).Once()
 	mockStream.On("Recv").Return(nil, io.EOF).Once()
@@ -456,7 +464,8 @@ func Test_GetSeenList_DefaultLimit(t *testing.T) {
 		}
 	}
 
-	mockPageDB.On("GetAllPages", ctx).Return(pages, nil)
+	// DB returns only 100 pages (default limit applied before DB call)
+	mockPageDB.On("GetPagesPaginated", ctx, int32(100), int32(0)).Return(pages[:100], nil)
 
 	mockStream := NewMockSpiderStream()
 
@@ -466,7 +475,6 @@ func Test_GetSeenList_DefaultLimit(t *testing.T) {
 	mockStream.On("Recv").Return(request, nil).Once()
 	mockStream.On("Context").Return(ctx)
 	mockStream.On("Send", mock.MatchedBy(func(resp *spider.SeenListResponse) bool {
-		// Should return default limit of 100
 		return len(resp.SeenSites) == 100
 	})).Return(nil).Once()
 	mockStream.On("Recv").Return(nil, io.EOF).Once()
@@ -500,17 +508,17 @@ func Test_GetSeenList_MaxLimit(t *testing.T) {
 		}
 	}
 
-	mockPageDB.On("GetAllPages", ctx).Return(pages, nil)
+	// DB returns only 100 pages (1500 exceeds max of 1000, capped to default 100)
+	mockPageDB.On("GetPagesPaginated", ctx, int32(100), int32(0)).Return(pages[:100], nil)
 
 	mockStream := NewMockSpiderStream()
 
-	// Request 1500 pages, should be capped at 1000
+	// Request 1500 pages, should be capped at 100 (default since 1500 > 1000)
 	request := &spider.SeenListRequest{Limit: 1500}
 
 	mockStream.On("Recv").Return(request, nil).Once()
 	mockStream.On("Context").Return(ctx)
 	mockStream.On("Send", mock.MatchedBy(func(resp *spider.SeenListResponse) bool {
-		// Should be capped at max limit of 100 (default since 1500 > 1000)
 		return len(resp.SeenSites) == 100
 	})).Return(nil).Once()
 	mockStream.On("Recv").Return(nil, io.EOF).Once()
@@ -544,7 +552,7 @@ func Test_internalGetSeenList_Success(t *testing.T) {
 		},
 	}
 
-	mockPageDB.On("GetAllPages", ctx).Return(pages, nil)
+	mockPageDB.On("GetPagesPaginated", ctx, int32(100), int32(0)).Return(pages, nil)
 
 	request := &spider.SeenListRequest{Limit: 100}
 
@@ -573,7 +581,7 @@ func Test_internalGetSeenList_DatabaseError(t *testing.T) {
 
 	ctx := context.Background()
 
-	mockPageDB.On("GetAllPages", ctx).Return(nil, assert.AnError)
+	mockPageDB.On("GetPagesPaginated", ctx, int32(100), int32(0)).Return(nil, assert.AnError)
 
 	request := &spider.SeenListRequest{Limit: 100}
 
@@ -605,7 +613,7 @@ func BenchmarkGetSeenList(b *testing.B) {
 		}
 	}
 
-	mockPageDB.On("GetAllPages", ctx).Return(pages, nil)
+	mockPageDB.On("GetPagesPaginated", ctx, int32(100), int32(0)).Return(pages, nil)
 
 	request := &spider.SeenListRequest{Limit: 100}
 

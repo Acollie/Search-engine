@@ -9,8 +9,12 @@ import (
 	"webcrawler/pkg/conn"
 )
 
-func Postgres(username string, password string, host string, port int, dbname string) (*sql.DB, conn.Type, error) {
-	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, username, password, dbname)
+func Postgres(username string, password string, host string, port int, dbname string, sslmode ...string) (*sql.DB, conn.Type, error) {
+	ssl := "disable"
+	if len(sslmode) > 0 && sslmode[0] != "" {
+		ssl = sslmode[0]
+	}
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s", host, port, username, password, dbname, ssl)
 	c, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, conn.PG, err

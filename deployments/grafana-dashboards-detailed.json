@@ -1,0 +1,187 @@
+{
+  "title": "Search Engine - Detailed Metrics",
+  "description": "Detailed per-spider and cartographer metrics. Select interval: 5s, 15s (default), 30s, 60s.",
+  "tags": [
+    "search-engine",
+    "detailed"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "refreshIntervals": ["5s", "15s", "30s", "60s", "1m", "5m"],
+  "uid": "detailed-metrics",
+  "id": 4,
+  "templating": {
+    "list": [
+      {
+        "name": "interval",
+        "type": "custom",
+        "value": "1m",
+        "options": [
+          { "text": "5s", "value": "5s" },
+          { "text": "15s (default)", "value": "1m" },
+          { "text": "30s", "value": "30s" },
+          { "text": "60s", "value": "60s" }
+        ],
+        "multi": false,
+        "current": { "text": "15s (default)", "value": "1m" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Cartographer Status",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "time() - cartographer:last_task_timestamp:instant",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ],
+      "color": {
+        "mode": "thresholds"
+      },
+      "unit": "s",
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 600
+          },
+          {
+            "color": "red",
+            "value": 1200
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "title": "Crawl Rate by Spider Instance",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "expr": "spider:crawl_rate:1m",
+          "legendFormat": "{{instance}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Spider Error Rate by Instance",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "expr": "spider:error_rate:1m * 100",
+          "legendFormat": "{{instance}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Total Crawl Rate (All Spiders)",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sum(spider:crawl_rate:1m)",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ],
+      "color": {
+        "mode": "thresholds"
+      },
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {
+            "color": "red",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 1
+          },
+          {
+            "color": "green",
+            "value": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "title": "Pages Failed by Spider",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "expr": "rate(spider_pages_failed_total[1m])",
+          "legendFormat": "{{instance}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Pages Fetched by Spider",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "targets": [
+        {
+          "expr": "rate(spider_pages_fetched_total[1m])",
+          "legendFormat": "{{instance}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    }
+  ]
+}

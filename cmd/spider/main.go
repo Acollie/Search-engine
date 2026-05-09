@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -22,17 +23,24 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
-const (
-	databaseName = "databaseName"
-)
+func dbPort() int {
+	if p := os.Getenv("DB_PORT"); p != "" {
+		if n, err := strconv.Atoi(p); err == nil {
+			return n
+		}
+	}
+	return 5432
+}
+
+func dbName() string {
+	if n := os.Getenv("DB_NAME"); n != "" {
+		return n
+	}
+	return "databaseName"
+}
 
 func main() {
-	// Load .env file
-	//err := godotenv.Load()
 	ctx := context.Background()
-	//if err != nil {
-	//	log.Fatalf("Failed to load .env file with error: %v", err)
-	//}
 	var err error
 
 	config := config.Fetch()
@@ -41,8 +49,9 @@ func main() {
 		os.Getenv("DB_USER"),
 		os.Getenv("DB_PASSWORD"),
 		os.Getenv("DB_HOST"),
-		5432,
-		databaseName,
+		dbPort(),
+		dbName(),
+		os.Getenv("DB_SSL_MODE"),
 	)
 	if err != nil {
 		panic(err)
@@ -51,6 +60,20 @@ func main() {
 
 	dbConfig := sqlx.New(pg, connType)
 	server := handler.New(dbConfig, config)
+
+	// Initialize observability and health check before DB operations so the
+	// container passes its health check even if AddLinks takes a while.
+	err = bootstrap.Observability()
+	if err != nil {
+		slog.Error("Failed to initialize OpenTelemetry", slog.Any("error", err))
+		os.Exit(1)
+	}
+
+	err = bootstrap.HealthCheck()
+	if err != nil {
+		slog.Error("Failed to initialize HealthCheck", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	initialLinks := []string{
 		"https://blog.alexcollie.com/",
@@ -99,23 +122,10 @@ func main() {
 		}
 		slog.Warn("Some initial links already exist in queue", slog.Any("error", err))
 	}
-	// Initialize OpenTelemetry
-	err = bootstrap.Observability()
-	if err != nil {
-		slog.Error("Failed to initialize OpenTelemetry", slog.Any("error", err))
-		os.Exit(1)
-	}
-
-	// Initialize HealthCheck
-	err = bootstrap.HealthCheck()
-	if err != nil {
-		slog.Error("Failed to initialize HealthCheck", slog.Any("error", err))
-		os.Exit(1)
-	}
 
 	// GRPC server
 	var opts []grpc.ServerOption
-	lis, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", grpcx.SpiderPort))
+	lis, err := net.Listen("tcp4", fmt.Sprintf("0.0.0.0:%d", grpcx.SpiderPort))
 	if err != nil {
 		panic(err)
 	}
@@ -147,6 +157,9 @@ func main() {
 
 		// Give crawler time to finish current batch
 		time.Sleep(2 * time.Second)
+
+		// Stop background goroutines (robots cache, rate limiter, cycle detector)
+		server.Close()
 
 		// Stop gRPC server
 		grpcServer.GracefulStop()

@@ -1,0 +1,117 @@
+{
+  "title": "Search Engine - Pod Health",
+  "description": "Pod resource health using pre-aggregated metrics only\n\nConfigurable refresh: 5s (high-freq), 15s (default), 30s (low-overhead), 60s (minimal)",
+  "tags": [
+    "search-engine",
+    "health"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "uid": "pod-health",
+  "id": 3,
+  "templating": {
+    "list": [
+      {
+        "name": "interval",
+        "type": "custom",
+        "value": "1m",
+        "options": [
+          { "text": "5s", "value": "5s" },
+          { "text": "15s (default)", "value": "1m" },
+          { "text": "30s", "value": "30s" },
+          { "text": "60s", "value": "60s" }
+        ],
+        "multi": false,
+        "current": { "text": "15s (default)", "value": "1m" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Service Availability",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "count(job:up:instant == 1)",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ],
+      "color": {
+        "mode": "thresholds"
+      },
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {
+            "color": "red",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 3
+          },
+          {
+            "color": "green",
+            "value": 4
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "title": "CPU Usage by Service",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "targets": [
+        {
+          "expr": "job:cpu_usage:$interval * 100",
+          "legendFormat": "{{job}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Memory Usage (MB)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "targets": [
+        {
+          "expr": "job:memory_usage_mb:instant",
+          "legendFormat": "{{job}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    }
+  ],
+  "refreshIntervals": [
+    "5s",
+    "15s",
+    "30s",
+    "60s",
+    "1m",
+    "5m"
+  ]
+}

@@ -31,6 +31,13 @@ func (a *Adder) Add(ctx context.Context, page Page) error {
 		return fmt.Errorf("invalid URL %s: %w", page.URL, err)
 	}
 
+	// Sanitize text fields to valid UTF-8 before inserting into PostgreSQL
+	page.Title = strings.ToValidUTF8(page.Title, "")
+	page.Body = strings.ToValidUTF8(page.Body, "")
+	for k, v := range page.Meta {
+		page.Meta[k] = strings.ToValidUTF8(v, "")
+	}
+
 	// Convert meta map to JSONB
 	metaJSON, err := json.Marshal(page.Meta)
 	if err != nil {

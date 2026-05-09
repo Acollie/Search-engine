@@ -1,10 +1,25 @@
 shape: sequence_diagram
-Conductor -> Spider: "Establish connection"
-Spider -> Conductor: "Stream sites visted"
-SeenPages
-SQS
-processMessages: {
-  label: "Process streamed messages"
-  Conductor -> SeenPages: "Put pages onto DB"
-  Conductor -> SQS: "Add pages to explore"
+
+Spider -> Conductor: "gRPC connect (GetSeenList)"
+Conductor -> Spider: "200 OK, stream ready"
+
+loop: {
+  label: "For each crawled page"
+  Spider -> Conductor: "Page { url, title, body, links }"
+  Conductor -> PostgreSQL: "Check if exists (url lookup)"
+  alt: {
+    label: "Page already exists"
+    PostgreSQL -> Conductor: "Found (duplicate)"
+    Conductor -> Conductor: "Skip"
+  }
+  alt: {
+    label: "New page"
+    PostgreSQL -> Conductor: "Not found"
+    Conductor -> PostgreSQL: "INSERT SeenPages"
+    Conductor -> PostgreSQL: "INSERT Queue (for links)"
+  }
+  Conductor -> Spider: "Backpressure (flow control)"
 }
+
+Spider -> Conductor: "Stream complete (EOF)"
+Conductor -> PostgreSQL: "Flush pending writes"

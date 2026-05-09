@@ -18,9 +18,7 @@ type RpcServer struct {
 }
 
 func (c *RpcServer) GetHealth(ctx context.Context, req *spider.HealthRequest) (*spider.HealthResponse, error) {
-	// Try to get all pages to verify database connectivity
-	// If this fails, the database is unhealthy
-	_, err := c.db.Page.GetAllPages(ctx)
+	count, err := c.db.Page.NumberOfPages(ctx)
 	if err != nil {
 		return &spider.HealthResponse{
 			Status: &spider.Status{
@@ -32,13 +30,11 @@ func (c *RpcServer) GetHealth(ctx context.Context, req *spider.HealthRequest) (*
 		}, nil
 	}
 
-	// Service is healthy if we can query the database
 	return &spider.HealthResponse{
 		Status: &spider.Status{
-			Healthy:     true,
-			Tps:         0,
-			SeenSites:   0, // Could count from GetAllPages but that's expensive
-			QueuedSites: 0, // Would need to add GetQueueDepth method
+			Healthy:   true,
+			Tps:       0,
+			SeenSites: int64(count),
 		},
 	}, nil
 }
@@ -50,22 +46,14 @@ func NewRPCServer(db sqlx.Db) *RpcServer {
 }
 
 func (c *RpcServer) _GetSeenList(ctx context.Context, request *spider.SeenListRequest) (*spider.SeenListResponse, error) {
-	// Respect limit parameter, default to 100 if not set or too large
 	limit := request.Limit
 	if limit == 0 || limit > 1000 {
-		limit = 100 // Default limit
+		limit = 100
 	}
 
-	// Get all pages (TODO: implement pagination in database layer)
-	allPages, err := c.db.Page.GetAllPages(ctx)
+	pages, err := c.db.Page.GetPagesPaginated(ctx, limit, request.Offset)
 	if err != nil {
 		return nil, err
-	}
-
-	// Apply limit to prevent OOM
-	pages := allPages
-	if int32(len(allPages)) > limit {
-		pages = allPages[:limit]
 	}
 
 	var response []*site.Page
@@ -82,26 +70,32 @@ func (c *RpcServer) _GetSeenList(ctx context.Context, request *spider.SeenListRe
 }
 
 func (c *RpcServer) GetSeenList(conn grpc.BidiStreamingServer[spider.SeenListRequest, spider.SeenListResponse]) error {
+	fmt.Println("GetSeenList: Stream opened, waiting for requests")
 	for {
 		// Receive request from client
 		request, err := conn.Recv()
 		if err == io.EOF {
-			// Client has finished sending
+			fmt.Println("GetSeenList: Client closed stream")
 			return nil
 		}
 		if err != nil {
+			fmt.Printf("GetSeenList: Failed to receive request: %v\n", err)
 			return err
 		}
+
+		fmt.Printf("GetSeenList: Received request (limit=%d, offset=%d)\n", request.Limit, request.Offset)
 
 		// Process and send response
 		response, err := c._GetSeenList(conn.Context(), request)
 		if err != nil {
+			fmt.Printf("GetSeenList: Failed to process request: %v\n", err)
 			return err
 		}
 
+		fmt.Printf("GetSeenList: Sending response with %d pages\n", len(response.SeenSites))
 		if err := conn.Send(response); err != nil {
+			fmt.Printf("GetSeenList: Failed to send response: %v\n", err)
 			return err
 		}
-		fmt.Println("Sending response")
 	}
 }

@@ -1,15 +1,19 @@
 shape: sequence_diagram
-Conductor -> Spider: "Establish connection"
-Spider -> Conductor: "Stream sites visted"
-SeenPages
-SQS
-processMessages: {
-  label: "Process streamed messages"
-  Conductor -> SeenPages: "Put pages onto DB"
-  Conductor -> SQS: "Add pages to explore"
-}
-cantKeepUp: {
-  label: "Conductor can't keep up"
-  Conductor -> Spider: "Request back off"
-  Spider -> Conductor: "Tries again after back off"
+
+Spider -> Conductor: "Stream page 1"
+Conductor -> PostgreSQL: "Write page 1"
+Spider -> Conductor: "Stream page 2"
+Conductor -> PostgreSQL: "Write page 2"
+Spider -> Conductor: "Stream page 3"
+
+backpressure: {
+  label: "Queue depth > threshold"
+  Conductor -> PostgreSQL: "Check queue depth"
+  PostgreSQL -> Conductor: "depth = 5000 pages"
+  Conductor -> Spider: "⏸️ Pause stream (backpressure)"
+  Spider -> Spider: "Wait 1 second"
+  Conductor -> PostgreSQL: "Check queue again"
+  PostgreSQL -> Conductor: "depth = 3000 pages"
+  Conductor -> Spider: "▶️ Resume stream"
+  Spider -> Conductor: "Stream page 4"
 }

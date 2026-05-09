@@ -1,0 +1,230 @@
+{
+  "title": "Search Engine - Core Metrics",
+  "description": "Production metrics using pre-aggregated recording rules. Select interval: 5s (real-time), 15s (default), 30s (lightweight), 60s (minimal).",
+  "tags": [
+    "search-engine",
+    "core"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "refreshIntervals": ["5s", "15s", "30s", "60s", "1m", "5m"],
+  "uid": "core-metrics",
+  "id": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "interval",
+        "type": "custom",
+        "value": "1m",
+        "options": [
+          { "text": "5s", "value": "5s" },
+          { "text": "15s (default)", "value": "1m" },
+          { "text": "30s", "value": "30s" },
+          { "text": "60s", "value": "60s" }
+        ],
+        "multi": false,
+        "current": { "text": "15s (default)", "value": "1m" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Spider Pages Crawled/min",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "job:spider_crawl_rate:$interval",
+          "legendFormat": "{{__name__}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Spider Error Rate %",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "job:spider_error_rate:$interval * 100",
+          "legendFormat": "{{__name__}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Service Availability",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "count(job:up:instant == 1)",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ],
+      "color": {
+        "mode": "thresholds"
+      },
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {
+            "color": "red",
+            "value": null
+          },
+          {
+            "color": "yellow",
+            "value": 3
+          },
+          {
+            "color": "green",
+            "value": 4
+          }
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "title": "Conductor Batches Processed/min",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "job:conductor_batches_rate:$interval",
+          "legendFormat": "{{__name__}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Conductor Queue Depth",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "job:conductor_queue_depth:instant",
+          "legendFormat": "{{__name__}}",
+          "refId": "A",
+          "datasourceUuid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Pages Received/min",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "job:conductor_pages_received_rate:$interval",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Spider Latency P95 (ms)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "job:spider_latency_p95:5m * 1000",
+          "legendFormat": "{{__name__}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Conductor Latency P95 (ms)",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "job:conductor_latency_p95:5m * 1000",
+          "legendFormat": "{{__name__}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Searcher Queries/min",
+      "type": "stat",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "job:searcher_queries_rate:$interval",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    }
+  ],
+  "refreshIntervals": [
+    "5s",
+    "15s",
+    "30s",
+    "60s",
+    "1m",
+    "5m"
+  ]
+}
