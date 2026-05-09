@@ -115,7 +115,7 @@ spec:
                   key: LOG_LEVEL
           resources:
             requests:
-              cpu: 450m
+              cpu: 150m
               memory: 256Mi
             limits:
               cpu: 2
