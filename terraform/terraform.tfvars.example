@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars and fill in real values.
+# terraform.tfvars is gitignored — never commit it.
+
+do_token = "dop_v1_your_digitalocean_token_here"
+
+# Optional overrides (defaults match production):
+# region              = "lon1"
+# k8s_version         = "1.35.1-do.5"
+# node_size           = "s-4vcpu-8gb"
+# node_count          = 1
+# db_size             = "db-s-2vcpu-4gb"
+# db_storage_size_mib = 61440
+# acme_email          = "alex@collie.codes"
+#
+# Set load_balancer_ip AFTER first apply once Traefik provisions the LB:
+#   kubectl get svc -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+# Then re-run: terraform apply -var="load_balancer_ip=<ip>"
+# load_balancer_ip = "159.65.211.230"
