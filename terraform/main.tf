@@ -38,9 +38,15 @@ provider "kubernetes" {
 }
 
 resource "digitalocean_kubernetes_cluster" "search_engine" {
-  name    = "search-engine"
-  region  = var.region
-  version = var.k8s_version
+  name          = "search-engine"
+  region        = var.region
+  version       = var.k8s_version
+  surge_upgrade = true
+
+  maintenance_policy {
+    start_time = "6:00"
+    day        = "any"
+  }
 
   node_pool {
     name       = "worker-pool"

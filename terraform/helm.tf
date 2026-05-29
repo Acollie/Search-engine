@@ -1,18 +1,6 @@
-resource "helm_release" "cert_manager" {
-  name             = "cert-manager"
-  repository       = "https://charts.jetstack.io"
-  chart            = "cert-manager"
-  namespace        = "cert-manager"
-  version          = "v1.17.2"
-  create_namespace = true
-
-  set {
-    name  = "crds.enabled"
-    value = "true"
-  }
-
-  depends_on = [digitalocean_kubernetes_cluster.search_engine]
-}
+# cert-manager was installed via kubectl apply (not Helm) on the existing cluster.
+# For fresh installs, run scripts/install-cert-manager.sh before terraform apply.
+# See: https://cert-manager.io/docs/installation/kubectl/
 
 resource "helm_release" "traefik" {
   name       = "traefik"

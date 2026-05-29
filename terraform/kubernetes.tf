@@ -1,6 +1,7 @@
 resource "kubernetes_namespace" "search_engine" {
   metadata {
-    name = "search-engine"
+    name   = "search-engine"
+    labels = { name = "search-engine" }
   }
 
   depends_on = [digitalocean_kubernetes_cluster.search_engine]
@@ -32,5 +33,6 @@ resource "kubernetes_manifest" "letsencrypt_clusterissuer" {
     }
   }
 
-  depends_on = [helm_release.cert_manager, helm_release.traefik]
+  # cert-manager CRDs must be installed before apply (see scripts/install-cert-manager.sh)
+  depends_on = [helm_release.traefik, kubernetes_namespace.search_engine]
 }
