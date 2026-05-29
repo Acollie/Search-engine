@@ -7,20 +7,16 @@
 #   tofu plan   # verify: should show no destroy/recreate actions
 #   tofu apply
 #
-# After deleting and recreating the cluster, replace the IDs below with the
-# new resource IDs from `doctl kubernetes cluster list` and `doctl databases list`.
+# After deleting and recreating the cluster, replace the K8s cluster ID below
+# with the new ID from `doctl kubernetes cluster list`.
 #
-# Note: cert-manager was installed via kubectl apply on the existing cluster and
-# is not managed by Terraform. The ClusterIssuer below IS imported.
+# Note: cert-manager was installed via kubectl apply and is not managed by
+# Terraform. The ClusterIssuer below IS imported. Traefik will be installed
+# fresh by Terraform on recreation (no import needed).
 
 import {
   to = digitalocean_kubernetes_cluster.search_engine
   id = "58d25107-5f0a-46ca-9f0c-bc7bb4dac0c3"
-}
-
-import {
-  to = digitalocean_database_cluster.search_engine_db
-  id = "1d7e1ac9-0676-4375-b6d2-5d8e264e5ccf"
 }
 
 import {
@@ -36,11 +32,6 @@ import {
 import {
   to = digitalocean_record.metrics
   id = "collie.codes,1817976282"
-}
-
-import {
-  to = helm_release.traefik
-  id = "kube-system/traefik"
 }
 
 import {
