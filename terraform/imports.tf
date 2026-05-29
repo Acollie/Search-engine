@@ -7,6 +7,9 @@
 #   tofu plan   # verify: should show no destroy/recreate actions
 #   tofu apply
 #
+# After deleting and recreating the cluster, replace the IDs below with the
+# new resource IDs from `doctl kubernetes cluster list` and `doctl databases list`.
+#
 # Note: cert-manager was installed via kubectl apply on the existing cluster and
 # is not managed by Terraform. The ClusterIssuer below IS imported.
 
