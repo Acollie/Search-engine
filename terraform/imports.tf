@@ -19,10 +19,6 @@ import {
   id = "58d25107-5f0a-46ca-9f0c-bc7bb4dac0c3"
 }
 
-import {
-  to = digitalocean_container_registry.search_engine
-  id = "search-engine"
-}
 
 import {
   to = digitalocean_record.search
