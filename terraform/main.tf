@@ -125,6 +125,7 @@ resource "hcloud_server" "control_plane" {
 
   network {
     network_id = hcloud_network.main.id
+    subnet_id  = hcloud_network_subnet.k8s.id
   }
 
   depends_on = [hcloud_network_subnet.k8s]
@@ -147,6 +148,7 @@ resource "hcloud_server" "workers" {
 
   network {
     network_id = hcloud_network.main.id
+    subnet_id  = hcloud_network_subnet.k8s.id
   }
 
   depends_on = [hcloud_network_subnet.k8s, hcloud_server.control_plane]
