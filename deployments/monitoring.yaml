@@ -449,9 +449,14 @@ spec:
               memory: 256Mi
           volumeMounts:
             - name: alertmanager-config
-              mountPath: /etc/alertmanager
+              mountPath: /etc/alertmanager/config.yml
+              subPath: config.yml
             - name: alertmanager-storage
               mountPath: /alertmanager
+            - name: slack-secret
+              mountPath: /etc/alertmanager/slack-webhook-url
+              subPath: slack_webhook_url
+              readOnly: true
       volumes:
         - name: alertmanager-config
           configMap:
@@ -459,6 +464,9 @@ spec:
         - name: alertmanager-storage
           persistentVolumeClaim:
             claimName: alertmanager-pvc
+        - name: slack-secret
+          secret:
+            secretName: alertmanager-slack-secret
 
 ---
 apiVersion: v1
@@ -478,22 +486,46 @@ data:
       routes:
         - match:
             severity: critical
-          receiver: 'critical'
+          receiver: 'slack-critical'
           group_wait: 30s
           group_interval: 5m
           repeat_interval: 4h
 
         - match:
             severity: warning
-          receiver: 'warning'
+          receiver: 'slack-warning'
           group_wait: 1m
           group_interval: 10m
           repeat_interval: 12h
 
     receivers:
       - name: 'null'
-      - name: 'critical'
-      - name: 'warning'
+
+      - name: 'slack-critical'
+        slack_configs:
+          - api_url_file: /etc/alertmanager/slack-webhook-url
+            channel: '#alerts'
+            send_resolved: true
+            color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+            title: '{{ if eq .Status "firing" }}[FIRING]{{ else }}[RESOLVED]{{ end }} {{ .CommonLabels.alertname }}'
+            text: |-
+              {{ range .Alerts -}}
+              *Service:* {{ .Labels.job }}  *Severity:* {{ .Labels.severity | toUpper }}
+              *Description:* {{ .Annotations.description }}
+              {{ end }}
+
+      - name: 'slack-warning'
+        slack_configs:
+          - api_url_file: /etc/alertmanager/slack-webhook-url
+            channel: '#alerts'
+            send_resolved: true
+            color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+            title: '{{ if eq .Status "firing" }}[FIRING]{{ else }}[RESOLVED]{{ end }} {{ .CommonLabels.alertname }}'
+            text: |-
+              {{ range .Alerts -}}
+              *Service:* {{ .Labels.job }}  *Severity:* {{ .Labels.severity | toUpper }}
+              *Description:* {{ .Annotations.description }}
+              {{ end }}
 
     inhibit_rules:
       - source_match:
