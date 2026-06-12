@@ -19,7 +19,11 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
-    verbs: ["get", "create", "patch", "delete"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["ecr-registry"]
+    verbs: ["get", "patch"]
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -54,8 +58,14 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: ecr-token-refresh
-              image: amazon/aws-cli:latest
+              image: amazon/aws-cli:2.27.34
               imagePullPolicy: IfNotPresent
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                runAsUser: 65534
+                capabilities:
+                  drop: [ALL]
               command:
                 - /bin/sh
                 - -c

@@ -177,8 +177,12 @@ spec:
         runAsGroup: 65534
       containers:
         - name: prometheus
-          image: prom/prometheus:latest
+          image: prom/prometheus:v3.4.1
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
           args:
             - '--config.file=/etc/prometheus/prometheus.yml'
             - '--storage.tsdb.path=/prometheus'
@@ -296,8 +300,12 @@ spec:
         runAsGroup: 472
       containers:
         - name: grafana
-          image: grafana/grafana:latest
+          image: grafana/grafana:11.6.1
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
           ports:
             - name: web
               containerPort: 3000
@@ -436,10 +444,18 @@ spec:
       labels:
         app: alertmanager
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
       containers:
         - name: alertmanager
-          image: prom/alertmanager:latest
+          image: prom/alertmanager:v0.33.0
           imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
           args:
             - '--config.file=/etc/alertmanager/config.yml'
             - '--storage.path=/alertmanager'

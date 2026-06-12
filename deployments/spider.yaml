@@ -54,6 +54,7 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: spider
+      automountServiceAccountToken: false
       imagePullSecrets:
         - name: ecr-registry
       restartPolicy: Always

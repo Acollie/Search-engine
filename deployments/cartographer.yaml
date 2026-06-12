@@ -49,6 +49,7 @@ spec:
             prometheus.io/path: "/metrics"
         spec:
           serviceAccountName: cartographer
+          automountServiceAccountToken: false
           restartPolicy: OnFailure
           terminationGracePeriodSeconds: 120
           imagePullSecrets:

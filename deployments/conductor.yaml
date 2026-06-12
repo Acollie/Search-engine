@@ -50,6 +50,7 @@ spec:
         prometheus.io/path: "/metrics"
     spec:
       serviceAccountName: conductor
+      automountServiceAccountToken: false
       imagePullSecrets:
         - name: ecr-registry
       restartPolicy: Always
