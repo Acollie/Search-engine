@@ -160,6 +160,8 @@ metadata:
     app: prometheus
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: prometheus
@@ -278,6 +280,8 @@ metadata:
     app: grafana
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: grafana
@@ -422,6 +426,8 @@ metadata:
     app: alertmanager
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: alertmanager

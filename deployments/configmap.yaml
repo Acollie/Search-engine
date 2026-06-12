@@ -193,7 +193,7 @@ data:
         rules:
           # Service availability
           - alert: ServiceDown
-            expr: up{job=~"spider|conductor|cartographer|searcher"} == 0
+            expr: up{job=~"spider|conductor|searcher"} == 0
             for: 2m
             labels:
               severity: critical
