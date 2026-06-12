@@ -106,40 +106,49 @@ build-frontend:
 build-all: build-spider build-conductor build-cartographer build-searcher build-frontend
 	@echo "✓ All service images built successfully"
 
-# Build and push to ECR (requires AWS credentials and ECR repository)
-build-and-push-spider:
+# ECR registry — derived at runtime from AWS credentials via aws-vault.
+# Set AWS_VAULT_PROFILE to use a different profile (default: dev).
+AWS_VAULT_PROFILE ?= dev
+ECR_REGION        ?= eu-west-1
+ECR_ACCOUNT       := $(shell aws-vault exec $(AWS_VAULT_PROFILE) -- aws sts get-caller-identity --query Account --output text 2>/dev/null)
+ECR_REGISTRY      := $(ECR_ACCOUNT).dkr.ecr.$(ECR_REGION).amazonaws.com
+
+# Login to ECR — run this before any build-and-push target
+ecr-login:
+	@echo "Logging in to ECR..."
+	aws-vault exec $(AWS_VAULT_PROFILE) -- aws ecr get-login-password --region $(ECR_REGION) | \
+		docker login --username AWS --password-stdin $(ECR_REGISTRY)
+	@echo "✓ Logged in to ECR at $(ECR_REGISTRY)"
+
+# Build and push to ECR (requires aws-vault and ECR repositories to exist)
+build-and-push-spider: ecr-login
 	@echo "Building and pushing Spider to ECR..."
-	docker buildx build --platform linux/amd64 -f cmd/spider/Dockerfile -t spider:latest .
-	docker tag spider:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/spider:latest
-	#docker push 967991486854.dkr.ecr.eu-west-1.amazonaws.com/spider:latest
+	docker buildx build --platform linux/amd64 -f cmd/spider/Dockerfile -t $(ECR_REGISTRY)/spider:latest .
+	docker push $(ECR_REGISTRY)/spider:latest
 	@echo "✓ Spider pushed to ECR"
 
-build-and-push-conductor:
+build-and-push-conductor: ecr-login
 	@echo "Building and pushing Conductor to ECR..."
-	docker buildx build --platform linux/amd64 -f cmd/conductor/Dockerfile -t conductor:latest .
-	docker tag conductor:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/conductor:latest
-	#docker push 967991486854.dkr.ecr.eu-west-1.amazonaws.com/conductor:latest
+	docker buildx build --platform linux/amd64 -f cmd/conductor/Dockerfile -t $(ECR_REGISTRY)/conductor:latest .
+	docker push $(ECR_REGISTRY)/conductor:latest
 	@echo "✓ Conductor pushed to ECR"
 
-build-and-push-cartographer:
+build-and-push-cartographer: ecr-login
 	@echo "Building and pushing Cartographer to ECR..."
-	docker buildx build --platform linux/amd64 -f cmd/cartographer/Dockerfile -t cartographer:latest .
-	docker tag cartographer:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/cartographer:latest
-	#docker push 967991486854.dkr.ecr.eu-west-1.amazonaws.com/cartographer:latest
+	docker buildx build --platform linux/amd64 -f cmd/cartographer/Dockerfile -t $(ECR_REGISTRY)/cartographer:latest .
+	docker push $(ECR_REGISTRY)/cartographer:latest
 	@echo "✓ Cartographer pushed to ECR"
 
-build-and-push-searcher:
+build-and-push-searcher: ecr-login
 	@echo "Building and pushing Searcher to ECR..."
-	docker buildx build --platform linux/amd64 -f cmd/searcher/Dockerfile -t searcher:latest .
-	docker tag searcher:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/searcher:latest
-	#docker push 967991486854.dkr.ecr.eu-west-1.amazonaws.com/searcher:latest
+	docker buildx build --platform linux/amd64 -f cmd/searcher/Dockerfile -t $(ECR_REGISTRY)/searcher:latest .
+	docker push $(ECR_REGISTRY)/searcher:latest
 	@echo "✓ Searcher pushed to ECR"
 
-build-and-push-frontend:
+build-and-push-frontend: ecr-login
 	@echo "Building and pushing Frontend to ECR..."
-	docker buildx build --platform linux/amd64 -f cmd/frontend/Dockerfile -t frontend:latest .
-	docker tag frontend:latest 967991486854.dkr.ecr.eu-west-1.amazonaws.com/frontend:latest
-	#docker push 967991486854.dkr.ecr.eu-west-1.amazonaws.com/frontend:latest
+	docker buildx build --platform linux/amd64 -f cmd/frontend/Dockerfile -t $(ECR_REGISTRY)/frontend:latest .
+	docker push $(ECR_REGISTRY)/frontend:latest
 	@echo "✓ Frontend pushed to ECR"
 
 # Build and push all services to ECR

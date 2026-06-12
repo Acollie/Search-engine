@@ -1,0 +1,88 @@
+---
+# IAM user with ecr:GetAuthorizationToken + ecr:BatchGetImage + ecr:GetDownloadUrlForLayer
+# Create this secret once: kubectl create secret generic aws-credentials -n search-engine \
+#   --from-literal=AWS_ACCESS_KEY_ID=... \
+#   --from-literal=AWS_SECRET_ACCESS_KEY=... \
+#   --from-literal=ECR_REGION=eu-west-1
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ecr-token-refresh
+  namespace: search-engine
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ecr-token-refresh
+  namespace: search-engine
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "patch", "delete"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ecr-token-refresh
+  namespace: search-engine
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ecr-token-refresh
+subjects:
+  - kind: ServiceAccount
+    name: ecr-token-refresh
+    namespace: search-engine
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ecr-token-refresh
+  namespace: search-engine
+spec:
+  schedule: "0 */6 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: ecr-token-refresh
+          restartPolicy: OnFailure
+          containers:
+            - name: ecr-token-refresh
+              image: amazon/aws-cli:latest
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  TOKEN=$(aws ecr get-login-password --region $ECR_REGION)
+                  ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+                  REGISTRY="${ACCOUNT}.dkr.ecr.${ECR_REGION}.amazonaws.com"
+
+                  kubectl create secret docker-registry ecr-registry \
+                    --docker-server="$REGISTRY" \
+                    --docker-username=AWS \
+                    --docker-password="$TOKEN" \
+                    -n search-engine \
+                    --dry-run=client -o yaml | kubectl apply -f -
+              env:
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: AWS_ACCESS_KEY_ID
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: AWS_SECRET_ACCESS_KEY
+                - name: ECR_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      name: aws-credentials
+                      key: ECR_REGION

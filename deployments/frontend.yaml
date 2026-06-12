@@ -18,10 +18,10 @@ spec:
         component: web
     spec:
       imagePullSecrets:
-      - name: registry-search-engine
+      - name: ecr-registry
       containers:
       - name: frontend
-        image: registry.digitalocean.com/search-engine/frontend:latest
+        image: ECR_REGISTRY_PLACEHOLDER/frontend:latest
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000

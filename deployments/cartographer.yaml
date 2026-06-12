@@ -52,10 +52,10 @@ spec:
           restartPolicy: OnFailure
           terminationGracePeriodSeconds: 120
           imagePullSecrets:
-            - name: registry-search-engine
+            - name: ecr-registry
           containers:
             - name: cartographer
-              image: registry.digitalocean.com/search-engine/cartographer:latest
+              image: ECR_REGISTRY_PLACEHOLDER/cartographer:latest
               imagePullPolicy: IfNotPresent
               ports:
                 - name: health

@@ -55,12 +55,12 @@ spec:
     spec:
       serviceAccountName: searcher
       imagePullSecrets:
-        - name: registry-search-engine
+        - name: ecr-registry
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       containers:
         - name: searcher
-          image: registry.digitalocean.com/search-engine/searcher:latest
+          image: ECR_REGISTRY_PLACEHOLDER/searcher:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: grpc

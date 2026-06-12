@@ -55,13 +55,15 @@ spec:
     spec:
       serviceAccountName: spider
       imagePullSecrets:
-        - name: registry-search-engine
+        - name: ecr-registry
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       containers:
         - name: spider
-          image: registry.digitalocean.com/search-engine/spider:latest
+          image: ECR_REGISTRY_PLACEHOLDER/spider:latest
           imagePullPolicy: IfNotPresent
+          workingDir: /tmp
+          command: ["/app/spider"]
           ports:
             - name: grpc
               containerPort: 9001
@@ -151,11 +153,17 @@ spec:
               mountPath: /tmp
             - name: cache
               mountPath: /var/cache/spider
+            - name: spider-config
+              mountPath: /tmp/config.yml
+              subPath: config.yml
       volumes:
         - name: tmp
           emptyDir: {}
         - name: cache
           emptyDir: {}
+        - name: spider-config
+          configMap:
+            name: spider-config
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

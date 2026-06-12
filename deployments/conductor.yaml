@@ -51,12 +51,12 @@ spec:
     spec:
       serviceAccountName: conductor
       imagePullSecrets:
-        - name: registry-search-engine
+        - name: ecr-registry
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       containers:
         - name: conductor
-          image: registry.digitalocean.com/search-engine/conductor:latest
+          image: ECR_REGISTRY_PLACEHOLDER/conductor:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: health

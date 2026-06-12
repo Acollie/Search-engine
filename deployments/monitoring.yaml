@@ -14,10 +14,7 @@ spec:
   resources:
     requests:
       storage: 50Gi
-  # storageClassName: gp3  # Uncomment and adjust for your cloud provider
-  # For AWS EKS: gp3 or gp2
-  # For GCP GKE: standard or pd-ssd
-  # For Azure AKS: managed-premium
+  storageClassName: hcloud-volumes
 
 ---
 apiVersion: v1
@@ -33,7 +30,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  # storageClassName: gp3  # Uncomment and adjust for your cloud provider
+  storageClassName: hcloud-volumes
 
 ---
 apiVersion: v1
@@ -49,7 +46,7 @@ spec:
   resources:
     requests:
       storage: 5Gi
-  # storageClassName: gp3  # Uncomment and adjust for your cloud provider
+  storageClassName: hcloud-volumes
 
 ---
 apiVersion: v1

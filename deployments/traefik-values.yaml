@@ -1,19 +1,21 @@
-# Traefik Helm values
+# Traefik Helm values for Hetzner Cloud k3s cluster.
+# The Hetzner Load Balancer (provisioned by Terraform) forwards :80→30080 and :443→30443.
+# Traefik uses NodePort so the LB can reach it; the LB's public IP is the external entry point.
+#
 # Install with:
 #   helm repo add traefik https://traefik.github.io/charts && helm repo update
 #   helm upgrade --install traefik traefik/traefik \
 #     --namespace kube-system \
 #     --values deployments/traefik-values.yaml
-#
-# After install, get the single load balancer IP:
-#   kubectl get svc -n kube-system traefik -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
-# Point BOTH DNS A records (search.yourdomain.com, metrics.yourdomain.com) to this IP.
-#
-# Default chart port mapping: container listens on 8000 (web) and 8443 (websecure),
-# LoadBalancer service exposes 80 and 443. No root or NET_BIND_SERVICE needed.
 
 service:
-  type: LoadBalancer
+  type: NodePort
+
+ports:
+  web:
+    nodePort: 30080
+  websecure:
+    nodePort: 30443
 
 additionalArguments:
   - "--entrypoints.web.http.redirections.entrypoint.to=:443"

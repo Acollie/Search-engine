@@ -293,3 +293,18 @@ data:
             annotations:
               summary: "Overall system error rate is critical"
               description: "System error rate exceeds 10%"
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spider-config
+  namespace: search-engine
+  labels:
+    app: spider
+data:
+  config.yml: |
+    relational: true
+    depth: 10
+    link-depth: 5
+    websites: []

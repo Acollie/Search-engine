@@ -1,49 +1,49 @@
-variable "do_token" {
-  description = "DigitalOcean API token"
+variable "hcloud_token" {
+  description = "Hetzner Cloud API token (generate a new one — never reuse a token shared in chat)"
   type        = string
   sensitive   = true
 }
 
-variable "region" {
-  description = "DigitalOcean region"
+variable "ssh_public_key" {
+  description = "SSH public key to install on all nodes (e.g. contents of ~/.ssh/id_ed25519.pub)"
   type        = string
-  default     = "lon1"
+  sensitive   = true
 }
 
-variable "k8s_version" {
-  description = "Kubernetes version (run: doctl kubernetes options versions)"
+variable "location" {
+  description = "Hetzner datacenter location"
   type        = string
-  default     = "1.35.1-do.5"
+  default     = "fsn1"
 }
 
-variable "node_size" {
-  description = "Node droplet size slug"
+variable "k3s_version" {
+  description = "k3s release to install on all nodes (see https://github.com/k3s-io/k3s/releases)"
   type        = string
-  default     = "s-4vcpu-8gb"
+  default     = "v1.32.5+k3s1"
 }
 
-variable "node_count" {
-  description = "Number of nodes in the worker pool"
+variable "control_plane_type" {
+  description = "Hetzner server type for the control-plane node"
+  type        = string
+  default     = "cx33"
+}
+
+variable "worker_type" {
+  description = "Hetzner server type for worker nodes (cx43 = 8 vCPU / 16 GB, good for HPA scaling)"
+  type        = string
+  default     = "cx43"
+}
+
+variable "worker_count" {
+  description = "Number of worker nodes"
   type        = number
-  default     = 1
+  default     = 2
 }
 
-variable "db_size" {
-  description = "Managed PostgreSQL size slug"
-  type        = string
-  default     = "db-s-2vcpu-4gb"
-}
-
-variable "db_storage_size_mib" {
-  description = "Total DB storage in MiB (61440 = 60 GiB)"
-  type        = number
-  default     = 61440
-}
-
-variable "load_balancer_ip" {
-  description = "IP of the Traefik load balancer — obtain after first deploy with: kubectl get svc -n search-engine traefik"
-  type        = string
-  default     = "159.65.211.230"
+variable "allowed_ssh_ips" {
+  description = "CIDR list allowed to reach SSH (22) and kubectl (6443) — tighten to your IP before production"
+  type        = list(string)
+  default     = ["0.0.0.0/0", "::/0"]
 }
 
 variable "acme_email" {

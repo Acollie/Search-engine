@@ -30,7 +30,7 @@ spec:
   resources:
     requests:
       storage: 50Gi
-  storageClassName: standard
+  storageClassName: hcloud-volumes
 
 ---
 apiVersion: apps/v1
@@ -53,6 +53,10 @@ spec:
       annotations:
         prometheus.io/scrape: "false"
     spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
       containers:
         - name: postgres
           image: postgres:15-alpine
@@ -109,9 +113,7 @@ spec:
             - name: postgres-init
               mountPath: /docker-entrypoint-initdb.d
           securityContext:
-            runAsUser: 999
-            runAsGroup: 999
-            fsGroup: 999
+            allowPrivilegeEscalation: false
       volumes:
         - name: postgres-init
           configMap:
