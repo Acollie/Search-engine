@@ -105,10 +105,12 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 		// Create snippet from description or body
 		snippet := description.String
 		if snippet == "" && body.Valid {
-			// Take first 200 characters of body as snippet
-			snippet = body.String
-			if len(snippet) > 200 {
-				snippet = snippet[:200] + "..."
+			// Truncate at rune boundary to avoid splitting multi-byte UTF-8 sequences
+			runes := []rune(body.String)
+			if len(runes) > 200 {
+				snippet = string(runes[:200]) + "..."
+			} else {
+				snippet = body.String
 			}
 		}
 

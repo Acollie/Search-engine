@@ -83,7 +83,7 @@ func (h *SearchHandler) HandleSearchAPI(w http.ResponseWriter, r *http.Request) 
 	limit := int32(10)
 	offset := int32((page - 1) * 10)
 
-	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
 	resp, err := h.searcherClient.Search(ctx, query, limit, offset)
