@@ -11,10 +11,15 @@ import (
 )
 
 type StatsResponse struct {
-	PagesIndexed   int64 `json:"pagesIndexed"`
-	CrawledLast24h int64 `json:"crawledLast24h"`
-	QueueDepth     int64 `json:"queueDepth"`
-	CrawlRatePerHr int64 `json:"crawlRatePerHr"`
+	PagesIndexed         int64 `json:"pagesIndexed"`
+	CrawledLast24h       int64 `json:"crawledLast24h"`
+	QueueDepth           int64 `json:"queueDepth"`
+	CrawlRatePerHr       int64 `json:"crawlRatePerHr"`
+	UniqueDomains        int64 `json:"uniqueDomains"`
+	TotalLinks           int64 `json:"totalLinks"`
+	PagesRanked          int64 `json:"pagesRanked"`
+	SearchQueriesLast24h int64 `json:"searchQueriesLast24h"`
+	SearchQueriesLastHr  int64 `json:"searchQueriesLastHr"`
 }
 
 type StatsHandler struct {
@@ -77,9 +82,28 @@ func (h *StatsHandler) fetchStats(ctx context.Context) (*StatsResponse, error) {
 			END,
 			COALESCE((SELECT COUNT(*) FROM SeenPages WHERE crawl_time >= now() - interval '24 hours'), 0),
 			COALESCE((SELECT COUNT(*) FROM Queue WHERE status = 'pending'), 0),
-			COALESCE((SELECT COUNT(*) FROM SeenPages WHERE crawl_time >= now() - interval '1 hour'), 0)
+			COALESCE((SELECT COUNT(*) FROM SeenPages WHERE crawl_time >= now() - interval '1 hour'), 0),
+			COALESCE((SELECT COUNT(DISTINCT domain) FROM SeenPages WHERE domain IS NOT NULL), 0),
+			CASE
+				WHEN (SELECT reltuples FROM pg_class WHERE relname = 'links') >= 0
+				THEN (SELECT reltuples::bigint FROM pg_class WHERE relname = 'links')
+				ELSE (SELECT COUNT(*) FROM Links)
+			END,
+			COALESCE((SELECT COUNT(*) FROM PageRankResults WHERE is_latest = true), 0),
+			COALESCE((SELECT COUNT(*) FROM SearchSessions WHERE created_at >= now() - interval '24 hours'), 0),
+			COALESCE((SELECT COUNT(*) FROM SearchSessions WHERE created_at >= now() - interval '1 hour'), 0)
 	`)
-	if err := row.Scan(&stats.PagesIndexed, &stats.CrawledLast24h, &stats.QueueDepth, &stats.CrawlRatePerHr); err != nil {
+	if err := row.Scan(
+		&stats.PagesIndexed,
+		&stats.CrawledLast24h,
+		&stats.QueueDepth,
+		&stats.CrawlRatePerHr,
+		&stats.UniqueDomains,
+		&stats.TotalLinks,
+		&stats.PagesRanked,
+		&stats.SearchQueriesLast24h,
+		&stats.SearchQueriesLastHr,
+	); err != nil {
 		return nil, err
 	}
 	return &stats, nil

@@ -54,7 +54,7 @@ func main() {
 	defer db.Close()
 
 	searcherAddr := fmt.Sprintf("%s:%s", cfg.SearcherHost, cfg.SearcherPort)
-	searchHandler, err := handler.NewSearchHandler(searcherAddr)
+	searchHandler, err := handler.NewSearchHandler(searcherAddr, db)
 	if err != nil {
 		slog.Error("Failed to create search handler", slog.Any("error", err))
 		os.Exit(1)
