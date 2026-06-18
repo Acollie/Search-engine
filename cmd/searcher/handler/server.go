@@ -48,22 +48,26 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 	// Join tokens with & for AND search
 	queryVector := strings.Join(tokens, " & ")
 
-	// Full-text search query combining ts_rank (30%) with PageRank score (70%)
+	// Full-text search query combining ts_rank (30%) with PageRank score (70%).
+	// ts_rank is computed once in the subquery to avoid calling it twice per row.
 	query := `
-		SELECT
-			sp.url,
-			sp.title,
-			sp.body,
-			sp.description,
-			COALESCE(pr.score, 0.0) as pagerank_score,
-			ts_rank(sp.search_vector, plainto_tsquery('english', $1)) as text_relevance,
-			(ts_rank(sp.search_vector, plainto_tsquery('english', $1)) * 0.3 +
-			 COALESCE(pr.score, 0.0) * 0.7) as combined_score,
-			sp.crawl_time
-		FROM seenpages sp
-		LEFT JOIN pagerankresults pr ON sp.id = pr.page_id AND pr.is_latest = true
-		WHERE sp.search_vector @@ plainto_tsquery('english', $1)
-		  AND sp.is_indexable = true
+		SELECT url, title, body, description, pagerank_score, text_relevance,
+			text_relevance * 0.3 + pagerank_score * 0.7 as combined_score,
+			crawl_time
+		FROM (
+			SELECT
+				sp.url,
+				sp.title,
+				sp.body,
+				sp.description,
+				COALESCE(pr.score, 0.0) as pagerank_score,
+				ts_rank(sp.search_vector, plainto_tsquery('english', $1)) as text_relevance,
+				sp.crawl_time
+			FROM seenpages sp
+			LEFT JOIN pagerankresults pr ON sp.id = pr.page_id AND pr.is_latest = true
+			WHERE sp.search_vector @@ plainto_tsquery('english', $1)
+			  AND sp.is_indexable = true
+		) sub
 		ORDER BY combined_score DESC
 		LIMIT $2 OFFSET $3
 	`

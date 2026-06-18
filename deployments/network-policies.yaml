@@ -64,7 +64,7 @@ spec:
             matchLabels:
               app: searcher
       ports:
-        - port: 9002
+        - port: 9091
 
 ---
 # Searcher: allow gRPC inbound from frontend, Prometheus metrics scrape,
@@ -87,7 +87,7 @@ spec:
             matchLabels:
               app: frontend
       ports:
-        - port: 9002
+        - port: 9091
     - from:
         - podSelector:
             matchLabels:
