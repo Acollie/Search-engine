@@ -1,0 +1,182 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: db-pruner-script
+  namespace: search-engine
+  labels:
+    app: db-pruner
+data:
+  prune.sh: |
+    #!/bin/sh
+    set -e
+
+    # Give the network policy controller time to register this pod's IP in ipsets
+    sleep 15
+
+    export PGPASSWORD="$DB_PASSWORD"
+    PSQL="psql -h $DB_HOST -U $DB_USER -d $DB_NAME -t -A"
+
+    echo "=== DB Purge started at $(date) ==="
+
+    # Before stats
+    DB_SIZE_BEFORE=$($PSQL -c "SELECT pg_size_pretty(pg_database_size('$DB_NAME'));")
+    QUEUE_BEFORE=$($PSQL -c "SELECT COUNT(*) FROM queue;")
+    echo "Queue rows before: $QUEUE_BEFORE"
+    echo "DB size before:    $DB_SIZE_BEFORE"
+
+    # Purge queue entries older than 14 days — spiders will re-discover these URLs
+    QUEUE_DELETED=$($PSQL -c "WITH d AS (DELETE FROM queue WHERE created_at < NOW() - INTERVAL '14 days' RETURNING 1) SELECT COUNT(*) FROM d;")
+    echo "Queue: deleted $QUEUE_DELETED old rows"
+
+    # Purge non-indexable seenpages older than 90 days, protecting first-party domains
+    PAGES_DELETED=$($PSQL -c "WITH d AS (DELETE FROM seenpages WHERE crawl_time < NOW() - INTERVAL '90 days' AND is_indexable = false AND domain NOT LIKE '%collie.codes%' AND domain NOT LIKE '%alexcollie.com%' RETURNING 1) SELECT COUNT(*) FROM d;")
+    echo "SeenPages: deleted $PAGES_DELETED old non-indexable rows"
+
+    # Purge superseded PageRank result versions
+    PR_DELETED=$($PSQL -c "WITH d AS (DELETE FROM pagerankresults WHERE is_latest = false RETURNING 1) SELECT COUNT(*) FROM d;")
+    echo "PageRank old versions: deleted $PR_DELETED rows"
+
+    # After stats
+    DB_SIZE_AFTER=$($PSQL -c "SELECT pg_size_pretty(pg_database_size('$DB_NAME'));")
+    QUEUE_AFTER=$($PSQL -c "SELECT COUNT(*) FROM queue;")
+    echo "Queue rows after: $QUEUE_AFTER"
+    echo "DB size after:    $DB_SIZE_AFTER"
+
+    # Post summary to Slack
+    PAYLOAD=$(printf \
+      '{"text":":broom: *DB Purge Complete*\n• Queue: deleted %s rows (%s → %s rows)\n• SeenPages: deleted %s rows\n• PageRank old versions: deleted %s rows\n• DB size: %s → %s"}' \
+      "$QUEUE_DELETED" "$QUEUE_BEFORE" "$QUEUE_AFTER" \
+      "$PAGES_DELETED" "$PR_DELETED" \
+      "$DB_SIZE_BEFORE" "$DB_SIZE_AFTER")
+
+    wget -qO- \
+      --header='Content-Type: application/json' \
+      --post-data="$PAYLOAD" \
+      "$SLACK_WEBHOOK_URL"
+
+    echo "=== DB Purge complete at $(date) ==="
+
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: db-pruner
+  namespace: search-engine
+  labels:
+    app: db-pruner
+spec:
+  schedule: "0 2 * * 0"  # 2am every Sunday
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app: db-pruner
+        spec:
+          serviceAccountName: db-pruner
+          automountServiceAccountToken: false
+          restartPolicy: OnFailure
+          terminationGracePeriodSeconds: 600
+          containers:
+            - name: db-pruner
+              image: postgres:15-alpine
+              command: ["/bin/sh", "/scripts/prune.sh"]
+              env:
+                - name: DB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: search-engine-secrets
+                      key: DB_USER
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: search-engine-secrets
+                      key: DB_PASSWORD
+                - name: DB_HOST
+                  valueFrom:
+                    configMapKeyRef:
+                      name: search-engine-config
+                      key: DB_HOST
+                - name: DB_NAME
+                  valueFrom:
+                    configMapKeyRef:
+                      name: search-engine-config
+                      key: DB_NAME
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: alertmanager-slack-secret
+                      key: slack_webhook_url
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                runAsNonRoot: true
+                runAsUser: 999
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: script
+              configMap:
+                name: db-pruner-script
+                defaultMode: 0555
+            - name: tmp
+              emptyDir: {}
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: db-pruner
+  namespace: search-engine
+  labels:
+    app: db-pruner
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-db-pruner
+  namespace: search-engine
+spec:
+  podSelector:
+    matchLabels:
+      app: db-pruner
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
+    # Slack webhook outbound
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - port: 443

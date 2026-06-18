@@ -256,6 +256,9 @@ spec:
         - podSelector:
             matchLabels:
               app: cartographer
+        - podSelector:
+            matchLabels:
+              app: db-pruner
       ports:
         - port: 5432
 
