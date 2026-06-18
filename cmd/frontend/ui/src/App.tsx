@@ -19,7 +19,7 @@ export default function App() {
   const handleAbout = useCallback(() => setView('about'), [])
   const handleGraph = useCallback(() => setView('graph'), [])
 
-  if (view === 'about') return <AboutPage onSearch={handleSearch} />
+  if (view === 'about') return <AboutPage onSearch={handleSearch} onGraph={handleGraph} />
   if (view === 'graph') return <GraphPage onHome={handleHome} />
 
   return (

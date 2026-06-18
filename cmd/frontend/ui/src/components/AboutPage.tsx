@@ -3,6 +3,7 @@ import { useTextScramble } from '../hooks/useTextScramble'
 
 interface Props {
   onSearch: (q: string) => void
+  onGraph: () => void
 }
 
 interface Stats {
@@ -18,7 +19,7 @@ function fmtNum(n: number): string {
   return n.toLocaleString()
 }
 
-export default function AboutPage({ onSearch }: Props) {
+export default function AboutPage({ onSearch, onGraph }: Props) {
   const [query, setQuery] = useState('')
   const [stats, setStats] = useState<Stats | null>(null)
 
@@ -50,6 +51,7 @@ export default function AboutPage({ onSearch }: Props) {
         <span className="about-nav-brand">道草</span>
         <div className="about-nav-links">
           <span className="about-nav-link about-nav-active">ABOUT</span>
+          <button className="about-nav-link" onClick={onGraph}>GRAPH</button>
         </div>
       </nav>
 
