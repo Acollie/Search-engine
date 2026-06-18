@@ -40,6 +40,26 @@ spec:
           value: "searcher"
         - name: SEARCHER_PORT
           value: "9002"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: search-engine-secrets
+              key: DB_USER
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: search-engine-secrets
+              key: DB_PASSWORD
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: search-engine-config
+              key: DB_HOST
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: search-engine-config
+              key: DB_NAME
         livenessProbe:
           httpGet:
             path: /health

@@ -81,7 +81,11 @@ func (h *StatsHandler) fetchStats(ctx context.Context) (*StatsResponse, error) {
 				ELSE (SELECT COUNT(*) FROM SeenPages)
 			END,
 			COALESCE((SELECT COUNT(*) FROM SeenPages WHERE crawl_time >= now() - interval '24 hours'), 0),
-			COALESCE((SELECT COUNT(*) FROM Queue WHERE status = 'pending'), 0),
+			CASE
+				WHEN (SELECT reltuples FROM pg_class WHERE relname = 'queue') >= 0
+				THEN (SELECT reltuples::bigint FROM pg_class WHERE relname = 'queue')
+				ELSE (SELECT COUNT(*) FROM Queue WHERE status = 'pending')
+			END,
 			COALESCE((SELECT COUNT(*) FROM SeenPages WHERE crawl_time >= now() - interval '1 hour'), 0),
 			COALESCE((SELECT COUNT(DISTINCT domain) FROM SeenPages WHERE domain IS NOT NULL), 0),
 			CASE

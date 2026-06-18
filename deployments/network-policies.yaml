@@ -65,6 +65,12 @@ spec:
               app: searcher
       ports:
         - port: 9091
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
 
 ---
 # Searcher: allow gRPC inbound from frontend, Prometheus metrics scrape,
@@ -259,6 +265,9 @@ spec:
         - podSelector:
             matchLabels:
               app: db-pruner
+        - podSelector:
+            matchLabels:
+              app: frontend
       ports:
         - port: 5432
 
