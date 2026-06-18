@@ -62,11 +62,13 @@ func main() {
 	defer searchHandler.Close()
 
 	statsHandler := handler.NewStatsHandler(db)
+	graphHandler := handler.NewGraphHandler(db)
 
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/search", searchHandler.HandleSearchAPI)
 	mux.HandleFunc("/api/stats", statsHandler.Handle)
+	mux.HandleFunc("/api/graph", graphHandler.Handle)
 
 	mux.HandleFunc("/", spaHandler(cfg.UIDistPath))
 

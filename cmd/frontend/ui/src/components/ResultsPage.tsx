@@ -6,9 +6,10 @@ interface Props {
   onSearch: (q: string) => void
   onHome: () => void
   onAbout: () => void
+  onGraph: () => void
 }
 
-export default function ResultsPage({ query, onSearch, onHome, onAbout }: Props) {
+export default function ResultsPage({ query, onSearch, onHome, onAbout, onGraph }: Props) {
   const [data, setData] = useState<SearchResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [input, setInput] = useState(query)
@@ -48,6 +49,9 @@ export default function ResultsPage({ query, onSearch, onHome, onAbout }: Props)
         <div className="header-bar">
           <button className="crt-btn" onClick={onHome} style={{ letterSpacing: '0.22em' }}>
             SEARCH//SYS
+          </button>
+          <button className="crt-btn" onClick={onGraph} style={{ fontSize: '0.82em' }}>
+            GRAPH
           </button>
           <button className="crt-btn" onClick={onAbout} style={{ fontSize: '0.82em' }}>
             ABOUT

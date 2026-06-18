@@ -3,6 +3,7 @@ import { useState, useEffect, FormEvent } from 'react'
 interface Props {
   onSearch: (query: string) => void
   onAbout: () => void
+  onGraph: () => void
 }
 
 interface Stats {
@@ -35,7 +36,7 @@ function fmtNum(n: number): string {
   return n.toLocaleString()
 }
 
-export default function SearchPage({ onSearch, onAbout }: Props) {
+export default function SearchPage({ onSearch, onAbout, onGraph }: Props) {
   const [query, setQuery] = useState('')
   const [stats, setStats] = useState<Stats | null>(null)
 
@@ -58,7 +59,8 @@ export default function SearchPage({ onSearch, onAbout }: Props) {
           <span>CORP. NETWORK INTERFACE // AUTHORIZED ACCESS ONLY</span>
           <span>{now()}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '6px' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginBottom: '6px' }}>
+          <button className="crt-btn" onClick={onGraph} style={{ fontSize: '0.78em' }}>GRAPH</button>
           <button className="crt-btn" onClick={onAbout} style={{ fontSize: '0.78em' }}>ABOUT</button>
         </div>
         <div className="header-status">
