@@ -469,12 +469,28 @@ hr.divider {
 ::-webkit-scrollbar-thumb { background: var(--border); }
 ::-webkit-scrollbar-thumb:hover { background: var(--p-dim); }
 
+/* ── Stats grid ────────────────────────────────────── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1rem;
+  width: 100%;
+  max-width: 800px;
+}
+
+.stats-grid .sys-panel {
+  max-width: none;
+  width: 100%;
+}
+
 /* ── Responsive ────────────────────────────────────── */
 @media (max-width: 600px) {
   .screen      { padding: 18px 14px; }
   .ascii-logo  { font-size: 0.55em; }
   .header-bar  { flex-direction: column; }
   .header-meta { flex-direction: column; gap: 4px; }
+  .stats-grid  { grid-template-columns: 1fr; }
 }
 
 /* ════════════════════════════════════════════════════

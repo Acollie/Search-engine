@@ -10,6 +10,11 @@ interface Stats {
   crawledLast24h: number
   queueDepth: number
   crawlRatePerHr: number
+  uniqueDomains: number
+  totalLinks: number
+  pagesRanked: number
+  searchQueriesLast24h: number
+  searchQueriesLastHr: number
 }
 
 const LOGO = `
@@ -117,27 +122,57 @@ export default function SearchPage({ onSearch, onAbout }: Props) {
         </div>
 
         {stats && (
-          <div className="sys-panel" style={{ marginTop: '1rem' }}>
-            <span className="sys-panel-title">// INDEX STATISTICS</span>
-            <div className="sys-row dim">
-              <span>METRIC</span><span>VALUE</span>
+          <div className="stats-grid">
+            <div className="sys-panel">
+              <span className="sys-panel-title">// INDEX STATS</span>
+              <div className="sys-row dim">
+                <span>METRIC</span><span>VALUE</span>
+              </div>
+              <hr className="divider" />
+              <div className="sys-row">
+                <span>PAGES INDEXED</span>
+                <span className="sys-ok">{fmtNum(stats.pagesIndexed)}</span>
+              </div>
+              <div className="sys-row">
+                <span>PAGES RANKED</span>
+                <span className="sys-ok">{fmtNum(stats.pagesRanked)}</span>
+              </div>
+              <div className="sys-row">
+                <span>UNIQUE DOMAINS</span>
+                <span className="sys-ok">{fmtNum(stats.uniqueDomains)}</span>
+              </div>
+              <div className="sys-row">
+                <span>LINKS MAPPED</span>
+                <span className="sys-ok">{fmtNum(stats.totalLinks)}</span>
+              </div>
             </div>
-            <hr className="divider" />
-            <div className="sys-row">
-              <span>PAGES INDEXED</span>
-              <span className="sys-ok">{fmtNum(stats.pagesIndexed)}</span>
-            </div>
-            <div className="sys-row">
-              <span>CRAWLED LAST 24H</span>
-              <span className="sys-ok">{fmtNum(stats.crawledLast24h)}</span>
-            </div>
-            <div className="sys-row">
-              <span>CRAWL QUEUE DEPTH</span>
-              <span className="sys-ok">{fmtNum(stats.queueDepth)}</span>
-            </div>
-            <div className="sys-row">
-              <span>PAGES / HOUR</span>
-              <span className="sys-ok">{fmtNum(stats.crawlRatePerHr)}</span>
+
+            <div className="sys-panel">
+              <span className="sys-panel-title">// CRAWL &amp; QUERY</span>
+              <div className="sys-row dim">
+                <span>METRIC</span><span>VALUE</span>
+              </div>
+              <hr className="divider" />
+              <div className="sys-row">
+                <span>CRAWLED LAST 24H</span>
+                <span className="sys-ok">{fmtNum(stats.crawledLast24h)}</span>
+              </div>
+              <div className="sys-row">
+                <span>PAGES / HOUR</span>
+                <span className="sys-ok">{fmtNum(stats.crawlRatePerHr)}</span>
+              </div>
+              <div className="sys-row">
+                <span>QUEUE DEPTH</span>
+                <span className="sys-ok">{fmtNum(stats.queueDepth)}</span>
+              </div>
+              <div className="sys-row">
+                <span>QUERIES LAST HR</span>
+                <span className="sys-ok">{fmtNum(stats.searchQueriesLastHr)}</span>
+              </div>
+              <div className="sys-row">
+                <span>QUERIES LAST 24H</span>
+                <span className="sys-ok">{fmtNum(stats.searchQueriesLast24h)}</span>
+              </div>
             </div>
           </div>
         )}
