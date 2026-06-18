@@ -115,9 +115,9 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 		}
 
 		pages = append(pages, &site.Page{
-			Url:      url,
-			Title:    title.String,
-			Body:     snippet,
+			Url:      strings.ToValidUTF8(url, ""),
+			Title:    strings.ToValidUTF8(title.String, ""),
+			Body:     strings.ToValidUTF8(snippet, ""),
 			LastSeen: lastSeen,
 		})
 	}

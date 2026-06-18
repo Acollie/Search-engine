@@ -62,7 +62,7 @@ spec:
       containers:
         - name: searcher
           image: ECR_REGISTRY_PLACEHOLDER/searcher:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: grpc
               containerPort: 9002
