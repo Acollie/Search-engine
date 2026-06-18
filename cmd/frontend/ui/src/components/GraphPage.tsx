@@ -60,14 +60,19 @@ export default function GraphPage({ onHome }: Props) {
         const w = canvas.width, h = canvas.height
         const maxScore = Math.max(...data.nodes.map(n => n.score), 0.001)
 
-        nodes = data.nodes.map(n => ({
-          ...n,
-          x:  w / 2 + (Math.random() - 0.5) * Math.min(w, h) * 0.5,
-          y:  h / 2 + (Math.random() - 0.5) * Math.min(w, h) * 0.5,
-          vx: (Math.random() - 0.5) * 1.5,
-          vy: (Math.random() - 0.5) * 1.5,
-          r:  3 + (n.score / maxScore) * 8,
-        }))
+        // Spread nodes evenly so they don't start piled on top of each other
+        nodes = data.nodes.map((n, i) => {
+          const angle = (i / data.nodes.length) * Math.PI * 2
+          const spread = Math.min(w, h) * 0.35
+          return {
+            ...n,
+            x:  w / 2 + Math.cos(angle) * spread * (0.5 + Math.random() * 0.5),
+            y:  h / 2 + Math.sin(angle) * spread * (0.5 + Math.random() * 0.5),
+            vx: 0,
+            vy: 0,
+            r:  3 + (n.score / maxScore) * 8,
+          }
+        })
         edges = data.edges || []
         setInfo({ nodes: nodes.length, edges: edges.length })
         setStatus('ok')
@@ -83,18 +88,18 @@ export default function GraphPage({ onHome }: Props) {
         const n = nodes[i]
         if (n === drag) continue
 
-        // Center gravity (gentle)
-        n.vx += (w / 2 - n.x) * 0.0008
-        n.vy += (h / 2 - n.y) * 0.0008
+        // Center gravity
+        n.vx += (w / 2 - n.x) * 0.002
+        n.vy += (h / 2 - n.y) * 0.002
 
-        // Repulsion between every pair
+        // Repulsion — scaled down so cumulative force stays bounded with 100 nodes
         for (let j = i + 1; j < nodes.length; j++) {
-          const m = nodes[j]
+          const m  = nodes[j]
           const dx = n.x - m.x
           const dy = n.y - m.y
-          const d2 = dx * dx + dy * dy || 1
+          const d2 = Math.max(dx * dx + dy * dy, 100) // floor at 10px to avoid explosion
           const d  = Math.sqrt(d2)
-          const f  = 800 / d2
+          const f  = 250 / d2
           const fx = (dx / d) * f
           const fy = (dy / d) * f
           n.vx += fx;  n.vy += fy
@@ -110,29 +115,29 @@ export default function GraphPage({ onHome }: Props) {
         const dx   = tgt.x - src.x
         const dy   = tgt.y - src.y
         const d    = Math.sqrt(dx * dx + dy * dy) || 1
-        const rest = 110
-        const f    = (d - rest) * 0.012
+        const rest = 90
+        const f    = (d - rest) * 0.008
         const fx   = (dx / d) * f
         const fy   = (dy / d) * f
         if (src !== drag) { src.vx += fx; src.vy += fy }
         if (tgt !== drag) { tgt.vx -= fx; tgt.vy -= fy }
       }
 
-      // Integrate, damp, bounce
+      // Integrate, damp, bounce — clamp speed so nothing flies off screen
+      const maxSpeed = 6
       for (const n of nodes) {
         if (n === drag) continue
-        // very subtle jitter so the graph stays gently alive when settled
-        n.vx += (Math.random() - 0.5) * 0.015
-        n.vy += (Math.random() - 0.5) * 0.015
-        n.vx *= 0.90
-        n.vy *= 0.90
+        n.vx *= 0.78
+        n.vy *= 0.78
+        const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy)
+        if (speed > maxSpeed) { n.vx = n.vx / speed * maxSpeed; n.vy = n.vy / speed * maxSpeed }
         n.x  += n.vx
         n.y  += n.vy
         const pad = n.r + 4
-        if (n.x < pad)       { n.x = pad;       n.vx *= -0.82 }
-        if (n.x > w - pad)   { n.x = w - pad;   n.vx *= -0.82 }
-        if (n.y < pad)       { n.y = pad;        n.vy *= -0.82 }
-        if (n.y > h - pad)   { n.y = h - pad;   n.vy *= -0.82 }
+        if (n.x < pad)     { n.x = pad;     n.vx *= -0.4 }
+        if (n.x > w - pad) { n.x = w - pad; n.vx *= -0.4 }
+        if (n.y < pad)     { n.y = pad;     n.vy *= -0.4 }
+        if (n.y > h - pad) { n.y = h - pad; n.vy *= -0.4 }
       }
     }
 
