@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/lib/pq"
 )
 
 type GraphNode struct {
@@ -46,13 +48,16 @@ func (h *GraphHandler) Handle(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
+	// Include all indexable pages, not just those with PageRank scores.
+	// Pages with scores sort first; remainder ordered by recency.
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT sp.id::text, sp.url,
 			COALESCE(NULLIF(TRIM(sp.title), ''), sp.url),
-			pr.score
+			COALESCE(pr.score, 0.0) as score
 		FROM seenpages sp
-		JOIN pagerankresults pr ON sp.id = pr.page_id AND pr.is_latest = true
-		ORDER BY pr.score DESC
+		LEFT JOIN pagerankresults pr ON sp.id = pr.page_id AND pr.is_latest = true
+		WHERE sp.is_indexable = true AND sp.links != ''
+		ORDER BY COALESCE(pr.score, 0.0) DESC, sp.crawl_time DESC
 		LIMIT $1
 	`, n)
 	if err != nil {
@@ -77,16 +82,22 @@ func (h *GraphHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build a set of node IDs to filter edges to only those within the returned set.
+	nodeIDs := make([]string, len(nodes))
+	for i, n := range nodes {
+		nodeIDs[i] = n.ID
+	}
+
 	edgeRows, err := h.db.QueryContext(ctx, `
 		SELECT DISTINCT src.id::text, tgt.id::text
 		FROM seenpages src
-		JOIN pagerankresults pr_src ON src.id = pr_src.page_id AND pr_src.is_latest = true
 		CROSS JOIN LATERAL unnest(string_to_array(src.links, '------')) AS link_url
 		JOIN seenpages tgt ON tgt.url = link_url
-		JOIN pagerankresults pr_tgt ON tgt.id = pr_tgt.page_id AND pr_tgt.is_latest = true
-		WHERE src.id != tgt.id
+		WHERE src.id::text = ANY($1)
+		  AND tgt.id::text = ANY($1)
+		  AND src.id != tgt.id
 		LIMIT 2000
-	`)
+	`, pq.Array(nodeIDs))
 	if err != nil {
 		slog.Error("graph: failed to query edges", slog.Any("error", err))
 		json.NewEncoder(w).Encode(GraphResponse{Nodes: nodes, Edges: []GraphEdge{}}) //nolint:errcheck

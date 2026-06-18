@@ -64,9 +64,9 @@ export default function GraphPage({ onHome }: Props) {
           ...n,
           x:  w / 2 + (Math.random() - 0.5) * Math.min(w, h) * 0.5,
           y:  h / 2 + (Math.random() - 0.5) * Math.min(w, h) * 0.5,
-          vx: (Math.random() - 0.5) * 6,
-          vy: (Math.random() - 0.5) * 6,
-          r:  7 + (n.score / maxScore) * 20,
+          vx: (Math.random() - 0.5) * 1.5,
+          vy: (Math.random() - 0.5) * 1.5,
+          r:  3 + (n.score / maxScore) * 8,
         }))
         edges = data.edges || []
         setInfo({ nodes: nodes.length, edges: edges.length })
@@ -94,7 +94,7 @@ export default function GraphPage({ onHome }: Props) {
           const dy = n.y - m.y
           const d2 = dx * dx + dy * dy || 1
           const d  = Math.sqrt(d2)
-          const f  = 1400 / d2
+          const f  = 800 / d2
           const fx = (dx / d) * f
           const fy = (dy / d) * f
           n.vx += fx;  n.vy += fy
@@ -121,11 +121,11 @@ export default function GraphPage({ onHome }: Props) {
       // Integrate, damp, bounce
       for (const n of nodes) {
         if (n === drag) continue
-        // permanent tiny jitter = always a little alive
-        n.vx += (Math.random() - 0.5) * 0.1
-        n.vy += (Math.random() - 0.5) * 0.1
-        n.vx *= 0.87
-        n.vy *= 0.87
+        // very subtle jitter so the graph stays gently alive when settled
+        n.vx += (Math.random() - 0.5) * 0.015
+        n.vy += (Math.random() - 0.5) * 0.015
+        n.vx *= 0.90
+        n.vy *= 0.90
         n.x  += n.vx
         n.y  += n.vy
         const pad = n.r + 4
