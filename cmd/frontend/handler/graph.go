@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 )
@@ -46,12 +48,13 @@ func (h *GraphHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ctx := r.Context()
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
+	defer cancel()
 
 	// Include all indexable pages, not just those with PageRank scores.
 	// Pages with scores sort first; remainder ordered by recency.
 	rows, err := h.db.QueryContext(ctx, `
-		SELECT sp.id::text, sp.url,
+		SELECT sp.id, sp.url,
 			COALESCE(NULLIF(TRIM(sp.title), ''), sp.url),
 			COALESCE(pr.score, 0.0) as score
 		FROM seenpages sp
@@ -68,13 +71,17 @@ func (h *GraphHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	nodes := []GraphNode{}
+	rawIDs := []int64{}
 	for rows.Next() {
 		var node GraphNode
-		if err := rows.Scan(&node.ID, &node.URL, &node.Title, &node.Score); err != nil {
+		var rawID int64
+		if err := rows.Scan(&rawID, &node.URL, &node.Title, &node.Score); err != nil {
 			continue
 		}
+		node.ID = strconv.FormatInt(rawID, 10)
 		node.Title = strings.ToValidUTF8(node.Title, "")
 		nodes = append(nodes, node)
+		rawIDs = append(rawIDs, rawID)
 	}
 
 	if len(nodes) == 0 {
@@ -82,22 +89,17 @@ func (h *GraphHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build a set of node IDs to filter edges to only those within the returned set.
-	nodeIDs := make([]string, len(nodes))
-	for i, n := range nodes {
-		nodeIDs[i] = n.ID
-	}
-
+	// Use integer IDs so PostgreSQL can use the primary key index (text cast prevents it).
 	edgeRows, err := h.db.QueryContext(ctx, `
 		SELECT DISTINCT src.id::text, tgt.id::text
 		FROM seenpages src
 		CROSS JOIN LATERAL unnest(string_to_array(src.links, '------')) AS link_url
 		JOIN seenpages tgt ON tgt.url = link_url
-		WHERE src.id::text = ANY($1)
-		  AND tgt.id::text = ANY($1)
+		WHERE src.id = ANY($1)
+		  AND tgt.id = ANY($1)
 		  AND src.id != tgt.id
 		LIMIT 2000
-	`, pq.Array(nodeIDs))
+	`, pq.Array(rawIDs))
 	if err != nil {
 		slog.Error("graph: failed to query edges", slog.Any("error", err))
 		json.NewEncoder(w).Encode(GraphResponse{Nodes: nodes, Edges: []GraphEdge{}}) //nolint:errcheck
