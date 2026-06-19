@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lib/pq"
@@ -30,12 +31,19 @@ type GraphResponse struct {
 	Edges []GraphEdge `json:"edges"`
 }
 
+type cachedGraph struct {
+	payload   []byte
+	expiresAt time.Time
+}
+
 type GraphHandler struct {
-	db *sql.DB
+	db    *sql.DB
+	mu    sync.Mutex
+	cache map[int]cachedGraph
 }
 
 func NewGraphHandler(db *sql.DB) *GraphHandler {
-	return &GraphHandler{db: db}
+	return &GraphHandler{db: db, cache: make(map[int]cachedGraph)}
 }
 
 func (h *GraphHandler) Handle(w http.ResponseWriter, r *http.Request) {
@@ -48,11 +56,19 @@ func (h *GraphHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Serve from cache if still fresh.
+	h.mu.Lock()
+	if entry, ok := h.cache[n]; ok && time.Now().Before(entry.expiresAt) {
+		payload := entry.payload
+		h.mu.Unlock()
+		w.Write(payload) //nolint:errcheck
+		return
+	}
+	h.mu.Unlock()
+
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
 
-	// Include all indexable pages, not just those with PageRank scores.
-	// Pages with scores sort first; remainder ordered by recency.
 	rows, err := h.db.QueryContext(ctx, `
 		SELECT sp.id, sp.url,
 			COALESCE(NULLIF(TRIM(sp.title), ''), sp.url),
@@ -89,7 +105,7 @@ func (h *GraphHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Use integer IDs so PostgreSQL can use the primary key index (text cast prevents it).
+	// Integer IDs allow the PK index to be used (text cast would force a seq scan).
 	edgeRows, err := h.db.QueryContext(ctx, `
 		SELECT DISTINCT src.id::text, tgt.id::text
 		FROM seenpages src
@@ -116,5 +132,16 @@ func (h *GraphHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		edges = append(edges, e)
 	}
 
-	json.NewEncoder(w).Encode(GraphResponse{Nodes: nodes, Edges: edges}) //nolint:errcheck
+	payload, err := json.Marshal(GraphResponse{Nodes: nodes, Edges: edges})
+	if err != nil {
+		slog.Error("graph: failed to marshal response", slog.Any("error", err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	h.mu.Lock()
+	h.cache[n] = cachedGraph{payload: payload, expiresAt: time.Now().Add(5 * time.Minute)}
+	h.mu.Unlock()
+
+	w.Write(payload) //nolint:errcheck
 }
