@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 
 interface RawNode {
   id: string
@@ -13,304 +15,378 @@ interface RawEdge {
 }
 
 interface PhysNode extends RawNode {
-  x: number
-  y: number
-  vx: number
-  vy: number
+  x: number; y: number; z: number
+  vx: number; vy: number; vz: number
   r: number
+  sprite: THREE.Sprite
+  light: THREE.PointLight
 }
 
 interface Props {
   onHome: () => void
 }
 
-const GREEN       = '#33ff33'
-const GREEN_BRIGHT = '#66ff66'
-const GREEN_DIM   = '#1a7a1a'
-const BG          = '#030c03'
+const GREEN     = 0x33ff33
+const GREEN_CSS = '#33ff33'
+const GREEN_DIM = '#1a7a1a'
+const BG        = '#030c03'
+
+function makeGlowTexture(color: string): THREE.CanvasTexture {
+  const size = 128
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  const mid = size / 2
+  const grad = ctx.createRadialGradient(mid, mid, 0, mid, mid, mid)
+  grad.addColorStop(0,   color)
+  grad.addColorStop(0.3, color)
+  grad.addColorStop(0.7, 'rgba(51,255,51,0.15)')
+  grad.addColorStop(1,   'transparent')
+  ctx.fillStyle = grad
+  ctx.fillRect(0, 0, size, size)
+  return new THREE.CanvasTexture(canvas)
+}
 
 export default function GraphPage({ onHome }: Props) {
-  const canvasRef  = useRef<HTMLCanvasElement>(null)
-  const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading')
-  const [info, setInfo]     = useState({ nodes: 0, edges: 0 })
+  const mountRef  = useRef<HTMLDivElement>(null)
+  const [status, setStatus]     = useState<'loading' | 'ok' | 'error'>('loading')
+  const [info, setInfo]         = useState({ nodes: 0, edges: 0 })
+  const [tooltip, setTooltip]   = useState<{ title: string; x: number; y: number } | null>(null)
+  const [n, setN]               = useState(100)   // committed value — triggers refetch
+  const [displayN, setDisplayN] = useState(100)   // live label while dragging
 
   useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')!
+    const mount = mountRef.current
+    if (!mount) return
 
-    let animId  = 0
+    setStatus('loading')
+    setInfo({ nodes: 0, edges: 0 })
+    setTooltip(null)
+
+    const w = mount.clientWidth, h = mount.clientHeight
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false })
+    renderer.setPixelRatio(window.devicePixelRatio)
+    renderer.setSize(w, h)
+    renderer.setClearColor(0x030c03, 1)
+    mount.appendChild(renderer.domElement)
+
+    const scene  = new THREE.Scene()
+    const camera = new THREE.PerspectiveCamera(60, w / h, 0.1, 2000)
+    camera.position.set(0, 0, 280)
+
+    const controls          = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping  = true
+    controls.dampingFactor  = 0.08
+    controls.autoRotate     = true
+    controls.autoRotateSpeed = 0.4
+    controls.minDistance    = 80
+    controls.maxDistance    = 600
+
+    scene.add(new THREE.AmbientLight(0x001a00, 2))
+    const centreLight = new THREE.PointLight(0x33ff33, 1.2, 600)
+    scene.add(centreLight)
+
+    const glowTexture = makeGlowTexture('rgba(51,255,51,0.9)')
+    const dimTexture  = makeGlowTexture('rgba(10,60,10,0.7)')
+
     let nodes: PhysNode[]  = []
     let edges: RawEdge[]   = []
-    let drag: PhysNode | null = null
-    let hover: PhysNode | null = null
+    let edgeObjects: { line: THREE.Line; src: string; tgt: string }[] = []
+    let hoveredNode: PhysNode | null  = null
+    let hoverNeighbours = new Set<string>()
+    let animId = 0
 
-    // ── resize ────────────────────────────────────────
-    const resize = () => {
-      canvas.width  = window.innerWidth
-      canvas.height = window.innerHeight
-    }
-    resize()
-    window.addEventListener('resize', resize)
-
-    // ── load ─────────────────────────────────────────
-    fetch('/api/graph?n=100')
+    fetch(`/api/graph?n=${n}`)
       .then(r => r.json())
-      .then((data: { nodes: RawNode[], edges: RawEdge[] }) => {
-        const w = canvas.width, h = canvas.height
-        const maxScore = Math.max(...data.nodes.map(n => n.score), 0.001)
+      .then((data: { nodes: RawNode[]; edges: RawEdge[] }) => {
+        const maxScore = Math.max(...data.nodes.map(nd => nd.score), 0.001)
+        const spread   = 120
 
-        // Spread nodes evenly so they don't start piled on top of each other
-        nodes = data.nodes.map((n, i) => {
-          const angle = (i / data.nodes.length) * Math.PI * 2
-          const spread = Math.min(w, h) * 0.35
-          return {
-            ...n,
-            x:  w / 2 + Math.cos(angle) * spread * (0.5 + Math.random() * 0.5),
-            y:  h / 2 + Math.sin(angle) * spread * (0.5 + Math.random() * 0.5),
-            vx: 0,
-            vy: 0,
-            r:  3 + (n.score / maxScore) * 8,
-          }
+        nodes = data.nodes.map((nd, i) => {
+          const phi   = Math.acos(-1 + (2 * i) / data.nodes.length)
+          const theta = Math.sqrt(data.nodes.length * Math.PI) * phi
+          const r     = 3 + (nd.score / maxScore) * 9
+          const pos   = new THREE.Vector3(
+            spread * 0.5 * Math.sin(phi) * Math.cos(theta) + (Math.random() - 0.5) * 30,
+            spread * 0.5 * Math.sin(phi) * Math.sin(theta) + (Math.random() - 0.5) * 30,
+            spread * 0.5 * Math.cos(phi)                   + (Math.random() - 0.5) * 30,
+          )
+
+          const spriteMat = new THREE.SpriteMaterial({
+            map: glowTexture, color: GREEN,
+            transparent: true, opacity: 1,
+            blending: THREE.AdditiveBlending, depthWrite: false,
+          })
+          const sprite = new THREE.Sprite(spriteMat)
+          sprite.scale.setScalar(r * 3.5)
+          sprite.position.copy(pos)
+          scene.add(sprite)
+
+          const light = new THREE.PointLight(GREEN, 0.15, r * 12)
+          light.position.copy(pos)
+          scene.add(light)
+
+          return { ...nd, x: pos.x, y: pos.y, z: pos.z, vx: 0, vy: 0, vz: 0, r, sprite, light }
         })
+
         edges = data.edges || []
+
+        for (const e of edges) {
+          const src = nodes.find(nd => nd.id === e.source)
+          const tgt = nodes.find(nd => nd.id === e.target)
+          if (!src || !tgt) continue
+          const geo  = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(src.x, src.y, src.z),
+            new THREE.Vector3(tgt.x, tgt.y, tgt.z),
+          ])
+          const mat = new THREE.LineBasicMaterial({
+            color: GREEN, transparent: true, opacity: 0.10,
+            blending: THREE.AdditiveBlending, depthWrite: false,
+          })
+          const line = new THREE.Line(geo, mat)
+          scene.add(line)
+          edgeObjects.push({ line, src: e.source, tgt: e.target })
+        }
+
         setInfo({ nodes: nodes.length, edges: edges.length })
         setStatus('ok')
       })
       .catch(() => setStatus('error'))
 
-    // ── physics tick ──────────────────────────────────
+    // ── Physics ───────────────────────────────────────────────
     const tick = () => {
-      const w = canvas.width, h = canvas.height
-      const map = new Map(nodes.map(n => [n.id, n]))
+      const nodeMap = new Map(nodes.map(nd => [nd.id, nd]))
 
       for (let i = 0; i < nodes.length; i++) {
-        const n = nodes[i]
-        if (n === drag) continue
+        const a = nodes[i]
+        a.vx -= a.x * 0.002; a.vy -= a.y * 0.002; a.vz -= a.z * 0.002
 
-        // Center gravity
-        n.vx += (w / 2 - n.x) * 0.002
-        n.vy += (h / 2 - n.y) * 0.002
-
-        // Repulsion — scaled down so cumulative force stays bounded with 100 nodes
         for (let j = i + 1; j < nodes.length; j++) {
-          const m  = nodes[j]
-          const dx = n.x - m.x
-          const dy = n.y - m.y
-          const d2 = Math.max(dx * dx + dy * dy, 100) // floor at 10px to avoid explosion
+          const b  = nodes[j]
+          const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z
+          const d2 = Math.max(dx*dx + dy*dy + dz*dz, 100)
           const d  = Math.sqrt(d2)
-          const f  = 250 / d2
-          const fx = (dx / d) * f
-          const fy = (dy / d) * f
-          n.vx += fx;  n.vy += fy
-          m.vx -= fx;  m.vy -= fy
+          const f  = 220 / d2
+          const fx = (dx/d)*f, fy = (dy/d)*f, fz = (dz/d)*f
+          a.vx += fx; a.vy += fy; a.vz += fz
+          b.vx -= fx; b.vy -= fy; b.vz -= fz
         }
       }
 
-      // Spring force along edges
       for (const e of edges) {
-        const src = map.get(e.source)
-        const tgt = map.get(e.target)
+        const src = nodeMap.get(e.source), tgt = nodeMap.get(e.target)
         if (!src || !tgt) continue
-        const dx   = tgt.x - src.x
-        const dy   = tgt.y - src.y
-        const d    = Math.sqrt(dx * dx + dy * dy) || 1
-        const rest = 90
-        const f    = (d - rest) * 0.008
-        const fx   = (dx / d) * f
-        const fy   = (dy / d) * f
-        if (src !== drag) { src.vx += fx; src.vy += fy }
-        if (tgt !== drag) { tgt.vx -= fx; tgt.vy -= fy }
+        const dx = tgt.x - src.x, dy = tgt.y - src.y, dz = tgt.z - src.z
+        const d  = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1
+        const f  = (d - 70) * 0.006
+        const fx = (dx/d)*f, fy = (dy/d)*f, fz = (dz/d)*f
+        src.vx += fx; src.vy += fy; src.vz += fz
+        tgt.vx -= fx; tgt.vy -= fy; tgt.vz -= fz
       }
 
-      // Integrate, damp, bounce — clamp speed so nothing flies off screen
-      const maxSpeed = 6
-      for (const n of nodes) {
-        if (n === drag) continue
-        n.vx *= 0.78
-        n.vy *= 0.78
-        const speed = Math.sqrt(n.vx * n.vx + n.vy * n.vy)
-        if (speed > maxSpeed) { n.vx = n.vx / speed * maxSpeed; n.vy = n.vy / speed * maxSpeed }
-        n.x  += n.vx
-        n.y  += n.vy
-        const pad = n.r + 4
-        if (n.x < pad)     { n.x = pad;     n.vx *= -0.4 }
-        if (n.x > w - pad) { n.x = w - pad; n.vx *= -0.4 }
-        if (n.y < pad)     { n.y = pad;     n.vy *= -0.4 }
-        if (n.y > h - pad) { n.y = h - pad; n.vy *= -0.4 }
+      const maxSpeed = 5
+      for (const nd of nodes) {
+        nd.vx *= 0.80; nd.vy *= 0.80; nd.vz *= 0.80
+        const spd = Math.sqrt(nd.vx*nd.vx + nd.vy*nd.vy + nd.vz*nd.vz)
+        if (spd > maxSpeed) { nd.vx = nd.vx/spd*maxSpeed; nd.vy = nd.vy/spd*maxSpeed; nd.vz = nd.vz/spd*maxSpeed }
+        nd.x += nd.vx; nd.y += nd.vy; nd.z += nd.vz
+        nd.sprite.position.set(nd.x, nd.y, nd.z)
+        nd.light.position.set(nd.x, nd.y, nd.z)
+      }
+
+      const pos = new Float32Array(6)
+      for (const { line, src, tgt } of edgeObjects) {
+        const s = nodeMap.get(src), t = nodeMap.get(tgt)
+        if (!s || !t) continue
+        pos[0] = s.x; pos[1] = s.y; pos[2] = s.z
+        pos[3] = t.x; pos[4] = t.y; pos[5] = t.z
+        line.geometry.setAttribute('position', new THREE.BufferAttribute(pos.slice(), 3))
+        line.geometry.attributes.position.needsUpdate = true
       }
     }
 
-    // ── draw ─────────────────────────────────────────
-    const draw = () => {
-      const w = canvas.width, h = canvas.height
-      ctx.clearRect(0, 0, w, h)
-      ctx.fillStyle = BG
-      ctx.fillRect(0, 0, w, h)
+    // ── Raycasting ────────────────────────────────────────────
+    const raycaster = new THREE.Raycaster()
+    raycaster.params.Sprite = { threshold: 4 }
+    const mouse = new THREE.Vector2()
 
-      const map = new Map(nodes.map(n => [n.id, n]))
+    const updateHover = (mx: number, my: number) => {
+      const rect = renderer.domElement.getBoundingClientRect()
+      mouse.x =  ((mx - rect.left) / rect.width)  * 2 - 1
+      mouse.y = -((my - rect.top)  / rect.height) * 2 + 1
+      raycaster.setFromCamera(mouse, camera)
 
-      // Identify hover neighbours for highlighting
-      const neighbourSet = new Set<string>()
-      if (hover) {
-        for (const e of edges) {
-          if (e.source === hover.id) neighbourSet.add(e.target)
-          if (e.target === hover.id) neighbourSet.add(e.source)
+      const hits = raycaster.intersectObjects(nodes.map(nd => nd.sprite))
+      const found = hits.length > 0
+        ? (nodes.find(nd => nd.sprite === hits[0].object) ?? null)
+        : null
+
+      if (found !== hoveredNode) {
+        hoveredNode = found
+        hoverNeighbours = new Set<string>()
+        if (found) {
+          for (const e of edges) {
+            if (e.source === found.id) hoverNeighbours.add(e.target)
+            if (e.target === found.id) hoverNeighbours.add(e.source)
+          }
         }
       }
 
-      // Edges
-      for (const e of edges) {
-        const src = map.get(e.source)
-        const tgt = map.get(e.target)
-        if (!src || !tgt) continue
-        const isActive = hover && (e.source === hover.id || e.target === hover.id)
-        ctx.beginPath()
-        ctx.moveTo(src.x, src.y)
-        ctx.lineTo(tgt.x, tgt.y)
-        ctx.strokeStyle = isActive ? 'rgba(102,255,102,0.45)' : 'rgba(51,255,51,0.10)'
-        ctx.lineWidth   = isActive ? 1.5 : 0.8
-        ctx.stroke()
+      renderer.domElement.style.cursor = found ? 'pointer' : 'default'
+
+      if (found) {
+        const proj = found.sprite.position.clone().project(camera)
+        const rect2 = renderer.domElement.getBoundingClientRect()
+        setTooltip({
+          title: found.title.length > 52 ? found.title.slice(0, 52) + '…' : found.title,
+          x: (proj.x + 1) / 2 * rect2.width  + rect2.left,
+          y: -(proj.y - 1) / 2 * rect2.height + rect2.top,
+        })
+      } else {
+        setTooltip(null)
       }
 
-      // Nodes
-      for (const n of nodes) {
-        const isHover  = n === hover
-        const isNeigh  = neighbourSet.has(n.id)
-        const dimmed   = hover && !isHover && !isNeigh
-        const r        = isHover ? n.r * 1.35 : isNeigh ? n.r * 1.1 : n.r
-        const alpha    = dimmed ? 0.25 : 1
-
-        ctx.globalAlpha = alpha
-
-        // Outer glow
-        const glowR = r * 3
-        const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, glowR)
-        grd.addColorStop(0, isHover ? 'rgba(102,255,102,0.5)' : 'rgba(51,255,51,0.22)')
-        grd.addColorStop(1, 'transparent')
-        ctx.beginPath()
-        ctx.arc(n.x, n.y, glowR, 0, Math.PI * 2)
-        ctx.fillStyle = grd
-        ctx.fill()
-
-        // Core
-        ctx.beginPath()
-        ctx.arc(n.x, n.y, r, 0, Math.PI * 2)
-        ctx.fillStyle = isHover ? GREEN_BRIGHT : isNeigh ? '#4dff4d' : GREEN
-        ctx.fill()
-
-        ctx.globalAlpha = 1
+      for (const nd of nodes) {
+        const mat = nd.sprite.material as THREE.SpriteMaterial
+        if (!hoveredNode) {
+          mat.map = glowTexture; mat.opacity = 1; mat.color.setHex(GREEN)
+          nd.light.intensity = 0.15
+        } else if (nd === hoveredNode) {
+          mat.map = glowTexture; mat.opacity = 1; mat.color.set(0x99ff99)
+          nd.light.intensity = 0.4
+        } else if (hoverNeighbours.has(nd.id)) {
+          mat.map = glowTexture; mat.opacity = 0.9; mat.color.set(0x55ff55)
+          nd.light.intensity = 0.2
+        } else {
+          mat.map = dimTexture; mat.opacity = 0.25; mat.color.setHex(GREEN)
+          nd.light.intensity = 0.02
+        }
+        mat.needsUpdate = true
       }
 
-      // Label for hovered node
-      if (hover) {
-        const label = hover.title.length > 42
-          ? hover.title.slice(0, 42) + '…'
-          : hover.title
-        const px = Math.min(Math.max(hover.x, 180), w - 180)
-        const py = hover.y - hover.r * 1.4 - 8
-        ctx.font      = '13px "Share Tech Mono", "Courier New", monospace'
-        ctx.textAlign = 'center'
-        ctx.fillStyle = GREEN_DIM
-        ctx.fillText(label, px, py)
-        ctx.fillStyle = GREEN_BRIGHT
-        ctx.shadowColor  = GREEN
-        ctx.shadowBlur   = 8
-        ctx.fillText(label, px, py)
-        ctx.shadowBlur = 0
+      for (const { line, src, tgt } of edgeObjects) {
+        const mat = line.material as THREE.LineBasicMaterial
+        if (!hoveredNode) {
+          mat.opacity = 0.10; mat.color.setHex(GREEN)
+        } else if (src === hoveredNode.id || tgt === hoveredNode.id) {
+          mat.opacity = 0.65; mat.color.set(0x66ff66)
+        } else {
+          mat.opacity = 0.04; mat.color.setHex(GREEN)
+        }
+        mat.needsUpdate = true
       }
     }
+
+    const onMouseMove = (e: MouseEvent) => updateHover(e.clientX, e.clientY)
+    const onClick = (e: MouseEvent) => {
+      const rect = renderer.domElement.getBoundingClientRect()
+      mouse.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1
+      mouse.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1
+      raycaster.setFromCamera(mouse, camera)
+      const hits = raycaster.intersectObjects(nodes.map(nd => nd.sprite))
+      if (hits.length > 0) {
+        const found = nodes.find(nd => nd.sprite === hits[0].object)
+        if (found) window.open(found.url, '_blank', 'noopener,noreferrer')
+      }
+    }
+
+    renderer.domElement.addEventListener('mousemove', onMouseMove)
+    renderer.domElement.addEventListener('click',     onClick)
+
+    const onResize = () => {
+      const nw = mount.clientWidth, nh = mount.clientHeight
+      camera.aspect = nw / nh
+      camera.updateProjectionMatrix()
+      renderer.setSize(nw, nh)
+    }
+    window.addEventListener('resize', onResize)
 
     const loop = () => {
-      tick()
-      draw()
       animId = requestAnimationFrame(loop)
+      tick()
+      controls.update()
+      renderer.render(scene, camera)
     }
     animId = requestAnimationFrame(loop)
 
-    // ── interaction ───────────────────────────────────
-    const hitTest = (mx: number, my: number) => {
-      for (let i = nodes.length - 1; i >= 0; i--) {
-        const n = nodes[i]
-        const dx = n.x - mx, dy = n.y - my
-        if (Math.sqrt(dx * dx + dy * dy) <= n.r + 6) return n
-      }
-      return null
-    }
-
-    const onMove = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect()
-      const mx = e.clientX - rect.left
-      const my = e.clientY - rect.top
-      if (drag) {
-        drag.vx  = (mx - drag.x) * 0.6
-        drag.vy  = (my - drag.y) * 0.6
-        drag.x   = mx
-        drag.y   = my
-      } else {
-        hover = hitTest(mx, my)
-        canvas.style.cursor = hover ? 'pointer' : 'default'
-      }
-    }
-
-    const onDown = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect()
-      drag = hitTest(e.clientX - rect.left, e.clientY - rect.top)
-    }
-
-    const onUp = (e: MouseEvent) => {
-      if (drag) {
-        // fling on release
-        drag.vx = (e.movementX || 0) * 0.8
-        drag.vy = (e.movementY || 0) * 0.8
-        drag = null
-      }
-    }
-
-    const onClick = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect()
-      const n = hitTest(e.clientX - rect.left, e.clientY - rect.top)
-      if (n) window.open(n.url, '_blank', 'noopener,noreferrer')
-    }
-
-    canvas.addEventListener('mousemove', onMove)
-    canvas.addEventListener('mousedown', onDown)
-    canvas.addEventListener('mouseup',   onUp)
-    canvas.addEventListener('click',     onClick)
-
     return () => {
       cancelAnimationFrame(animId)
-      window.removeEventListener('resize', resize)
-      canvas.removeEventListener('mousemove', onMove)
-      canvas.removeEventListener('mousedown', onDown)
-      canvas.removeEventListener('mouseup',   onUp)
-      canvas.removeEventListener('click',     onClick)
+      window.removeEventListener('resize', onResize)
+      renderer.domElement.removeEventListener('mousemove', onMouseMove)
+      renderer.domElement.removeEventListener('click',     onClick)
+      controls.dispose()
+      // Dispose all Three.js objects
+      for (const nd of nodes) {
+        ;(nd.sprite.material as THREE.SpriteMaterial).dispose()
+        nd.sprite.geometry.dispose()
+      }
+      for (const { line } of edgeObjects) {
+        ;(line.material as THREE.Material).dispose()
+        line.geometry.dispose()
+      }
+      glowTexture.dispose()
+      dimTexture.dispose()
+      renderer.dispose()
+      if (mount.contains(renderer.domElement)) mount.removeChild(renderer.domElement)
     }
-  }, [])
+  }, [n]) // re-run when node count changes
+
+  const commitN = (val: number) => { setN(val); setDisplayN(val) }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: BG, overflow: 'hidden' }}>
-      <canvas
-        ref={canvasRef}
-        style={{ display: 'block', width: '100%', height: '100%' }}
-      />
+      <div ref={mountRef} style={{ width: '100%', height: '100%' }} />
 
       {/* Top bar */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0,
-        padding: '14px 20px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '12px 20px',
+        display: 'flex', alignItems: 'center', gap: '20px',
         background: 'linear-gradient(to bottom, rgba(3,12,3,0.92) 60%, transparent)',
         pointerEvents: 'none',
       }}>
-        <div style={{ color: GREEN_DIM, fontSize: '0.72em', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-          <span style={{ color: GREEN, textShadow: `0 0 6px ${GREEN}` }}>■</span>
-          &ensp;LINK GRAPH&ensp;//&ensp;{info.nodes} NODES&ensp;{info.edges} EDGES
+        {/* Title + stats */}
+        <div style={{ color: GREEN_DIM, fontSize: '0.72em', letterSpacing: '0.2em', textTransform: 'uppercase', flexShrink: 0 }}>
+          <span style={{ color: GREEN_CSS, textShadow: `0 0 6px ${GREEN_CSS}` }}>■</span>
+          &ensp;LINK GRAPH 3D&ensp;//&ensp;{info.nodes} NODES&ensp;{info.edges} EDGES
         </div>
+
+        {/* Slider */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '10px',
+          pointerEvents: 'all', flex: 1, maxWidth: 280,
+        }}>
+          <span style={{ color: GREEN_DIM, fontSize: '0.65em', letterSpacing: '0.15em', flexShrink: 0 }}>N:</span>
+          <input
+            type="range"
+            min={2} max={300} step={1}
+            value={displayN}
+            onChange={e => setDisplayN(Number(e.target.value))}
+            onMouseUp={e  => commitN(Number((e.target as HTMLInputElement).value))}
+            onTouchEnd={e => commitN(Number((e.currentTarget as HTMLInputElement).value))}
+            style={{
+              flex: 1,
+              WebkitAppearance: 'none',
+              appearance: 'none',
+              height: '2px',
+              background: `linear-gradient(to right, ${GREEN_CSS} 0%, ${GREEN_CSS} ${((displayN - 2) / 298) * 100}%, rgba(51,255,51,0.2) ${((displayN - 2) / 298) * 100}%, rgba(51,255,51,0.2) 100%)`,
+              outline: 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          />
+          <span style={{ color: GREEN_CSS, fontSize: '0.68em', letterSpacing: '0.1em', minWidth: '3ch', textAlign: 'right', textShadow: `0 0 4px ${GREEN_CSS}` }}>
+            {displayN}
+          </span>
+        </div>
+
+        <div style={{ flex: 1 }} />
+
         <button
           className="crt-btn"
           onClick={onHome}
-          style={{ pointerEvents: 'all', fontSize: '0.72em' }}
+          style={{ pointerEvents: 'all', fontSize: '0.72em', flexShrink: 0 }}
         >
           ← BACK
         </button>
@@ -323,7 +399,25 @@ export default function GraphPage({ onHome }: Props) {
           color: GREEN_DIM, fontSize: '0.68em', letterSpacing: '0.2em',
           textTransform: 'uppercase', pointerEvents: 'none', whiteSpace: 'nowrap',
         }}>
-          DRAG NODES &nbsp;·&nbsp; CLICK TO OPEN URL &nbsp;·&nbsp; NODE SIZE = PAGERANK SCORE
+          DRAG TO ROTATE &nbsp;·&nbsp; SCROLL TO ZOOM &nbsp;·&nbsp; CLICK NODE TO OPEN
+        </div>
+      )}
+
+      {/* Hover tooltip */}
+      {tooltip && (
+        <div style={{
+          position: 'fixed',
+          left: tooltip.x, top: tooltip.y - 28,
+          transform: 'translateX(-50%)',
+          color: GREEN_CSS,
+          textShadow: `0 0 8px ${GREEN_CSS}`,
+          fontSize: '0.72em', letterSpacing: '0.08em',
+          fontFamily: '"Share Tech Mono", "Courier New", monospace',
+          pointerEvents: 'none', whiteSpace: 'nowrap',
+          background: 'rgba(3,12,3,0.75)',
+          padding: '3px 8px', borderRadius: '2px',
+        }}>
+          {tooltip.title}
         </div>
       )}
 
