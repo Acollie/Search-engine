@@ -36,6 +36,10 @@ type Config struct {
 
 	// Spider service configuration
 	SpiderHost string `env:"SPIDER_HOST" envDefault:"0.0.0.0"`
+
+	// QueueMaxSize is the maximum number of rows allowed in the queue before
+	// new link additions are paused. 0 means no limit.
+	QueueMaxSize int64 `env:"QUEUE_MAX_SIZE" envDefault:"5000000"`
 }
 
 func main() {
@@ -81,7 +85,7 @@ func main() {
 	// Initialize handler
 	spiderClient := spider.NewSpiderClient(grpcConn)
 	adder := site.NewAdder(db)
-	h := handler.New(adder, crawlQueue, spiderClient)
+	h := handler.New(adder, crawlQueue, spiderClient, cfg.QueueMaxSize)
 
 	// Initialize OpenTelemetry
 	if err := bootstrap.Observability(); err != nil {

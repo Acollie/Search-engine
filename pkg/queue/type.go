@@ -17,6 +17,8 @@ type DbiQueue interface {
 	AddLink(ctx context.Context, url string) error
 	AddLinks(ctx context.Context, url []string) error
 	RemoveLink(ctx context.Context, url string) error
+	GetQueueSizeApprox(ctx context.Context) (int64, error)
+	PruneQueue(ctx context.Context, deleteCount int64) error
 }
 
 func New(sql *sql.DB, conn conn.Type) Db {
@@ -91,6 +93,24 @@ func (d Db) RemoveLink(ctx context.Context, url string) error {
 	_, err := d.Sql.ExecContext(ctx, RemoveLink, url)
 	if err != nil {
 		return fmt.Errorf("error removing link: %w", err)
+	}
+	return nil
+}
+
+func (d Db) GetQueueSizeApprox(ctx context.Context) (int64, error) {
+	var size int64
+	if err := d.Sql.QueryRowContext(ctx, QueueSizeApprox).Scan(&size); err != nil {
+		return 0, fmt.Errorf("error getting queue size: %w", err)
+	}
+	return size, nil
+}
+
+func (d Db) PruneQueue(ctx context.Context, deleteCount int64) error {
+	if deleteCount <= 0 {
+		return nil
+	}
+	if _, err := d.Sql.ExecContext(ctx, PruneQueue, deleteCount); err != nil {
+		return fmt.Errorf("error pruning queue: %w", err)
 	}
 	return nil
 }

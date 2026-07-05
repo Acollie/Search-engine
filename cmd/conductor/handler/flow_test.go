@@ -36,6 +36,11 @@ func (m *MockQueueHandler) AddLinks(ctx context.Context, urls []string) error {
 	return args.Error(0)
 }
 
+func (m *MockQueueHandler) GetQueueSizeApprox(ctx context.Context) (int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 // MockSpiderStream is a mock implementation of the Spider_GetSeenListClient stream
 type MockSpiderStream struct {
 	mock.Mock
@@ -99,7 +104,7 @@ func TestNew(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	assert.NotNil(t, h)
 	assert.Equal(t, mockSite, h.siteI)
@@ -112,7 +117,7 @@ func TestProcessPage_Success(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	protoPage := &sitepb.Page{
@@ -156,7 +161,7 @@ func TestProcessPage_DuplicateURL(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	protoPage := &sitepb.Page{
@@ -182,7 +187,7 @@ func TestProcessPage_DatabaseError(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	protoPage := &sitepb.Page{
@@ -205,7 +210,7 @@ func TestProcessPage_QueueError(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	protoPage := &sitepb.Page{
@@ -232,7 +237,7 @@ func TestProcessPage_NoLinks(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	protoPage := &sitepb.Page{
@@ -256,7 +261,7 @@ func TestAddLinksToQueue(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	links := []string{
@@ -288,19 +293,14 @@ func TestAddLinksToQueue_Empty(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
-	links := []string{}
 
-	mockQueue.On("AddLinks", ctx, mock.MatchedBy(func(urls []string) bool {
-		return len(urls) == 0
-	})).Return(nil)
-
-	err := h.addLinksToQueue(ctx, links)
+	err := h.addLinksToQueue(ctx, []string{})
 
 	assert.NoError(t, err)
-	mockQueue.AssertExpectations(t)
+	mockQueue.AssertNotCalled(t, "AddLinks")
 }
 
 func TestIsDuplicateError(t *testing.T) {
@@ -344,7 +344,7 @@ func TestProcessBatch_Success(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	mockStream := NewMockSpiderStream()
@@ -393,7 +393,7 @@ func TestProcessBatch_StreamError(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 
@@ -413,7 +413,7 @@ func TestProcessBatch_SendError(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	mockStream := NewMockSpiderStream()
@@ -436,7 +436,7 @@ func TestProcessBatch_RecvError(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	mockStream := NewMockSpiderStream()
@@ -461,7 +461,7 @@ func TestProcessBatch_ContextCanceled(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
@@ -485,7 +485,7 @@ func TestProcessBatch_WithErrors(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	mockStream := NewMockSpiderStream()
@@ -529,7 +529,7 @@ func TestListen_GracefulShutdown(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -569,7 +569,7 @@ func TestProcessPage_MetadataExtraction(t *testing.T) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(t)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	protoPage := &sitepb.Page{
@@ -602,7 +602,7 @@ func BenchmarkProcessPage(b *testing.B) {
 	mockQueue := &MockQueueHandler{}
 	mockSpider := mockspider.NewMockSpiderClient(b)
 
-	h := New(mockSite, mockQueue, mockSpider)
+	h := New(mockSite, mockQueue, mockSpider, 0)
 
 	ctx := context.Background()
 	protoPage := &sitepb.Page{

@@ -167,14 +167,55 @@ func (h *Handler) processPage(ctx context.Context, protoPage *sitepb.Page) error
 	return nil
 }
 
-// addLinksToQueue adds discovered links to the Postgres queue for future crawling
+const queueSizeCacheTTL = 30 * time.Second
+
+// addLinksToQueue adds discovered links to the Postgres queue for future crawling.
+// It skips the insert entirely when the queue is at or above maxQueueSize.
 func (h *Handler) addLinksToQueue(ctx context.Context, links []string) error {
+	if len(links) == 0 {
+		return nil
+	}
+
+	if h.isQueueFull(ctx) {
+		slog.Info("Queue at capacity, skipping link addition",
+			slog.Int64("maxSize", h.maxQueueSize),
+			slog.Int64("approxSize", h.queueSizeCache))
+		return nil
+	}
+
 	if err := h.queue.AddLinks(ctx, links); err != nil {
 		return err
 	}
 
 	metrics.QueueDepth.Add(float64(len(links)))
 	return nil
+}
+
+// isQueueFull returns true when the approximate queue row count meets or exceeds
+// maxQueueSize. Returns false when maxQueueSize is 0 (no limit).
+// The result is cached for queueSizeCacheTTL to avoid hitting
+// pg_class on every batch. On error it returns false (fail open).
+func (h *Handler) isQueueFull(ctx context.Context) bool {
+	if h.maxQueueSize <= 0 {
+		return false
+	}
+
+	h.queueMu.Lock()
+	defer h.queueMu.Unlock()
+
+	if time.Since(h.queueCachedAt) < queueSizeCacheTTL {
+		return h.queueSizeCache >= h.maxQueueSize
+	}
+
+	size, err := h.queue.GetQueueSizeApprox(ctx)
+	if err != nil {
+		slog.Warn("Failed to get queue size, allowing queue add", slog.Any("error", err))
+		return false
+	}
+
+	h.queueSizeCache = size
+	h.queueCachedAt = time.Now()
+	return size >= h.maxQueueSize
 }
 
 // isDuplicateError checks if the error is due to a duplicate URL constraint

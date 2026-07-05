@@ -102,6 +102,8 @@ spec:
                 configMapKeyRef:
                   name: search-engine-config
                   key: LOG_LEVEL
+            - name: QUEUE_MAX_SIZE
+              value: "5000000"
           resources:
             requests:
               cpu: 150m
