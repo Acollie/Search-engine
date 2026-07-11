@@ -1,15 +1,24 @@
 package fetch
 
 import (
+	"context"
 	"database/sql"
 	"log/slog"
+	"time"
 	"webcrawler/cmd/spider/pkg/site"
 	"webcrawler/pkg/slice"
 )
 
+// fetchTimeout bounds a single random-sample query. Without it, a query
+// stuck on a stalled/half-open connection blocks forever (db.Query has no
+// timeout of its own), which can wedge an entire CronJob run indefinitely.
+const fetchTimeout = 30 * time.Second
+
 const (
 	// PostgreSQL random sampling query
-	// Uses TABLESAMPLE for efficient random sampling on large tables
+	// NOTE: this is ORDER BY RANDOM(), not TABLESAMPLE - it does a full table
+	// sort and gets slower as SeenPages grows. Left as-is (a query rewrite is
+	// a behavior change, not made without sign-off); flagged as a follow-up.
 	randomSampleQuery = `
 		SELECT url, title, body, prominence, links
 		FROM SeenPages
@@ -25,7 +34,10 @@ func Fetch(db *sql.DB, limit int) []*site.Page {
 		return []*site.Page{}
 	}
 
-	rows, err := db.Query(randomSampleQuery, limit)
+	ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
+	defer cancel()
+
+	rows, err := db.QueryContext(ctx, randomSampleQuery, limit)
 	if err != nil {
 		slog.Error("Error fetching random pages", slog.Any("error", err))
 		return []*site.Page{}

@@ -114,13 +114,24 @@ func main() {
 		"https://www.theverge.com/",
 	}
 
-	err = server.Db.Queue.AddLinks(ctx, initialLinks)
-	if err != nil {
+	const seedLinksMaxAttempts = 5
+	for attempt := 1; attempt <= seedLinksMaxAttempts; attempt++ {
+		err = server.Db.Queue.AddLinks(ctx, initialLinks)
+		if err == nil {
+			break
+		}
 		// Ignore duplicate key errors - links may already exist
-		if !strings.Contains(err.Error(), "duplicate key value") {
+		if strings.Contains(err.Error(), "duplicate key value") {
+			slog.Warn("Some initial links already exist in queue", slog.Any("error", err))
+			break
+		}
+		if attempt == seedLinksMaxAttempts {
 			panic(err)
 		}
-		slog.Warn("Some initial links already exist in queue", slog.Any("error", err))
+		slog.Warn("Failed to seed initial links, retrying",
+			slog.Int("attempt", attempt),
+			slog.Any("error", err))
+		time.Sleep(time.Duration(attempt) * 2 * time.Second)
 	}
 
 	// GRPC server

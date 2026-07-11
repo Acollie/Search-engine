@@ -150,6 +150,20 @@ data:
             target_label: __address__
             replacement: $1:8080
 
+      - job_name: 'frontend'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - search-engine
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: frontend
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:8080
+
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -210,8 +224,12 @@ spec:
           configMap:
             name: prometheus-server-conf
         - name: prometheus-rules-volume
-          configMap:
-            name: alert-rules
+          projected:
+            sources:
+              - configMap:
+                  name: alert-rules
+              - configMap:
+                  name: prometheus-recording-rules
         - name: prometheus-storage-volume
           persistentVolumeClaim:
             claimName: prometheus-pvc
@@ -317,6 +335,17 @@ spec:
                   key: GRAFANA_PASSWORD
             - name: GF_INSTALL_PLUGINS
               value: ""
+            # Anonymous viewer access, scoped to the "Public" folder via that
+            # folder's permissions (set once via the Grafana API after
+            # deploy - not expressible in this file). The "Search Engine"
+            # folder's permissions are tightened at the same time so
+            # anonymous Viewers can't browse the internal ops dashboards.
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: "Viewer"
+            - name: GF_AUTH_ANONYMOUS_HIDE_VERSION
+              value: "true"
           resources:
             requests:
               cpu: 250m
@@ -333,6 +362,8 @@ spec:
               mountPath: /etc/grafana/provisioning/dashboards
             - name: grafana-dashboards
               mountPath: /var/lib/grafana/dashboards
+            - name: grafana-dashboards-public
+              mountPath: /var/lib/grafana/dashboards/public
       volumes:
         - name: grafana-storage
           persistentVolumeClaim:
@@ -346,6 +377,9 @@ spec:
         - name: grafana-dashboards
           configMap:
             name: grafana-dashboards
+        - name: grafana-dashboards-public
+          configMap:
+            name: grafana-dashboards-public
 
 ---
 apiVersion: v1
@@ -363,7 +397,22 @@ data:
     {"title": "Search Engine - Pod Health", "description": "Pod resource health using pre-aggregated metrics only\n\nConfigurable refresh: 5s (high-freq), 15s (default), 30s (low-overhead), 60s (minimal)", "tags": ["search-engine", "health"], "timezone": "browser", "schemaVersion": 39, "version": 1, "refresh": "15s", "uid": "pod-health", "id": 3, "templating": {"list": [{"name": "interval", "type": "custom", "value": "1m", "options": [{"text": "5s", "value": "5s"}, {"text": "15s (default)", "value": "1m"}, {"text": "30s", "value": "30s"}, {"text": "60s", "value": "60s"}], "multi": false, "current": {"text": "15s (default)", "value": "1m"}}]}, "panels": [{"id": 1, "title": "Service Availability", "type": "stat", "gridPos": {"h": 4, "w": 12, "x": 0, "y": 0}, "targets": [{"expr": "count(job:up:instant == 1)", "refId": "A", "datasourceUid": "prometheus"}], "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 3}, {"color": "green", "value": 4}]}}, {"id": 2, "title": "CPU Usage by Service", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "targets": [{"expr": "job:cpu_usage:$interval * 100", "legendFormat": "{{job}}", "refId": "A", "datasourceUid": "prometheus"}]}, {"id": 3, "title": "Memory Usage (MB)", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "job:memory_usage_mb:instant", "legendFormat": "{{job}}", "refId": "A", "datasourceUid": "prometheus"}]}], "refreshIntervals": ["5s", "15s", "30s", "60s", "1m", "5m"]}
 
   detailed-metrics.json: |
-    {"title": "Search Engine - Detailed Metrics", "description": "Detailed per-spider and cartographer metrics. Select interval: 5s, 15s (default), 30s, 60s.", "tags": ["search-engine", "detailed"], "timezone": "browser", "schemaVersion": 39, "version": 1, "refresh": "15s", "refreshIntervals": ["5s", "15s", "30s", "60s", "1m", "5m"], "uid": "detailed-metrics", "id": 4, "templating": {"list": [{"name": "interval", "type": "custom", "value": "1m", "options": [{"text": "5s", "value": "5s"}, {"text": "15s (default)", "value": "1m"}, {"text": "30s", "value": "30s"}, {"text": "60s", "value": "60s"}], "multi": false, "current": {"text": "15s (default)", "value": "1m"}}]}, "panels": [{"id": 1, "title": "Cartographer Status", "type": "stat", "gridPos": {"h": 4, "w": 12, "x": 0, "y": 0}, "targets": [{"expr": "time() - cartographer:last_task_timestamp:instant", "refId": "A", "datasourceUid": "prometheus"}], "color": {"mode": "thresholds"}, "unit": "s", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 600}, {"color": "red", "value": 1200}]}}, {"id": 2, "title": "Crawl Rate by Spider Instance", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "targets": [{"expr": "spider:crawl_rate:1m", "legendFormat": "{{instance}}", "refId": "A", "datasourceUid": "prometheus"}]}, {"id": 3, "title": "Spider Error Rate by Instance", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "spider:error_rate:1m * 100", "legendFormat": "{{instance}}", "refId": "A", "datasourceUid": "prometheus"}]}, {"id": 4, "title": "Total Crawl Rate (All Spiders)", "type": "stat", "gridPos": {"h": 4, "w": 12, "x": 12, "y": 0}, "targets": [{"expr": "sum(spider:crawl_rate:1m)", "refId": "A", "datasourceUid": "prometheus"}], "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 1}, {"color": "green", "value": 2}]}}, {"id": 5, "title": "Pages Failed by Spider", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}, "targets": [{"expr": "rate(spider_pages_failed_total[1m])", "legendFormat": "{{instance}}", "refId": "A", "datasourceUid": "prometheus"}]}, {"id": 6, "title": "Pages Fetched by Spider", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}, "targets": [{"expr": "rate(spider_pages_fetched_total[1m])", "legendFormat": "{{instance}}", "refId": "A", "datasourceUid": "prometheus"}]}]}
+    {"title": "Search Engine - Detailed Metrics", "description": "Detailed per-spider and cartographer metrics. Select interval: 5s, 15s (default), 30s, 60s.", "tags": ["search-engine", "detailed"], "timezone": "browser", "schemaVersion": 39, "version": 1, "refresh": "15s", "refreshIntervals": ["5s", "15s", "30s", "60s", "1m", "5m"], "uid": "detailed-metrics", "id": 4, "templating": {"list": [{"name": "interval", "type": "custom", "value": "1m", "options": [{"text": "5s", "value": "5s"}, {"text": "15s (default)", "value": "1m"}, {"text": "30s", "value": "30s"}, {"text": "60s", "value": "60s"}], "multi": false, "current": {"text": "15s (default)", "value": "1m"}}]}, "panels": [{"id": 1, "title": "Cartographer Sweeps Completed (6h)", "type": "stat", "gridPos": {"h": 4, "w": 12, "x": 0, "y": 0}, "targets": [{"expr": "cartographer:sweeps_completed:6h", "refId": "A", "datasourceUid": "prometheus"}], "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, {"id": 2, "title": "Crawl Rate by Spider Instance", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}, "targets": [{"expr": "spider:crawl_rate:1m", "legendFormat": "{{instance}}", "refId": "A", "datasourceUid": "prometheus"}]}, {"id": 3, "title": "Spider Error Rate by Instance", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}, "targets": [{"expr": "spider:error_rate:1m * 100", "legendFormat": "{{instance}}", "refId": "A", "datasourceUid": "prometheus"}]}, {"id": 4, "title": "Total Crawl Rate (All Spiders)", "type": "stat", "gridPos": {"h": 4, "w": 12, "x": 12, "y": 0}, "targets": [{"expr": "sum(spider:crawl_rate:1m)", "refId": "A", "datasourceUid": "prometheus"}], "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 1}, {"color": "green", "value": 2}]}}, {"id": 5, "title": "Pages Failed by Spider", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}, "targets": [{"expr": "rate(spider_pages_failed_total[1m])", "legendFormat": "{{instance}}", "refId": "A", "datasourceUid": "prometheus"}]}, {"id": 6, "title": "Pages Fetched by Spider", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}, "targets": [{"expr": "rate(spider_pages_fetched_total[1m])", "legendFormat": "{{instance}}", "refId": "A", "datasourceUid": "prometheus"}]}]}
+
+  key-metrics.json: |
+    {"title": "Search Engine - Key Metrics", "description": "Consolidated key-metrics dashboard: pipeline health (spider->conductor ingestion), search-facing traffic/latency, and cartographer/PageRank freshness. Select interval: 5s (real-time), 15s (default), 30s (lightweight), 60s (minimal).", "tags": ["search-engine", "key-metrics"], "timezone": "browser", "schemaVersion": 39, "version": 1, "refresh": "15s", "refreshIntervals": ["5s", "15s", "30s", "60s", "1m", "5m"], "uid": "key-metrics", "id": 5, "templating": {"list": [{"name": "interval", "type": "custom", "value": "1m", "options": [{"text": "5s", "value": "5s"}, {"text": "15s (default)", "value": "1m"}, {"text": "30s", "value": "30s"}, {"text": "60s", "value": "60s"}], "multi": false, "current": {"text": "15s (default)", "value": "1m"}}]}, "panels": [{"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "id": 1, "title": "Pipeline Health", "type": "row"}, {"id": 2, "title": "Service Availability", "type": "stat", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 1}, "targets": [{"expr": "count(job:up:instant == 1)", "refId": "A", "datasourceUid": "prometheus"}], "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 3}, {"color": "green", "value": 5}]}}, {"id": 3, "title": "Conductor Queue Depth", "type": "stat", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 1}, "targets": [{"expr": "job:conductor_queue_depth:instant", "refId": "A", "datasourceUid": "prometheus"}]}, {"id": 4, "title": "Spider Queue Depth", "type": "stat", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 1}, "targets": [{"expr": "spider_queue_depth", "refId": "A", "datasourceUid": "prometheus"}]}, {"id": 5, "title": "Conductor Ingestion: Received vs Stored vs Duplicates", "type": "timeseries", "description": "If 'received' flatlines while Spider's crawl rate (below) is nonzero, Conductor has lost its connection to Spider.", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 9}, "targets": [{"expr": "job:conductor_pages_received_rate:$interval", "legendFormat": "received", "refId": "A", "datasourceUid": "prometheus"}, {"expr": "rate(conductor_new_pages_stored_total[$interval])", "legendFormat": "stored", "refId": "B", "datasourceUid": "prometheus"}, {"expr": "rate(conductor_duplicates_found_total[$interval])", "legendFormat": "duplicates", "refId": "C", "datasourceUid": "prometheus"}]}, {"id": 6, "title": "Spider Crawl Rate vs Error Rate %", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 9}, "targets": [{"expr": "job:spider_crawl_rate:$interval", "legendFormat": "pages/sec", "refId": "A", "datasourceUid": "prometheus"}, {"expr": "job:spider_error_rate:$interval * 100", "legendFormat": "error %", "refId": "B", "datasourceUid": "prometheus"}]}, {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 17}, "id": 7, "title": "Search-Facing", "type": "row"}, {"id": 8, "title": "Frontend Search Requests/sec by Status", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 0, "y": 18}, "targets": [{"expr": "rate(frontend_search_requests_total[$interval])", "legendFormat": "{{status}}", "refId": "A", "datasourceUid": "prometheus"}]}, {"id": 9, "title": "Frontend + Searcher P95 Latency (ms)", "type": "timeseries", "gridPos": {"h": 8, "w": 12, "x": 12, "y": 18}, "targets": [{"expr": "histogram_quantile(0.95, sum(rate(frontend_search_duration_seconds_bucket[5m])) by (le)) * 1000", "legendFormat": "frontend", "refId": "A", "datasourceUid": "prometheus"}, {"expr": "job:searcher_latency_p95:5m * 1000", "legendFormat": "searcher", "refId": "B", "datasourceUid": "prometheus"}]}, {"id": 10, "title": "Searcher Queries/min", "type": "stat", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 26}, "targets": [{"expr": "job:searcher_queries_rate:$interval", "refId": "A", "datasourceUid": "prometheus"}]}, {"id": 11, "title": "Searcher DB Errors (rate)", "type": "stat", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 26}, "targets": [{"expr": "rate(searcher_database_errors_total[$interval])", "refId": "A", "datasourceUid": "prometheus"}], "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 0.01}]}}, {"id": 12, "title": "Active Search Indices", "type": "stat", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 26}, "targets": [{"expr": "searcher_total_indices", "refId": "A", "datasourceUid": "prometheus"}]}, {"collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 34}, "id": 13, "title": "Cartographer / PageRank Freshness", "type": "row"}, {"id": 14, "title": "Active Sweep Now", "type": "stat", "gridPos": {"h": 8, "w": 8, "x": 0, "y": 35}, "targets": [{"expr": "cartographer:active_sweep:instant", "refId": "A", "datasourceUid": "prometheus"}], "options": {"colorMode": "value", "graphMode": "none", "textMode": "value_and_name"}, "fieldConfig": {"defaults": {"mappings": [{"type": "value", "value": "0", "text": "Idle"}, {"type": "value", "value": "1", "text": "Running"}], "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}, {"color": "yellow", "value": 1}]}}}}, {"id": 15, "title": "Sweeps Completed (6h)", "type": "stat", "description": "Cartographer's CronJob runs every 6h. If this is 0, PageRank has stopped recomputing (this caught a real 22-day-long outage).", "gridPos": {"h": 8, "w": 8, "x": 8, "y": 35}, "targets": [{"expr": "cartographer:sweeps_completed:6h", "refId": "A", "datasourceUid": "prometheus"}], "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, {"id": 16, "title": "Cartographer Errors (6h)", "type": "stat", "gridPos": {"h": 8, "w": 8, "x": 16, "y": 35}, "targets": [{"expr": "increase(cartographer_errors_total[6h])", "refId": "A", "datasourceUid": "prometheus"}], "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, {"id": 17, "title": "Pages Ranked Rate & Avg Sweep Duration", "type": "timeseries", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 43}, "targets": [{"expr": "rate(cartographer_pages_ranked_total[$interval])", "legendFormat": "pages ranked/sec", "refId": "A", "datasourceUid": "prometheus"}, {"expr": "rate(cartographer_sweep_duration_seconds_sum[$interval]) / rate(cartographer_sweep_duration_seconds_count[$interval])", "legendFormat": "avg sweep duration (s)", "refId": "B", "datasourceUid": "prometheus"}]}]}
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-public
+  namespace: search-engine
+  labels:
+    app: grafana
+data:
+  portfolio.json: |
+    {"title": "Alex Collie — Search Engine", "description": "Public showcase dashboard — live metrics from a self-hosted, self-built distributed search engine. Part of alexcollie's portfolio.", "tags": ["portfolio", "public"], "timezone": "browser", "schemaVersion": 39, "version": 1, "refresh": "1m", "time": {"from": "now-6h", "to": "now"}, "uid": "portfolio-showcase", "id": 6, "panels": [{"id": 1, "title": "", "type": "text", "gridPos": {"h": 7, "w": 24, "x": 0, "y": 0}, "options": {"mode": "markdown", "content": "# Alex Collie\n### A distributed web search engine, built and operated solo\n\nFive Go microservices talking over gRPC, a from-scratch PageRank implementation, full-text search backed by PostgreSQL, and a self-hosted Kubernetes cluster with its own observability stack — this dashboard included. Every number below is live from the running system.\n\n**[search.collie.codes](https://search.collie.codes)** — try the live search engine &nbsp;·&nbsp; **[collie.codes](https://collie.codes)** — more of my work"}}, {"id": 2, "title": "Microservices", "type": "stat", "description": "Distinct services reporting metrics right now", "gridPos": {"h": 6, "w": 6, "x": 0, "y": 7}, "targets": [{"expr": "count(count by (job) (up))", "refId": "A", "datasourceUid": "prometheus"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}, "unit": "short"}}, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name"}}, {"id": 3, "title": "Services Online", "type": "stat", "description": "Healthy targets right now, out of total", "gridPos": {"h": 6, "w": 6, "x": 6, "y": 7}, "targets": [{"expr": "count(job:up:instant == 1)", "refId": "A", "datasourceUid": "prometheus"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "short"}}, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name"}}, {"id": 4, "title": "Live Crawl Rate", "type": "stat", "description": "Pages the crawler is fetching per second, right now", "gridPos": {"h": 6, "w": 6, "x": 12, "y": 7}, "targets": [{"expr": "job:spider_crawl_rate:1m", "refId": "A", "datasourceUid": "prometheus"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "orange", "value": null}]}, "unit": "reqps", "decimals": 2}}, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name"}}, {"id": 5, "title": "Links Discovered", "type": "stat", "description": "Total hyperlinks extracted from crawled pages", "gridPos": {"h": 6, "w": 6, "x": 18, "y": 7}, "targets": [{"expr": "sum(spider_links_extracted_total)", "refId": "A", "datasourceUid": "prometheus"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "purple", "value": null}]}, "unit": "short"}}, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name"}}, {"id": 6, "title": "Crawl Queue Depth", "type": "stat", "description": "URLs currently queued to be crawled", "gridPos": {"h": 6, "w": 6, "x": 0, "y": 13}, "targets": [{"expr": "spider_queue_depth", "refId": "A", "datasourceUid": "prometheus"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}, "unit": "short"}}, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name"}}, {"id": 7, "title": "robots.txt Respected", "type": "stat", "description": "Crawl requests skipped in compliance with robots.txt", "gridPos": {"h": 6, "w": 6, "x": 6, "y": 13}, "targets": [{"expr": "sum(spider_robots_blocked_total)", "refId": "A", "datasourceUid": "prometheus"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]}, "unit": "short"}}, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name"}}, {"id": 8, "title": "Search Latency (p95)", "type": "stat", "description": "95th-percentile search response time", "gridPos": {"h": 6, "w": 6, "x": 12, "y": 13}, "targets": [{"expr": "job:searcher_latency_p95:5m * 1000", "refId": "A", "datasourceUid": "prometheus"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "orange", "value": null}]}, "unit": "ms", "decimals": 0}}, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name"}}, {"id": 9, "title": "Active Crawl Workers", "type": "stat", "description": "Concurrent crawl goroutines in flight", "gridPos": {"h": 6, "w": 6, "x": 18, "y": 13}, "targets": [{"expr": "spider_active_crawls", "refId": "A", "datasourceUid": "prometheus"}], "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]}, "unit": "short"}}, "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name"}}, {"id": 10, "title": "Live Crawl Activity", "type": "timeseries", "gridPos": {"h": 8, "w": 24, "x": 0, "y": 19}, "targets": [{"expr": "job:spider_crawl_rate:1m", "legendFormat": "pages/sec", "refId": "A", "datasourceUid": "prometheus"}, {"expr": "job:spider_error_rate:1m * 100", "legendFormat": "error %", "refId": "B", "datasourceUid": "prometheus"}], "fieldConfig": {"defaults": {"custom": {"fillOpacity": 15, "lineWidth": 2}}}}, {"id": 11, "title": "", "type": "text", "gridPos": {"h": 11, "w": 24, "x": 0, "y": 27}, "options": {"mode": "markdown", "content": "## Architecture at a glance\n\n- **5 microservices in Go** — Spider, Conductor, Cartographer, Searcher, Frontend — talking over gRPC, including a bidirectional streaming pipeline for crawl ingestion\n- **PageRank from scratch** — damping factor 0.85, 100 random-sample sweeps of up to 100K pages each, recomputed every 6 hours by a Kubernetes CronJob\n- **Ranking formula** — relevance blends PostgreSQL full-text score (30%) with PageRank (70%), served off a GIN-indexed `search_vector` column\n- **Self-hosted infrastructure** — Kubernetes (k3s) on Hetzner Cloud, provisioned with OpenTofu/Terraform, images built and pushed to a private container registry\n- **Real observability** — this dashboard runs on the same Prometheus + Grafana + Alertmanager stack that pages the on-call engineer (me) on Slack\n- **Defense in depth** — SSRF protection against private/metadata IP ranges, per-domain rate limiting, robots.txt compliance, gRPC circuit breakers, and NetworkPolicy-enforced zero-trust segmentation between every service"}}, {"id": 12, "title": "", "type": "text", "gridPos": {"h": 4, "w": 24, "x": 0, "y": 38}, "options": {"mode": "markdown", "content": "*Live metrics pulled straight from the production cluster — not a demo or a mockup.* &nbsp;·&nbsp; **[search.collie.codes](https://search.collie.codes)** &nbsp;·&nbsp; **[collie.codes](https://collie.codes)**"}}]}
 
 ---
 apiVersion: v1
@@ -405,6 +454,15 @@ data:
         allowUiUpdates: true
         options:
           path: /var/lib/grafana/dashboards
+      - name: 'Public Dashboards'
+        orgId: 1
+        folder: 'Public'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards/public
 
 ---
 apiVersion: v1
@@ -505,6 +563,10 @@ data:
 
     route:
       receiver: 'null'
+      # Group by alertname+service so multiple label combinations of the same
+      # underlying alert (e.g. different `reason` values on a spider metric)
+      # batch into one notification instead of paging separately per label set.
+      group_by: ['alertname', 'service']
       routes:
         - match:
             severity: critical

@@ -7,12 +7,9 @@ metadata:
     app: prometheus
 data:
   recording-rules.yml: |
-    global:
-      # Configurable evaluation interval - adjust based on latency requirements
-      # Default: 15s (balances accuracy vs. overhead)
-      # Options: 5s (high freq), 15s (default), 30s (low overhead), 60s (minimal)
-      evaluation_interval: 15s
-
+    # Rule files loaded via rule_files: only support the `groups:` key
+    # (rulefmt.RuleGroups schema) - no top-level `global:` block here.
+    # Each group below sets its own `interval:` instead.
     groups:
     # Short interval rules (5s) - for real-time dashboards
     - name: search_engine_aggregates:5s
@@ -29,7 +26,7 @@ data:
         expr: sum(rate(conductor_pages_received_total[5s]))
 
       - record: job:searcher_queries_rate:5s
-        expr: sum(rate(searcher_queries_total[5s]))
+        expr: sum(rate(searcher_query_duration_seconds_count[5s]))
 
       - record: job:spider_error_rate:5s
         expr: sum(rate(spider_pages_failed_total[5s])) / (sum(rate(spider_pages_fetched_total[5s])) + sum(rate(spider_pages_failed_total[5s])) + 0.0001)
@@ -66,7 +63,7 @@ data:
 
       # Searcher metrics - aggregated only
       - record: job:searcher_queries_rate:1m
-        expr: sum(rate(searcher_queries_total[1m]))
+        expr: sum(rate(searcher_query_duration_seconds_count[1m]))
 
       # Latency metrics - pre-computed p95 without per-instance buckets
       - record: job:conductor_latency_p95:5m
@@ -96,9 +93,13 @@ data:
       - record: spider:error_rate:1m
         expr: rate(spider_pages_failed_total[1m]) / (rate(spider_pages_fetched_total[1m]) + rate(spider_pages_failed_total[1m]) + 0.0001)
 
-      # Cartographer status - last task run
-      - record: cartographer:last_task_timestamp:instant
-        expr: max(cartographer_task_completed_timestamp_seconds)
+      # Cartographer status - sweep activity (no timestamp gauge exists; derive
+      # freshness from whether a sweep is running now and completions in the last 6h)
+      - record: cartographer:active_sweep:instant
+        expr: cartographer_active_sweep
+
+      - record: cartographer:sweeps_completed:6h
+        expr: increase(cartographer_sweeps_completed_total[6h])
 
     # Low-overhead interval rules (30s) - for lightweight monitoring
     - name: search_engine_aggregates:30s

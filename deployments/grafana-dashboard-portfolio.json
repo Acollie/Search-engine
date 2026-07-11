@@ -1,0 +1,205 @@
+{
+  "title": "Alex Collie — Search Engine",
+  "description": "Public showcase dashboard — live metrics from a self-hosted, self-built distributed search engine. Part of alexcollie's portfolio.",
+  "tags": ["portfolio", "public"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-6h", "to": "now" },
+  "uid": "portfolio-showcase",
+  "id": 6,
+  "panels": [
+    {
+      "id": 1,
+      "title": "",
+      "type": "text",
+      "gridPos": { "h": 7, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "# Alex Collie\n### A distributed web search engine, built and operated solo\n\nFive Go microservices talking over gRPC, a from-scratch PageRank implementation, full-text search backed by PostgreSQL, and a self-hosted Kubernetes cluster with its own observability stack — this dashboard included. Every number below is live from the running system.\n\n**[search.collie.codes](https://search.collie.codes)** — try the live search engine &nbsp;·&nbsp; **[collie.codes](https://collie.codes)** — more of my work"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Microservices",
+      "type": "stat",
+      "description": "Distinct services reporting metrics right now",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 7 },
+      "targets": [
+        { "expr": "count(count by (job) (up))", "refId": "A", "datasourceUid": "prometheus" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name" }
+    },
+    {
+      "id": 3,
+      "title": "Services Online",
+      "type": "stat",
+      "description": "Healthy targets right now, out of total",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 7 },
+      "targets": [
+        { "expr": "count(job:up:instant == 1)", "refId": "A", "datasourceUid": "prometheus" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name" }
+    },
+    {
+      "id": 4,
+      "title": "Live Crawl Rate",
+      "type": "stat",
+      "description": "Pages the crawler is fetching per second, right now",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 7 },
+      "targets": [
+        { "expr": "job:spider_crawl_rate:1m", "refId": "A", "datasourceUid": "prometheus" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] },
+          "unit": "reqps",
+          "decimals": 2
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name" }
+    },
+    {
+      "id": 5,
+      "title": "Links Discovered",
+      "type": "stat",
+      "description": "Total hyperlinks extracted from crawled pages",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 7 },
+      "targets": [
+        { "expr": "sum(spider_links_extracted_total)", "refId": "A", "datasourceUid": "prometheus" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] },
+          "unit": "short"
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name" }
+    },
+    {
+      "id": 6,
+      "title": "Crawl Queue Depth",
+      "type": "stat",
+      "description": "URLs currently queued to be crawled",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 13 },
+      "targets": [
+        { "expr": "spider_queue_depth", "refId": "A", "datasourceUid": "prometheus" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name" }
+    },
+    {
+      "id": 7,
+      "title": "robots.txt Respected",
+      "type": "stat",
+      "description": "Crawl requests skipped in compliance with robots.txt",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 13 },
+      "targets": [
+        { "expr": "sum(spider_robots_blocked_total)", "refId": "A", "datasourceUid": "prometheus" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+          "unit": "short"
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name" }
+    },
+    {
+      "id": 8,
+      "title": "Search Latency (p95)",
+      "type": "stat",
+      "description": "95th-percentile search response time",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 13 },
+      "targets": [
+        { "expr": "job:searcher_latency_p95:5m * 1000", "refId": "A", "datasourceUid": "prometheus" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] },
+          "unit": "ms",
+          "decimals": 0
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name" }
+    },
+    {
+      "id": 9,
+      "title": "Active Crawl Workers",
+      "type": "stat",
+      "description": "Concurrent crawl goroutines in flight",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 13 },
+      "targets": [
+        { "expr": "spider_active_crawls", "refId": "A", "datasourceUid": "prometheus" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] },
+          "unit": "short"
+        }
+      },
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "textMode": "value_and_name" }
+    },
+    {
+      "id": 10,
+      "title": "Live Crawl Activity",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 19 },
+      "targets": [
+        { "expr": "job:spider_crawl_rate:1m", "legendFormat": "pages/sec", "refId": "A", "datasourceUid": "prometheus" },
+        { "expr": "job:spider_error_rate:1m * 100", "legendFormat": "error %", "refId": "B", "datasourceUid": "prometheus" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 15, "lineWidth": 2 }
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "",
+      "type": "text",
+      "gridPos": { "h": 11, "w": 24, "x": 0, "y": 27 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Architecture at a glance\n\n- **5 microservices in Go** — Spider, Conductor, Cartographer, Searcher, Frontend — talking over gRPC, including a bidirectional streaming pipeline for crawl ingestion\n- **PageRank from scratch** — damping factor 0.85, 100 random-sample sweeps of up to 100K pages each, recomputed every 6 hours by a Kubernetes CronJob\n- **Ranking formula** — relevance blends PostgreSQL full-text score (30%) with PageRank (70%), served off a GIN-indexed `search_vector` column\n- **Self-hosted infrastructure** — Kubernetes (k3s) on Hetzner Cloud, provisioned with OpenTofu/Terraform, images built and pushed to a private container registry\n- **Real observability** — this dashboard runs on the same Prometheus + Grafana + Alertmanager stack that pages the on-call engineer (me) on Slack\n- **Defense in depth** — SSRF protection against private/metadata IP ranges, per-domain rate limiting, robots.txt compliance, gRPC circuit breakers, and NetworkPolicy-enforced zero-trust segmentation between every service"
+      }
+    },
+    {
+      "id": 12,
+      "title": "",
+      "type": "text",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 38 },
+      "options": {
+        "mode": "markdown",
+        "content": "*Live metrics pulled straight from the production cluster — not a demo or a mockup.* &nbsp;·&nbsp; **[search.collie.codes](https://search.collie.codes)** &nbsp;·&nbsp; **[collie.codes](https://collie.codes)**"
+      }
+    }
+  ]
+}

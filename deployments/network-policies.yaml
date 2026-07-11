@@ -1,12 +1,15 @@
 # NetworkPolicy manifests for the search-engine namespace.
 #
-# NOTE: k3s ships with flannel, which does NOT enforce NetworkPolicy.
-# To activate these policies, replace flannel with a policy-capable CNI:
-#   - Cilium:   https://docs.cilium.io/en/stable/installation/k8s-install-helm/
-#   - Calico:   https://docs.tigera.io/calico/latest/getting-started/kubernetes/
-#
-# These manifests are safe to apply now — they are stored in etcd and
-# will take effect immediately once a compatible CNI is installed.
+# CORRECTION (2026-07-05): these ARE actively enforced. This cluster runs
+# kube-router alongside flannel specifically for NetworkPolicy enforcement
+# (visible as the KUBE-ROUTER-FORWARD/KUBE-ROUTER-INPUT iptables chains on
+# each node) - the comment that used to be here claiming flannel alone
+# doesn't enforce policy was true of flannel in isolation, but wrong about
+# this cluster's actual setup, and caused a real production outage: the
+# default-deny-all + narrow allow-rules below silently blocked Prometheus's
+# egress to the Kubernetes API server (needed for pod service discovery)
+# and any traffic not explicitly matched by an allow rule. Edit these with
+# the assumption that a wrong or missing rule WILL break real traffic.
 ---
 # Default deny: block all ingress and egress within the namespace.
 # Explicit allow policies below poke the required holes.
@@ -305,6 +308,19 @@ spec:
         - port: 8080
         - port: 9090
         - port: 9093
+    # Kubernetes API server, needed for kubernetes_sd_configs pod discovery.
+    # Must target the real backend (control-plane public IP:6443), not the
+    # apiserver's ClusterIP (10.43.0.1:443) - kube-router's netpol enforcement
+    # runs in the FORWARD chain, which executes AFTER DNAT has already
+    # rewritten the destination from the ClusterIP to the real backend, so an
+    # ipBlock rule against the ClusterIP never matches (confirmed via
+    # iptables-save/ipset on the node: KUBE-SEP-* for default/kubernetes:https
+    # DNATs to 167.233.25.31:6443, not 10.43.0.1:443).
+    - to:
+        - ipBlock:
+            cidr: 167.233.25.31/32
+      ports:
+        - port: 6443
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -408,9 +424,16 @@ spec:
               - 192.168.0.0/16
       ports:
         - port: 443
-    # Kubernetes API for patching the ecr-registry secret
+    # Kubernetes API for patching the ecr-registry secret. Scoped to the
+    # control-plane's real public IP:6443 rather than 0.0.0.0/0 - kube-router's
+    # netpol FORWARD-chain rules see the packet post-DNAT (destination already
+    # rewritten from the apiserver ClusterIP to this real backend), so this is
+    # the address that actually needs to be in the allow-list. This job was
+    # observed Failed/BackoffLimitExceeded independently of this policy; logs
+    # were already garbage-collected, so treat this as a defensive tightening,
+    # not a confirmed fix for that failure.
     - to:
         - ipBlock:
-            cidr: 0.0.0.0/0
+            cidr: 167.233.25.31/32
       ports:
         - port: 6443

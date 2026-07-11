@@ -2,6 +2,6 @@ package grpcx
 
 // Define ports for gRPC services
 const (
-	SpiderPort   = 9090
+	SpiderPort   = 9001
 	SearcherPort = 9091
 )
