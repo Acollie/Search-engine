@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	MaxDepth = 8
+	MaxDepth        = 8
+	maxLinksPerPage = 100
 )
 
 func GetLinks(fetchingURL string, body string) ([]string, error) {
@@ -20,25 +21,26 @@ func GetLinks(fetchingURL string, body string) ([]string, error) {
 		links = append(links, link)
 	}
 
-	links = removeLargeWebSites(links)
 	links = removeAnchors(links)
 	links = removeDuplicates(links)
-	links = removeMailTo(links)
+	links = removeInvalidSchemes(links)
 	links = removeNonHTMLLinks(links)
+	links = removeLargeWebSites(links)
 	links = removeDepthLinks(links)
+	links = capLinks(links, maxLinksPerPage)
 
 	return links, nil
 }
 
 func resolveURL(baseURL, relURL string) string {
-	if strings.Contains(relURL, "http") {
-		return relURL
-	}
-	base, err := url.Parse(baseURL)
+	ref, err := url.Parse(relURL)
 	if err != nil {
 		return ""
 	}
-	ref, err := url.Parse(relURL)
+	if ref.IsAbs() {
+		return ref.String()
+	}
+	base, err := url.Parse(baseURL)
 	if err != nil {
 		return ""
 	}
@@ -79,7 +81,7 @@ func removeAnchors(links []string) []string {
 	for _, link := range links {
 		u, err := url.Parse(link)
 		if err != nil {
-			return nil
+			continue
 		}
 		u.Fragment = ""
 		result = append(result, u.String())
@@ -87,17 +89,20 @@ func removeAnchors(links []string) []string {
 	return result
 }
 
-func removeMailTo(links []string) []string {
+// removeInvalidSchemes keeps only http(s) links, dropping mailto:, tel:,
+// javascript:, ftp:, data:, and unresolvable (empty-scheme) links.
+func removeInvalidSchemes(links []string) []string {
 	var result []string
 	for _, link := range links {
 		u, err := url.Parse(link)
 		if err != nil {
-			return nil
-		}
-		if u.Scheme == "mailto" {
 			continue
 		}
-		result = append(result, u.String())
+		scheme := strings.ToLower(u.Scheme)
+		if scheme != "http" && scheme != "https" {
+			continue
+		}
+		result = append(result, link)
 	}
 	return result
 }
@@ -126,6 +131,9 @@ func removeNonHTMLLinks(links []string) []string {
 	return result
 }
 
+// removeLargeWebSites drops links to high-traffic sites we don't want to
+// crawl, matching both the bare domain and any of its subdomains
+// (e.g. www.facebook.com, m.youtube.com).
 func removeLargeWebSites(links []string) []string {
 	largeWebsites := map[string]struct{}{
 		"facebook.com": {}, "twitter.com": {}, "instagram.com": {}, "youtube.com": {},
@@ -137,18 +145,30 @@ func removeLargeWebSites(links []string) []string {
 	var result []string
 	for _, link := range links {
 		parsed, err := url.Parse(link)
-		skip := false
-		if err == nil && parsed != nil {
-			if _, ok := largeWebsites[parsed.Hostname()]; ok {
-				skip = true
-			}
+		if err != nil {
+			continue
 		}
-		if !skip {
-			result = append(result, link)
-			if len(result) >= 100 {
-				break
-			}
+		host := strings.ToLower(parsed.Hostname())
+		if isBlockedHost(host, largeWebsites) {
+			continue
 		}
+		result = append(result, link)
 	}
 	return result
+}
+
+func isBlockedHost(host string, blocked map[string]struct{}) bool {
+	for domain := range blocked {
+		if host == domain || strings.HasSuffix(host, "."+domain) {
+			return true
+		}
+	}
+	return false
+}
+
+func capLinks(links []string, max int) []string {
+	if len(links) > max {
+		return links[:max]
+	}
+	return links
 }
