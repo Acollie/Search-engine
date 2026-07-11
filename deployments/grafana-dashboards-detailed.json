@@ -32,7 +32,7 @@
   "panels": [
     {
       "id": 1,
-      "title": "Cartographer Status",
+      "title": "Cartographer Sweeps Completed (6h)",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -42,7 +42,7 @@
       },
       "targets": [
         {
-          "expr": "time() - cartographer:last_task_timestamp:instant",
+          "expr": "cartographer:sweeps_completed:6h",
           "refId": "A",
           "datasourceUid": "prometheus"
         }
@@ -50,21 +50,16 @@
       "color": {
         "mode": "thresholds"
       },
-      "unit": "s",
       "thresholds": {
         "mode": "absolute",
         "steps": [
           {
-            "color": "green",
+            "color": "red",
             "value": null
           },
           {
-            "color": "yellow",
-            "value": 600
-          },
-          {
-            "color": "red",
-            "value": 1200
+            "color": "green",
+            "value": 1
           }
         ]
       }

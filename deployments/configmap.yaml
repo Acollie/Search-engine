@@ -203,15 +203,22 @@ data:
               description: "{{ $labels.job }} has been down for more than 2 minutes"
 
           # Spider-specific alerts
+          # Excludes not_found/forbidden/cycle: these are expected outcomes of
+          # crawling the open web (404s, robots-disallowed pages, dedup skips),
+          # not application errors - counting them paged on-call continuously
+          # since they make up the vast majority of "failures" by design.
+          # sum(...) also collapses the per-reason/per-instance labels so this
+          # is one alert instance, not one per reason (was fragmenting into
+          # several independently-flapping Slack notifications).
           - alert: SpiderHighFailureRate
-            expr: rate(spider_pages_failed_total[5m]) > 0.1
-            for: 5m
+            expr: sum(rate(spider_pages_failed_total{reason!~"not_found|forbidden|cycle"}[5m])) > 0.5
+            for: 10m
             labels:
               severity: warning
               service: spider
             annotations:
-              summary: "Spider high failure rate"
-              description: "Spider failure rate is {{ $value | humanizePercentage }} over 5 minutes"
+              summary: "Spider actionable failure rate is high"
+              description: "Spider is failing for reasons other than 404/403/dedup-skip at {{ $value | printf \"%.2f\" }}/s over 5 minutes (threshold 0.5/s)"
 
           - alert: SpiderQueueDepthHigh
             expr: spider_queue_depth > 10000

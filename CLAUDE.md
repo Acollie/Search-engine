@@ -407,13 +407,16 @@ Services use `github.com/caarlos0/env/v11` for environment variable parsing. See
 ### Prometheus Metrics
 All services expose metrics on `/metrics` endpoint:
 - Spider: `spider_pages_fetched_total`, `spider_pages_failed_total`, `spider_crawl_duration_seconds`
-- Conductor: `conductor_pages_received_total`, `conductor_duplicate_pages_total`, `conductor_queue_depth`
-- Searcher: `searcher_queries_processed_total`, `searcher_query_duration_seconds`, `searcher_errors_total`
-- Cartographer: `cartographer_sweep_duration_seconds`
+- Conductor: `conductor_pages_received_total`, `conductor_duplicates_found_total`, `conductor_new_pages_stored_total`, `conductor_batches_processed_total`, `conductor_processing_duration_seconds`, `conductor_queue_depth`
+- Searcher: `searcher_query_duration_seconds`, `searcher_database_errors_total`, `searcher_total_indices`
+- Cartographer: `cartographer_sweeps_completed_total`, `cartographer_sweep_duration_seconds`, `cartographer_pages_ranked_total`, `cartographer_active_sweep`, `cartographer_errors_total`
+- Frontend: `frontend_search_requests_total`, `frontend_search_duration_seconds`
 
 ### Grafana Dashboards
-- Production dashboard: `deployments/grafana-dashboard.json`
-- Key metrics: System health, throughput, latency (p50/p95/p99), error rates, queue depths
+- Key metrics: `deployments/grafana-dashboard-key-metrics.json` — pipeline health (spider→conductor ingestion), search-facing traffic/latency, cartographer/PageRank freshness
+- Core metrics: `deployments/grafana-dashboards-core.json`
+- Detailed per-instance metrics: `deployments/grafana-dashboards-detailed.json`
+- Pod resource health: `deployments/grafana-dashboards-health.json`
 
 ### Alerting
 Alert rules in `deployments/configmap.yaml`:

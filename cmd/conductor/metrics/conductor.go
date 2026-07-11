@@ -16,6 +16,14 @@ var (
 		[]string{"source"},
 	)
 
+	// BatchesProcessed tracks batches pulled from Spider
+	BatchesProcessed = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "conductor_batches_processed_total",
+			Help: "Total number of batches processed from Spider",
+		},
+	)
+
 	// DuplicatesFound tracks duplicate detections
 	DuplicatesFound = promauto.NewCounter(
 		prometheus.CounterOpts{

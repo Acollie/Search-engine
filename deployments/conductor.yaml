@@ -67,6 +67,8 @@ spec:
               containerPort: 9090
               protocol: TCP
           env:
+            - name: SPIDER_HOST
+              value: "spider"
             - name: DB_USER
               valueFrom:
                 secretKeyRef:

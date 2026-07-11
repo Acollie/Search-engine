@@ -1,0 +1,126 @@
+# Kind-specific service overrides.
+# Replaces LoadBalancer services with NodePort so kind port mappings work.
+# Apply AFTER the main manifests: kubectl apply -f deployments/kind-services.yaml
+---
+# Frontend: NodePort 30000 → host :3000
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: search-engine
+  labels:
+    app: frontend
+spec:
+  type: NodePort
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+      nodePort: 30000
+      protocol: TCP
+
+---
+# Spider health: NodePort 30001 → host :8001
+apiVersion: v1
+kind: Service
+metadata:
+  name: spider
+  namespace: search-engine
+  labels:
+    app: spider
+spec:
+  type: NodePort
+  selector:
+    app: spider
+  ports:
+    - name: grpc
+      port: 9001
+      targetPort: 9001
+      protocol: TCP
+    - name: health
+      port: 8080
+      targetPort: 8080
+      nodePort: 30001
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+
+---
+# Conductor health: NodePort 30002 → host :8002
+apiVersion: v1
+kind: Service
+metadata:
+  name: conductor
+  namespace: search-engine
+  labels:
+    app: conductor
+spec:
+  type: NodePort
+  selector:
+    app: conductor
+  ports:
+    - name: health
+      port: 8080
+      targetPort: 8080
+      nodePort: 30002
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+
+---
+# Cartographer health: NodePort 30003 → host :8003
+apiVersion: v1
+kind: Service
+metadata:
+  name: cartographer
+  namespace: search-engine
+  labels:
+    app: cartographer
+spec:
+  type: NodePort
+  selector:
+    app: cartographer
+  ports:
+    - name: health
+      port: 8080
+      targetPort: 8080
+      nodePort: 30003
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+
+---
+# Searcher health: NodePort 30004 → host :8004
+apiVersion: v1
+kind: Service
+metadata:
+  name: searcher
+  namespace: search-engine
+  labels:
+    app: searcher
+spec:
+  type: NodePort
+  selector:
+    app: searcher
+  ports:
+    - name: grpc
+      port: 9002
+      targetPort: 9002
+      protocol: TCP
+    - name: health
+      port: 8080
+      targetPort: 8080
+      nodePort: 30004
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP

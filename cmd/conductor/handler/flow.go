@@ -91,6 +91,7 @@ func (h *Handler) processBatch(ctx context.Context) error {
 				return err
 			}
 			slog.Info("processBatch: received response with pages", slog.Int("page_count", len(resp.SeenSites)))
+			metrics.BatchesProcessed.Inc()
 
 			// Process each page in the response
 			for _, page := range resp.SeenSites {

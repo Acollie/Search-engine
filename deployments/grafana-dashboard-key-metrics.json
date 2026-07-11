@@ -1,0 +1,327 @@
+{
+  "title": "Search Engine - Key Metrics",
+  "description": "Consolidated key-metrics dashboard: pipeline health (spider->conductor ingestion), search-facing traffic/latency, and cartographer/PageRank freshness. Select interval: 5s (real-time), 15s (default), 30s (lightweight), 60s (minimal).",
+  "tags": [
+    "search-engine",
+    "key-metrics"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "15s",
+  "refreshIntervals": ["5s", "15s", "30s", "60s", "1m", "5m"],
+  "uid": "key-metrics",
+  "id": 5,
+  "templating": {
+    "list": [
+      {
+        "name": "interval",
+        "type": "custom",
+        "value": "1m",
+        "options": [
+          { "text": "5s", "value": "5s" },
+          { "text": "15s (default)", "value": "1m" },
+          { "text": "30s", "value": "30s" },
+          { "text": "60s", "value": "60s" }
+        ],
+        "multi": false,
+        "current": { "text": "15s (default)", "value": "1m" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Pipeline Health",
+      "type": "row"
+    },
+    {
+      "id": 2,
+      "title": "Service Availability",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "expr": "count(job:up:instant == 1)",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ],
+      "color": { "mode": "thresholds" },
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          { "color": "red", "value": null },
+          { "color": "yellow", "value": 3 },
+          { "color": "green", "value": 5 }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "title": "Conductor Queue Depth",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+      "targets": [
+        {
+          "expr": "job:conductor_queue_depth:instant",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Spider Queue Depth",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "targets": [
+        {
+          "expr": "spider_queue_depth",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Conductor Ingestion: Received vs Stored vs Duplicates",
+      "type": "timeseries",
+      "description": "If 'received' flatlines while Spider's crawl rate (below) is nonzero, Conductor has lost its connection to Spider.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        {
+          "expr": "job:conductor_pages_received_rate:$interval",
+          "legendFormat": "received",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        },
+        {
+          "expr": "rate(conductor_new_pages_stored_total[$interval])",
+          "legendFormat": "stored",
+          "refId": "B",
+          "datasourceUid": "prometheus"
+        },
+        {
+          "expr": "rate(conductor_duplicates_found_total[$interval])",
+          "legendFormat": "duplicates",
+          "refId": "C",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Spider Crawl Rate vs Error Rate %",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "targets": [
+        {
+          "expr": "job:spider_crawl_rate:$interval",
+          "legendFormat": "pages/sec",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        },
+        {
+          "expr": "job:spider_error_rate:$interval * 100",
+          "legendFormat": "error %",
+          "refId": "B",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "id": 7,
+      "title": "Search-Facing",
+      "type": "row"
+    },
+    {
+      "id": 8,
+      "title": "Frontend Search Requests/sec by Status",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "targets": [
+        {
+          "expr": "rate(frontend_search_requests_total[$interval])",
+          "legendFormat": "{{status}}",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "Frontend + Searcher P95 Latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 18 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(frontend_search_duration_seconds_bucket[5m])) by (le)) * 1000",
+          "legendFormat": "frontend",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        },
+        {
+          "expr": "job:searcher_latency_p95:5m * 1000",
+          "legendFormat": "searcher",
+          "refId": "B",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "Searcher Queries/min",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 26 },
+      "targets": [
+        {
+          "expr": "job:searcher_queries_rate:$interval",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Searcher DB Errors (rate)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 26 },
+      "targets": [
+        {
+          "expr": "rate(searcher_database_errors_total[$interval])",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ],
+      "color": { "mode": "thresholds" },
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          { "color": "green", "value": null },
+          { "color": "red", "value": 0.01 }
+        ]
+      }
+    },
+    {
+      "id": 12,
+      "title": "Active Search Indices",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 26 },
+      "targets": [
+        {
+          "expr": "searcher_total_indices",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "id": 13,
+      "title": "Cartographer / PageRank Freshness",
+      "type": "row"
+    },
+    {
+      "id": 14,
+      "title": "Active Sweep Now",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 35 },
+      "targets": [
+        {
+          "expr": "cartographer:active_sweep:instant",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "value": "0", "text": "Idle" },
+            { "type": "value", "value": "1", "text": "Running" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Sweeps Completed (6h)",
+      "type": "stat",
+      "description": "Cartographer's CronJob runs every 6h. If this is 0, PageRank has stopped recomputing (this caught a real 22-day-long outage).",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 35 },
+      "targets": [
+        {
+          "expr": "cartographer:sweeps_completed:6h",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ],
+      "color": { "mode": "thresholds" },
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          { "color": "red", "value": null },
+          { "color": "green", "value": 1 }
+        ]
+      }
+    },
+    {
+      "id": 16,
+      "title": "Cartographer Errors (6h)",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 35 },
+      "targets": [
+        {
+          "expr": "increase(cartographer_errors_total[6h])",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        }
+      ],
+      "color": { "mode": "thresholds" },
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          { "color": "green", "value": null },
+          { "color": "red", "value": 1 }
+        ]
+      }
+    },
+    {
+      "id": 17,
+      "title": "Pages Ranked Rate & Avg Sweep Duration",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 43 },
+      "targets": [
+        {
+          "expr": "rate(cartographer_pages_ranked_total[$interval])",
+          "legendFormat": "pages ranked/sec",
+          "refId": "A",
+          "datasourceUid": "prometheus"
+        },
+        {
+          "expr": "rate(cartographer_sweep_duration_seconds_sum[$interval]) / rate(cartographer_sweep_duration_seconds_count[$interval])",
+          "legendFormat": "avg sweep duration (s)",
+          "refId": "B",
+          "datasourceUid": "prometheus"
+        }
+      ]
+    }
+  ]
+}
