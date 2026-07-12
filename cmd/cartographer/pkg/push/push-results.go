@@ -9,122 +9,68 @@ import (
 )
 
 const (
-	createTableSQL = `
-		CREATE TABLE IF NOT EXISTS PageRankResults (
-			url VARCHAR(768) NOT NULL,
-			rank_score FLOAT NOT NULL,
-			incoming_links INT DEFAULT 0,
-			outgoing_links INT DEFAULT 0,
-			sweep_id VARCHAR(100) NOT NULL,
-			computed_at TIMESTAMP DEFAULT NOW(),
-			algorithm_name VARCHAR(50) DEFAULT 'damped_pagerank',
-			is_latest BOOLEAN DEFAULT FALSE,
-			PRIMARY KEY (url, sweep_id)
-		);`
-
-	createIndexLatest = `
-		CREATE INDEX IF NOT EXISTS idx_latest_rank
-		ON PageRankResults(rank_score DESC)
-		WHERE is_latest = TRUE;`
-
-	createIndexSweep = `
-		CREATE INDEX IF NOT EXISTS idx_sweep
-		ON PageRankResults(sweep_id);`
-
 	unsetLatestSQL = `
 		UPDATE PageRankResults
 		SET is_latest = FALSE
 		WHERE is_latest = TRUE;`
 
+	// PageRankResults (page_id, score, result_version, is_latest) is created
+	// by scripts/01-init-schema.sql — this package only writes to it. The
+	// join resolves URL -> page_id so a page that's since been pruned from
+	// SeenPages is silently skipped (0 rows affected) instead of erroring.
 	insertRankSQL = `
-		INSERT INTO PageRankResults
-		(url, rank_score, incoming_links, outgoing_links, sweep_id, algorithm_name, is_latest)
-		VALUES ($1, $2, $3, $4, $5, $6, TRUE)
-		ON CONFLICT (url, sweep_id)
-		DO UPDATE SET
-			rank_score = EXCLUDED.rank_score,
-			incoming_links = EXCLUDED.incoming_links,
-			outgoing_links = EXCLUDED.outgoing_links,
-			is_latest = TRUE;`
+		INSERT INTO PageRankResults (page_id, score, result_version, is_latest)
+		SELECT id, $2, $3, TRUE
+		FROM SeenPages
+		WHERE url = $1;`
 )
 
-// Push saves PageRank computation results to the database
-func Push(db *sql.DB, g graph.Graph, indexName string, sweepTime time.Time) error {
-	// Create table and indices if they don't exist
-	if _, err := db.Exec(createTableSQL); err != nil {
-		return fmt.Errorf("failed to create PageRankResults table: %w", err)
+// Push saves PageRank computation results to the database. sweepID is used
+// only for logging; result_version (must be > 0 and shared by every row in
+// this sweep, per the PageRankResults schema) is derived from sweepTime.
+func Push(db *sql.DB, g graph.Graph, sweepID string, sweepTime time.Time) error {
+	if len(g) == 0 {
+		// Never unset the previous is_latest rows in exchange for nothing —
+		// that would silently zero out PageRank's contribution to search
+		// ranking until the next successful sweep. Fail loudly instead so
+		// the CronJob run shows as Failed.
+		return fmt.Errorf("refusing to push empty PageRank result set (sweep %s): previous is_latest results left untouched", sweepID)
 	}
 
-	if _, err := db.Exec(createIndexLatest); err != nil {
-		slog.Warn("Failed to create idx_latest_rank", slog.Any("error", err))
-	}
+	resultVersion := sweepTime.Unix()
 
-	if _, err := db.Exec(createIndexSweep); err != nil {
-		slog.Warn("Failed to create idx_sweep", slog.Any("error", err))
-	}
-
-	// Generate sweep ID if not provided
-	sweepID := indexName
-	if sweepID == "" {
-		sweepID = fmt.Sprintf("pagerank_%s", sweepTime.Format("20060102_150405"))
-	}
-
-	// Begin transaction
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	// Unset previous latest flags
 	if _, err := tx.Exec(unsetLatestSQL); err != nil {
 		return fmt.Errorf("failed to unset latest flags: %w", err)
 	}
 
-	// Insert all page ranks
 	insertedCount := 0
 	for url, page := range g {
 		// Convert int prominence back to float rank score
 		rankScore := float64(page.ProminenceValue) / graph.ScaleFactor
 
-		// Count incoming and outgoing links
-		incomingLinks := countIncomingLinks(g, url)
-		outgoingLinks := len(page.Links)
-
-		_, err := tx.Exec(
-			insertRankSQL,
-			url,
-			rankScore,
-			incomingLinks,
-			outgoingLinks,
-			sweepID,
-			"damped_pagerank",
-		)
+		res, err := tx.Exec(insertRankSQL, url, rankScore, resultVersion)
 		if err != nil {
 			return fmt.Errorf("failed to insert rank for %s: %w", url, err)
 		}
-		insertedCount++
+		if n, _ := res.RowsAffected(); n > 0 {
+			insertedCount++
+		}
 	}
 
-	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	slog.Info("Successfully pushed PageRank results", slog.Int("count", insertedCount), slog.String("sweep_id", sweepID))
+	slog.Info("Successfully pushed PageRank results",
+		slog.Int("count", insertedCount),
+		slog.Int("graphSize", len(g)),
+		slog.String("sweep_id", sweepID),
+		slog.Int64("result_version", resultVersion))
 	return nil
-}
-
-// countIncomingLinks counts how many pages in the graph link to the target URL
-func countIncomingLinks(g graph.Graph, targetURL string) int {
-	count := 0
-	for _, page := range g {
-		for _, link := range page.Links {
-			if link == targetURL {
-				count++
-				break
-			}
-		}
-	}
-	return count
 }

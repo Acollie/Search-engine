@@ -34,18 +34,16 @@ Where:
 
 ## Database Schema
 
-Results are stored in the `PageRankResults` table:
+Results are stored in the `PageRankResults` table (created by `scripts/01-init-schema.sql`; Cartographer only writes to it):
 
 | Column | Type | Description |
 |--------|------|-------------|
-| url | VARCHAR(768) | Page URL (PK) |
-| rank_score | FLOAT | Normalized PageRank score |
-| incoming_links | INT | Number of inbound links |
-| outgoing_links | INT | Number of outbound links |
-| sweep_id | VARCHAR(100) | Computation identifier (PK) |
-| computed_at | TIMESTAMP | Computation timestamp |
-| algorithm_name | VARCHAR(50) | Algorithm version |
+| id | SERIAL | Primary key |
+| page_id | INTEGER | FK to SeenPages(id) |
+| score | FLOAT | Normalized PageRank score |
+| result_version | INTEGER | Sweep identifier, shared by every row in one Push() call |
 | is_latest | BOOLEAN | Latest computation flag |
+| created_at | TIMESTAMP | Computation timestamp |
 
 ## Deployment
 

@@ -131,6 +131,8 @@ func main() {
 		err = h.Traverse()
 		if err != nil {
 			slog.Error("PageRank computation failed", slog.Any("error", err))
+			db.Close()
+			os.Exit(1)
 		}
 
 		slog.Info("PageRank computation completed successfully")

@@ -41,22 +41,14 @@ func TestHandler_Traverse_EmptyDatabase(t *testing.T) {
 			WillReturnRows(rows)
 	}
 
-	// Mock push operations
-	mock.ExpectExec(`CREATE TABLE IF NOT EXISTS PageRankResults`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_latest_rank`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_sweep`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectBegin()
-	mock.ExpectExec(`UPDATE PageRankResults SET is_latest = FALSE`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectCommit()
-
 	handler := New(db, sweepCount, sweepBreath)
 	err = handler.Traverse()
 
-	assert.NoError(t, err)
+	// An empty database means an empty merged graph — Push refuses to write
+	// that (it would silently wipe every previous is_latest result), so the
+	// run must surface as a failure rather than a false "success".
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing to push empty PageRank result set")
 	err = mock.ExpectationsWereMet()
 	assert.NoError(t, err)
 }
@@ -82,12 +74,6 @@ func TestHandler_Traverse_WithData(t *testing.T) {
 		WillReturnRows(rows)
 
 	// Mock push operations
-	mock.ExpectExec(`CREATE TABLE IF NOT EXISTS PageRankResults`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_latest_rank`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_sweep`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE PageRankResults SET is_latest = FALSE`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
@@ -95,7 +81,7 @@ func TestHandler_Traverse_WithData(t *testing.T) {
 	// Expect 5 inserts (one for each page)
 	for i := 0; i < 5; i++ {
 		mock.ExpectExec(`INSERT INTO PageRankResults`).
-			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), "damped_pagerank").
+			WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 			WillReturnResult(sqlmock.NewResult(int64(i+1), 1))
 	}
 	mock.ExpectCommit()
@@ -128,22 +114,16 @@ func TestHandler_Traverse_MultipleSweeps(t *testing.T) {
 	}
 
 	// Mock push operations (merged results)
-	mock.ExpectExec(`CREATE TABLE IF NOT EXISTS PageRankResults`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_latest_rank`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_sweep`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectBegin()
 	mock.ExpectExec(`UPDATE PageRankResults SET is_latest = FALSE`).
 		WillReturnResult(sqlmock.NewResult(0, 0))
 
 	// Expect inserts for merged pages
 	mock.ExpectExec(`INSERT INTO PageRankResults`).
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), "damped_pagerank").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectExec(`INSERT INTO PageRankResults`).
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), "damped_pagerank").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnResult(sqlmock.NewResult(2, 1))
 
 	mock.ExpectCommit()
@@ -169,24 +149,15 @@ func TestHandler_Traverse_FetchError(t *testing.T) {
 		WithArgs(sweepBreath).
 		WillReturnError(assert.AnError)
 
-	// Mock push operations for empty graph
-	mock.ExpectExec(`CREATE TABLE IF NOT EXISTS PageRankResults`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_latest_rank`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_sweep`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectBegin()
-	mock.ExpectExec(`UPDATE PageRankResults SET is_latest = FALSE`).
-		WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectCommit()
-
 	handler := New(db, sweepCount, sweepBreath)
 	err = handler.Traverse()
 
-	// Should complete even if fetch returns error (handled gracefully)
-	// Fetch returns empty slice on error, which creates empty graph that can be pushed
-	assert.NoError(t, err)
+	// Fetch swallows its own error and returns an empty slice (logged
+	// separately), which produces an empty graph. Push refuses to write
+	// that, so the failure still surfaces at the top level instead of
+	// silently succeeding with zero real results.
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "refusing to push empty PageRank result set")
 
 	err = mock.ExpectationsWereMet()
 	assert.NoError(t, err)
@@ -208,9 +179,8 @@ func TestHandler_Traverse_PushError(t *testing.T) {
 		WithArgs(sweepBreath).
 		WillReturnRows(rows)
 
-	// Mock push table creation failure
-	mock.ExpectExec(`CREATE TABLE IF NOT EXISTS PageRankResults`).
-		WillReturnError(assert.AnError)
+	// Mock push transaction begin failure
+	mock.ExpectBegin().WillReturnError(assert.AnError)
 
 	handler := New(db, sweepCount, sweepBreath)
 	err = handler.Traverse()
@@ -280,17 +250,11 @@ func TestHandler_Traverse_Configuration(t *testing.T) {
 			}
 
 			// Mock push
-			mock.ExpectExec(`CREATE TABLE IF NOT EXISTS PageRankResults`).
-				WillReturnResult(sqlmock.NewResult(0, 0))
-			mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_latest_rank`).
-				WillReturnResult(sqlmock.NewResult(0, 0))
-			mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_sweep`).
-				WillReturnResult(sqlmock.NewResult(0, 0))
 			mock.ExpectBegin()
 			mock.ExpectExec(`UPDATE PageRankResults SET is_latest = FALSE`).
 				WillReturnResult(sqlmock.NewResult(0, 0))
 			mock.ExpectExec(`INSERT INTO PageRankResults`).
-				WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(), "damped_pagerank").
+				WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).
 				WillReturnResult(sqlmock.NewResult(1, 1))
 			mock.ExpectCommit()
 
@@ -323,9 +287,6 @@ func BenchmarkHandler_Traverse(b *testing.B) {
 		}
 
 		// Mock push
-		mock.ExpectExec(`CREATE TABLE IF NOT EXISTS PageRankResults`).WillReturnResult(sqlmock.NewResult(0, 0))
-		mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_latest_rank`).WillReturnResult(sqlmock.NewResult(0, 0))
-		mock.ExpectExec(`CREATE INDEX IF NOT EXISTS idx_sweep`).WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectBegin()
 		mock.ExpectExec(`UPDATE PageRankResults SET is_latest = FALSE`).WillReturnResult(sqlmock.NewResult(0, 0))
 		mock.ExpectExec(`INSERT INTO PageRankResults`).WillReturnResult(sqlmock.NewResult(1, 1))
