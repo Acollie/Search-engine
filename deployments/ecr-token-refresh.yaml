@@ -53,12 +53,18 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          labels:
+            app: ecr-token-refresh
         spec:
           serviceAccountName: ecr-token-refresh
           restartPolicy: OnFailure
           containers:
+            # amazon/aws-cli has no kubectl and rancher/kubectl has no shell,
+            # so neither can run this script alone — alpine/k8s bundles both
+            # CLIs plus a real shell on an Alpine base.
             - name: ecr-token-refresh
-              image: amazon/aws-cli:2.27.34
+              image: alpine/k8s:1.32.5
               imagePullPolicy: IfNotPresent
               securityContext:
                 allowPrivilegeEscalation: false
@@ -70,6 +76,13 @@ spec:
                 - /bin/sh
                 - -c
                 - |
+                  set -e
+                  trap 'code=$?; if [ $code -ne 0 ]; then
+                    curl -sf -X POST -H "Content-Type: application/json" \
+                      -d "{\"text\":\":rotating_light: ecr-token-refresh failed in search-engine (exit $code). ECR pulls will start failing once the current token expires. Check: kubectl logs -n search-engine -l app=ecr-token-refresh --tail=50\"}" \
+                      "$SLACK_WEBHOOK_URL" || true
+                  fi' EXIT
+
                   TOKEN=$(aws ecr get-login-password --region $ECR_REGION)
                   ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
                   REGISTRY="${ACCOUNT}.dkr.ecr.${ECR_REGION}.amazonaws.com"
@@ -96,3 +109,8 @@ spec:
                     secretKeyRef:
                       name: aws-credentials
                       key: ECR_REGION
+                - name: SLACK_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: alertmanager-slack-secret
+                      key: slack_webhook_url
