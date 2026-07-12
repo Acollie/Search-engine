@@ -24,10 +24,17 @@ export default function AboutPage({ onSearch, onGraph }: Props) {
   const [stats, setStats] = useState<Stats | null>(null)
 
   useEffect(() => {
-    fetch('/api/stats')
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then((data: Stats) => setStats(data))
-      .catch(() => {})
+    let cancelled = false
+    const load = () =>
+      fetch('/api/stats')
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`stats ${r.status}`)))
+        .then((data: Stats) => { if (!cancelled) setStats(data) })
+        .catch(err => {
+          console.error('stats fetch failed', err)
+          if (!cancelled) setTimeout(load, 3000)
+        })
+    load()
+    return () => { cancelled = true }
   }, [])
 
   const { output: title, replay: replayTitle } = useTextScramble('MICHICHUSA', 900)
@@ -52,6 +59,7 @@ export default function AboutPage({ onSearch, onGraph }: Props) {
         <div className="about-nav-links">
           <span className="about-nav-link about-nav-active">ABOUT</span>
           <button className="about-nav-link" onClick={onGraph}>GRAPH</button>
+          <a className="about-nav-link" href="https://metrics.collie.codes" target="_blank" rel="noopener noreferrer">METRICS</a>
         </div>
       </nav>
 

@@ -624,6 +624,7 @@ hr.divider {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--o-dim);
+  text-decoration: none;
   cursor: pointer;
   padding: 4px 0;
   transition: color 0.2s, text-shadow 0.2s;

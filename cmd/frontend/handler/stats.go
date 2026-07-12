@@ -41,17 +41,24 @@ func (h *StatsHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	h.mu.RLock()
-	if h.cached != nil && time.Since(h.cachedAt) < h.cacheTTL {
-		cached := h.cached
-		h.mu.RUnlock()
+	fresh := h.cached != nil && time.Since(h.cachedAt) < h.cacheTTL
+	cached := h.cached
+	h.mu.RUnlock()
+
+	if fresh {
 		json.NewEncoder(w).Encode(cached) //nolint:errcheck
 		return
 	}
-	h.mu.RUnlock()
 
 	stats, err := h.fetchStats(r.Context())
 	if err != nil {
 		slog.Error("Failed to fetch stats", slog.Any("error", err))
+		if cached != nil {
+			// Serve the last known-good values rather than leaving the page blank
+			// while we're still within the outage.
+			json.NewEncoder(w).Encode(cached) //nolint:errcheck
+			return
+		}
 		w.WriteHeader(http.StatusServiceUnavailable)
 		json.NewEncoder(w).Encode(map[string]string{"error": "stats unavailable"}) //nolint:errcheck
 		return
@@ -66,8 +73,12 @@ func (h *StatsHandler) Handle(w http.ResponseWriter, r *http.Request) {
 }
 
 // fetchStats queries live counts in a single round-trip.
-// pg_class.reltuples gives a fast O(1) approximate total; crawl window counts
-// use indexed timestamp ranges and are bounded by the 5-minute cache.
+// pg_stat_user_tables.n_live_tup gives a fast O(1) approximate total that the
+// stats collector keeps current on every write, unlike pg_class.reltuples
+// which only updates on ANALYZE and goes stale on high-churn tables like
+// Queue — a stale/negative reltuples was falling through to a full COUNT(*)
+// on a multi-million-row table and blowing the timeout below. Crawl window
+// counts use indexed timestamp ranges and are bounded by the 5-minute cache.
 func (h *StatsHandler) fetchStats(ctx context.Context) (*StatsResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -76,21 +87,21 @@ func (h *StatsHandler) fetchStats(ctx context.Context) (*StatsResponse, error) {
 	row := h.db.QueryRowContext(ctx, `
 		SELECT
 			CASE
-				WHEN (SELECT reltuples FROM pg_class WHERE relname = 'seenpages') >= 0
-				THEN (SELECT reltuples::bigint FROM pg_class WHERE relname = 'seenpages')
+				WHEN (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'seenpages') IS NOT NULL
+				THEN (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'seenpages')
 				ELSE (SELECT COUNT(*) FROM SeenPages)
 			END,
 			COALESCE((SELECT COUNT(*) FROM SeenPages WHERE crawl_time >= now() - interval '24 hours'), 0),
 			CASE
-				WHEN (SELECT reltuples FROM pg_class WHERE relname = 'queue') >= 0
-				THEN (SELECT reltuples::bigint FROM pg_class WHERE relname = 'queue')
+				WHEN (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'queue') IS NOT NULL
+				THEN (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'queue')
 				ELSE (SELECT COUNT(*) FROM Queue WHERE status = 'pending')
 			END,
 			COALESCE((SELECT COUNT(*) FROM SeenPages WHERE crawl_time >= now() - interval '1 hour'), 0),
 			COALESCE((SELECT COUNT(DISTINCT domain) FROM SeenPages WHERE domain IS NOT NULL), 0),
 			CASE
-				WHEN (SELECT reltuples FROM pg_class WHERE relname = 'links') >= 0
-				THEN (SELECT reltuples::bigint FROM pg_class WHERE relname = 'links')
+				WHEN (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'links') IS NOT NULL
+				THEN (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'links')
 				ELSE (SELECT COUNT(*) FROM Links)
 			END,
 			COALESCE((SELECT COUNT(*) FROM PageRankResults WHERE is_latest = true), 0),
