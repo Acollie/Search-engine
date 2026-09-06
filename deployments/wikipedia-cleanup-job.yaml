@@ -1,0 +1,171 @@
+# One-off cleanup of Wikipedia URLs that robots.txt disallows.
+#
+# en.wikipedia.org/robots.txt has "Disallow: /w/" for User-agent: *, but the
+# spider's robots cache stored one verdict per domain, so these were crawled
+# anyway -- 293,810 of them, against 188,852 real articles. They surface in
+# search as near-duplicate results (action=edit, action=history, printable=yes,
+# oldid=..., useparsoid=0 all render the same article).
+#
+# The crawler fix is in cmd/spider (per-path robots evaluation + URL
+# canonicalization); this job removes the rows already indexed.
+#
+# Run as a Job rather than interactively: the delete takes longer than a typical
+# shell timeout, and a DELETE is a single transaction -- if the client
+# disconnects mid-flight, Postgres rolls the whole thing back and nothing is
+# removed.
+#
+#   kubectl apply -f deployments/wikipedia-cleanup-job.yaml
+#   kubectl logs -f job/wikipedia-cleanup -n search-engine
+#
+# Delete the Job when done: kubectl delete job wikipedia-cleanup -n search-engine
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wikipedia-cleanup-script
+  namespace: search-engine
+  labels:
+    app: wikipedia-cleanup
+data:
+  cleanup.sh: |
+    #!/bin/sh
+    set -e
+
+    # Give the network policy controller time to register this pod's IP
+    sleep 15
+
+    export PGPASSWORD="$DB_PASSWORD"
+    PSQL="psql -h $DB_HOST -U $DB_USER -d $DB_NAME -t -A"
+
+    echo "=== Wikipedia /w/ cleanup started at $(date) ==="
+
+    BEFORE=$($PSQL -c "SET statement_timeout=0; SELECT count(*) FROM seenpages WHERE url >= 'https://en.wikipedia.org/w/' AND url < 'https://en.wikipedia.org/w0';")
+    echo "Rows to remove: $BEFORE"
+
+    # Delete in batches so each transaction is short. A single 294k-row DELETE
+    # holds one long transaction; if it is interrupted the entire thing rolls
+    # back and no progress is kept. Batching makes the work restartable.
+    TOTAL=0
+    while : ; do
+      DELETED=$($PSQL -c "SET statement_timeout=0; WITH d AS (DELETE FROM seenpages WHERE ctid IN (SELECT ctid FROM seenpages WHERE url >= 'https://en.wikipedia.org/w/' AND url < 'https://en.wikipedia.org/w0' LIMIT 5000) RETURNING 1) SELECT count(*) FROM d;")
+      DELETED=$(echo "$DELETED" | tr -d '[:space:]')
+      # Use explicit if, not "[ ... ] && cmd": under set -e a false test makes
+      # the && list return non-zero and aborts the script.
+      if [ -z "$DELETED" ]; then
+        DELETED=0
+      fi
+      TOTAL=$((TOTAL + DELETED))
+      echo "  deleted batch of $DELETED (running total: $TOTAL)"
+      if [ "$DELETED" -eq 0 ]; then
+        break
+      fi
+    done
+
+    echo "Deleted $TOTAL rows total"
+
+    # DELETE only marks tuples dead. Without VACUUM the space is never reused
+    # and the table keeps growing -- the bug that filled the volume to 100%.
+    # PARALLEL 0 avoids "could not resize shared memory segment" while /dev/shm
+    # is still at the 64Mi default.
+    echo "Vacuuming to make the space reusable..."
+    $PSQL -c "SET statement_timeout=0; VACUUM (ANALYZE, PARALLEL 0) seenpages;"
+    echo "Vacuum complete"
+
+    AFTER=$($PSQL -c "SELECT count(*) FROM seenpages WHERE url >= 'https://en.wikipedia.org/w/' AND url < 'https://en.wikipedia.org/w0';")
+    LIVE=$($PSQL -c "SELECT count(*) FROM seenpages;")
+    echo "Remaining /w/ rows: $AFTER"
+    echo "Total pages now:    $LIVE"
+
+    echo "=== Cleanup complete at $(date) ==="
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wikipedia-cleanup
+  namespace: search-engine
+  labels:
+    app: wikipedia-cleanup
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: wikipedia-cleanup
+    spec:
+      restartPolicy: OnFailure
+      terminationGracePeriodSeconds: 600
+      containers:
+        - name: cleanup
+          image: postgres:15-alpine
+          command: ["/bin/sh", "/scripts/cleanup.sh"]
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: search-engine-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: search-engine-secrets
+                  key: DB_PASSWORD
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: search-engine-config
+                  key: DB_HOST
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: search-engine-config
+                  key: DB_NAME
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 999
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: script
+          configMap:
+            name: wikipedia-cleanup-script
+            defaultMode: 0555
+        - name: tmp
+          emptyDir: {}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-wikipedia-cleanup
+  namespace: search-engine
+spec:
+  podSelector:
+    matchLabels:
+      app: wikipedia-cleanup
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - port: 5432
