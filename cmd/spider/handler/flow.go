@@ -168,20 +168,30 @@ func (h *Server) processURL(ctx context.Context, pageURL string) {
 	}
 }
 
-// checkRobotsCached checks robots.txt with caching
+// checkRobotsCached checks pageURL against the domain's robots.txt rules,
+// fetching and caching the parsed rules once per domain.
+//
+// The cache holds the parsed rule group, not a verdict. Caching a verdict meant
+// the first URL crawled on a domain decided for every later URL on it, which let
+// disallowed paths through for the whole TTL.
 func (h *Server) checkRobotsCached(domain, pageURL string) (bool, error) {
-	// Check cache first
 	if entry, found := h.RobotsCache.Get(domain); found {
-		return entry.Allowed, entry.Error
+		if entry.Error != nil {
+			return false, entry.Error
+		}
+		return site.CanCrawl(entry.Group, pageURL)
 	}
 
-	// Fetch robots.txt
-	allowed, err := site.FetchRobots(pageURL)
+	group, err := site.FetchRobotsGroup(pageURL)
 
-	// Cache result
-	h.RobotsCache.Set(domain, allowed, err)
+	// Cache the outcome either way so a failing host is not refetched per URL.
+	h.RobotsCache.Set(domain, group, err)
 
-	return allowed, err
+	if err != nil {
+		return false, err
+	}
+
+	return site.CanCrawl(group, pageURL)
 }
 
 func (h *Server) fetchAndSavePage(ctx context.Context, pageURL, domain string) error {
@@ -234,6 +244,11 @@ func (h *Server) fetchAndSavePage(ctx context.Context, pageURL, domain string) e
 
 	if len(pageLinks) > 0 {
 		metrics.LinksExtracted.WithLabelValues(domain).Add(float64(len(pageLinks)))
+
+		// Canonicalize before queueing so URL variants of one page (trailing
+		// slash, tracking params, fragments) are not crawled and indexed
+		// separately.
+		pageLinks = site.NormalizeURLs(pageLinks)
 
 		err = h.Db.Queue.AddLinks(ctx, pageLinks)
 		if err != nil {

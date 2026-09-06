@@ -102,6 +102,16 @@ func (m *MockQueueDB) RemoveLink(ctx context.Context, link string) error {
 	return args.Error(0)
 }
 
+func (m *MockQueueDB) GetQueueSizeApprox(ctx context.Context) (int64, error) {
+	args := m.Called(ctx)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *MockQueueDB) PruneQueue(ctx context.Context, deleteCount int64) error {
+	args := m.Called(ctx, deleteCount)
+	return args.Error(0)
+}
+
 // MockSpiderStream is a mock implementation of the bidirectional stream
 type MockSpiderStream struct {
 	mock.Mock

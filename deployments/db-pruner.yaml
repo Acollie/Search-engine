@@ -29,13 +29,31 @@ data:
     QUEUE_DELETED=$($PSQL -c "WITH d AS (DELETE FROM queue WHERE created_at < NOW() - INTERVAL '14 days' RETURNING 1) SELECT COUNT(*) FROM d;")
     echo "Queue: deleted $QUEUE_DELETED old rows"
 
-    # Purge non-indexable seenpages older than 90 days, protecting first-party domains
-    PAGES_DELETED=$($PSQL -c "WITH d AS (DELETE FROM seenpages WHERE crawl_time < NOW() - INTERVAL '90 days' AND is_indexable = false AND domain NOT LIKE '%collie.codes%' AND domain NOT LIKE '%alexcollie.com%' RETURNING 1) SELECT COUNT(*) FROM d;")
+    # Purge non-indexable seenpages older than 90 days, protecting first-party sites.
+    # Matched on url, not domain: the domain column is empty for every row, so a
+    # "domain NOT LIKE" guard is always true and protects nothing.
+    PAGES_DELETED=$($PSQL -c "WITH d AS (DELETE FROM seenpages WHERE crawl_time < NOW() - INTERVAL '90 days' AND is_indexable = false AND url NOT LIKE '%collie.codes%' AND url NOT LIKE '%alexcollie.com%' RETURNING 1) SELECT COUNT(*) FROM d;")
     echo "SeenPages: deleted $PAGES_DELETED old non-indexable rows"
 
     # Purge superseded PageRank result versions
     PR_DELETED=$($PSQL -c "WITH d AS (DELETE FROM pagerankresults WHERE is_latest = false RETURNING 1) SELECT COUNT(*) FROM d;")
     echo "PageRank old versions: deleted $PR_DELETED rows"
+
+    # CRITICAL: DELETE only marks tuples dead, it never returns space for reuse.
+    # Without an explicit VACUUM the table keeps growing despite the deletes above
+    # -- this is what silently filled the 100Gi volume and took Postgres down.
+    # PARALLEL 0 avoids "could not resize shared memory segment" on small /dev/shm.
+    echo "Vacuuming to reclaim space (this is the step that actually frees it)..."
+    $PSQL -c "VACUUM (ANALYZE, PARALLEL 0) queue;"
+    $PSQL -c "VACUUM (ANALYZE, PARALLEL 0) seenpages;"
+    echo "Vacuum complete"
+
+    # NOTE: this pod does not mount Postgres's volume, so df here would report the
+    # wrong filesystem. Report the largest relations instead; volume-level free
+    # space is alerted on separately via the PostgresVolumeAlmostFull rule.
+    DISK_USED=$($PSQL -c "SELECT string_agg(t, ', ') FROM (SELECT c.relname || '=' || pg_size_pretty(pg_total_relation_size(c.oid)) AS t FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'r' ORDER BY pg_total_relation_size(c.oid) DESC LIMIT 3) s;")
+    [ -z "$DISK_USED" ] && DISK_USED="n/a"
+    echo "Largest relations: $DISK_USED"
 
     # After stats
     DB_SIZE_AFTER=$($PSQL -c "SELECT pg_size_pretty(pg_database_size('$DB_NAME'));")
@@ -45,10 +63,10 @@ data:
 
     # Post summary to Slack
     PAYLOAD=$(printf \
-      '{"text":":broom: *DB Purge Complete*\n• Queue: deleted %s rows (%s → %s rows)\n• SeenPages: deleted %s rows\n• PageRank old versions: deleted %s rows\n• DB size: %s → %s"}' \
+      '{"text":":broom: *DB Purge Complete*\n• Queue: deleted %s rows (%s → %s rows)\n• SeenPages: deleted %s rows\n• PageRank old versions: deleted %s rows\n• DB size: %s → %s\n• Largest relations: %s"}' \
       "$QUEUE_DELETED" "$QUEUE_BEFORE" "$QUEUE_AFTER" \
       "$PAGES_DELETED" "$PR_DELETED" \
-      "$DB_SIZE_BEFORE" "$DB_SIZE_AFTER")
+      "$DB_SIZE_BEFORE" "$DB_SIZE_AFTER" "$DISK_USED")
 
     wget -qO- \
       --header='Content-Type: application/json' \

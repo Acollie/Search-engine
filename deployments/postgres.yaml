@@ -104,6 +104,11 @@ spec:
               mountPath: /var/lib/postgresql/data
             - name: postgres-init
               mountPath: /docker-entrypoint-initdb.d
+            # Postgres parallel workers allocate shared memory segments here.
+            # Without this, /dev/shm defaults to 64Mi and VACUUM/parallel query
+            # fail with "could not resize shared memory segment".
+            - name: dshm
+              mountPath: /dev/shm
           securityContext:
             allowPrivilegeEscalation: false
       volumes:
@@ -111,6 +116,11 @@ spec:
           configMap:
             name: postgres-init-scripts
             defaultMode: 0755
+        # Memory-backed, so it counts against the container memory limit (2Gi).
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 512Mi
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
