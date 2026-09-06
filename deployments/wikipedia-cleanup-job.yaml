@@ -1,18 +1,27 @@
 # One-off cleanup of Wikipedia URLs that robots.txt disallows.
 #
-# en.wikipedia.org/robots.txt has "Disallow: /w/" for User-agent: *, but the
-# spider's robots cache stored one verdict per domain, so these were crawled
-# anyway -- 293,810 of them, against 188,852 real articles. They surface in
-# search as near-duplicate results (action=edit, action=history, printable=yes,
-# oldid=..., useparsoid=0 all render the same article).
+# Wikipedia's robots.txt (User-agent: *) disallows /w/ and the Special: page
+# namespace in several localisations:
+#
+#   Disallow: /w/
+#   Disallow: /wiki/Special:    Disallow: /wiki/Special%3A
+#   Disallow: /wiki/Spezial:    (de)
+#   Disallow: /wiki/Spesial:    (no)
+#
+# The spider cached one robots verdict per domain rather than evaluating each
+# path, so all of these were crawled anyway. They surface in search as
+# near-duplicate copies of an article (action=edit, action=history,
+# printable=yes, oldid=..., useparsoid=0) and as non-content pages such as
+# Special:WhatLinksHere. Across just 5 of ~300 language wikipedias there were
+# 580,391 such rows.
 #
 # The crawler fix is in cmd/spider (per-path robots evaluation + URL
-# canonicalization); this job removes the rows already indexed.
+# canonicalization); this job removes rows already indexed.
 #
-# Run as a Job rather than interactively: the delete takes longer than a typical
-# shell timeout, and a DELETE is a single transaction -- if the client
-# disconnects mid-flight, Postgres rolls the whole thing back and nothing is
-# removed.
+# Run as a Job, not interactively: this deletes on the order of a million rows
+# and then vacuums, far longer than any shell timeout. A single large DELETE is
+# also one transaction -- if the client disconnects mid-flight Postgres rolls
+# all of it back, so the work is batched to stay restartable.
 #
 #   kubectl apply -f deployments/wikipedia-cleanup-job.yaml
 #   kubectl logs -f job/wikipedia-cleanup -n search-engine
@@ -31,7 +40,9 @@ data:
     #!/bin/sh
     set -e
 
-    # Give the network policy controller time to register this pod's IP
+    # Give the network policy controller time to register this pod's IP.
+    # The pod also needs an entry in the allow-postgres ingress policy
+    # (network-policies.yaml) or default-deny-all refuses the connection.
     sleep 15
 
     export PGPASSWORD="$DB_PASSWORD"
@@ -41,48 +52,86 @@ data:
     export PGOPTIONS="-c statement_timeout=0"
     PSQL="psql -h $DB_HOST -U $DB_USER -d $DB_NAME -t -A -q"
 
-    echo "=== Wikipedia /w/ cleanup started at $(date) ==="
+    BATCH=5000
 
-    BEFORE=$($PSQL -c "SELECT count(*) FROM seenpages WHERE url >= 'https://en.wikipedia.org/w/' AND url < 'https://en.wikipedia.org/w0';")
-    echo "Rows to remove: $BEFORE"
+    echo "=== Wikipedia robots.txt cleanup started at $(date) ==="
 
-    # Delete in batches so each transaction is short. A single 294k-row DELETE
-    # holds one long transaction; if it is interrupted the entire thing rolls
-    # back and no progress is kept. Batching makes the work restartable.
+    # Delete every row whose url falls in [start, end) in batches, so each
+    # transaction stays short and interruption keeps prior progress.
+    # Uses the url btree index; a LIKE '%...%' scan of this table takes minutes.
+    delete_range() {
+      range_start="$1"
+      range_end="$2"
+      removed=0
+
+      while : ; do
+        n=$($PSQL -c "WITH d AS (DELETE FROM seenpages WHERE ctid IN (SELECT ctid FROM seenpages WHERE url >= '$range_start' AND url < '$range_end' LIMIT $BATCH) RETURNING 1) SELECT count(*) FROM d;")
+        n=$(echo "$n" | tr -d '[:space:]')
+
+        # A non-numeric value would loop forever, so fail loudly instead.
+        case "$n" in
+          ''|*[!0-9]*)
+            echo "ERROR: expected a row count, got: '$n'" >&2
+            exit 1
+            ;;
+        esac
+
+        removed=$((removed + n))
+
+        # Explicit if, not "[ ... ] && break": under set -e a false test makes
+        # the && list return non-zero and aborts the script after one batch.
+        if [ "$n" -lt "$BATCH" ]; then
+          break
+        fi
+      done
+
+      echo "$removed"
+    }
+
+    HOSTS=$($PSQL -c "SELECT DISTINCT split_part(url, '/', 3) FROM seenpages WHERE url LIKE 'https://%.wikipedia.org/%' ORDER BY 1;")
+
+    if [ -z "$HOSTS" ]; then
+      echo "No wikipedia hosts found; nothing to do."
+      exit 0
+    fi
+
+    echo "Wikipedia hosts found: $(echo "$HOSTS" | wc -l | tr -d ' ')"
+
     TOTAL=0
-    while : ; do
-      DELETED=$($PSQL -c "WITH d AS (DELETE FROM seenpages WHERE ctid IN (SELECT ctid FROM seenpages WHERE url >= 'https://en.wikipedia.org/w/' AND url < 'https://en.wikipedia.org/w0' LIMIT 5000) RETURNING 1) SELECT count(*) FROM d;")
-      DELETED=$(echo "$DELETED" | tr -d '[:space:]')
-      # A non-numeric value here would loop forever, so fail loudly instead.
-      case "$DELETED" in
-        ''|*[!0-9]*)
-          echo "ERROR: expected a row count, got: '$DELETED'" >&2
-          exit 1
-          ;;
-      esac
-      TOTAL=$((TOTAL + DELETED))
-      echo "  deleted batch of $DELETED (running total: $TOTAL)"
-      # Explicit if, not "[ ... ] && break": under set -e a false test makes the
-      # && list return non-zero and aborts the script after the first batch.
-      if [ "$DELETED" -eq 0 ]; then
-        break
+    for host in $HOSTS; do
+      host_total=0
+
+      # "/w0" is the next string after the "/w/" prefix, giving a half-open
+      # range over exactly the /w/... URLs. Likewise ";" follows ":".
+      for spec in "/w/|/w0" \
+                  "/wiki/Special:|/wiki/Special;" \
+                  "/wiki/Special%3A|/wiki/Special%3B" \
+                  "/wiki/Spezial:|/wiki/Spezial;" \
+                  "/wiki/Spesial:|/wiki/Spesial;"; do
+        s=$(echo "$spec" | cut -d'|' -f1)
+        e=$(echo "$spec" | cut -d'|' -f2)
+        n=$(delete_range "https://$host$s" "https://$host$e")
+        host_total=$((host_total + n))
+      done
+
+      TOTAL=$((TOTAL + host_total))
+      if [ "$host_total" -gt 0 ]; then
+        echo "  $host: removed $host_total (running total: $TOTAL)"
       fi
     done
 
-    echo "Deleted $TOTAL rows total"
+    echo "Deleted $TOTAL disallowed rows in total"
 
     # DELETE only marks tuples dead. Without VACUUM the space is never reused
     # and the table keeps growing -- the bug that filled the volume to 100%.
     # PARALLEL 0 avoids "could not resize shared memory segment" while /dev/shm
     # is still at the 64Mi default.
-    echo "Vacuuming to make the space reusable..."
+    echo "Vacuuming to make the space reusable (this takes a while)..."
     $PSQL -c "VACUUM (ANALYZE, PARALLEL 0) seenpages;"
     echo "Vacuum complete"
 
-    AFTER=$($PSQL -c "SELECT count(*) FROM seenpages WHERE url >= 'https://en.wikipedia.org/w/' AND url < 'https://en.wikipedia.org/w0';")
     LIVE=$($PSQL -c "SELECT count(*) FROM seenpages;")
-    echo "Remaining /w/ rows: $AFTER"
-    echo "Total pages now:    $LIVE"
+    echo "Total pages now: $LIVE"
 
     echo "=== Cleanup complete at $(date) ==="
 
