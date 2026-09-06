@@ -35,11 +35,15 @@ data:
     sleep 15
 
     export PGPASSWORD="$DB_PASSWORD"
-    PSQL="psql -h $DB_HOST -U $DB_USER -d $DB_NAME -t -A"
+    # Set the timeout via PGOPTIONS rather than an inline "SET ...;" statement:
+    # psql echoes a "SET" command tag that would be captured alongside the query
+    # result and make the value non-numeric.
+    export PGOPTIONS="-c statement_timeout=0"
+    PSQL="psql -h $DB_HOST -U $DB_USER -d $DB_NAME -t -A -q"
 
     echo "=== Wikipedia /w/ cleanup started at $(date) ==="
 
-    BEFORE=$($PSQL -c "SET statement_timeout=0; SELECT count(*) FROM seenpages WHERE url >= 'https://en.wikipedia.org/w/' AND url < 'https://en.wikipedia.org/w0';")
+    BEFORE=$($PSQL -c "SELECT count(*) FROM seenpages WHERE url >= 'https://en.wikipedia.org/w/' AND url < 'https://en.wikipedia.org/w0';")
     echo "Rows to remove: $BEFORE"
 
     # Delete in batches so each transaction is short. A single 294k-row DELETE
@@ -47,15 +51,19 @@ data:
     # back and no progress is kept. Batching makes the work restartable.
     TOTAL=0
     while : ; do
-      DELETED=$($PSQL -c "SET statement_timeout=0; WITH d AS (DELETE FROM seenpages WHERE ctid IN (SELECT ctid FROM seenpages WHERE url >= 'https://en.wikipedia.org/w/' AND url < 'https://en.wikipedia.org/w0' LIMIT 5000) RETURNING 1) SELECT count(*) FROM d;")
+      DELETED=$($PSQL -c "WITH d AS (DELETE FROM seenpages WHERE ctid IN (SELECT ctid FROM seenpages WHERE url >= 'https://en.wikipedia.org/w/' AND url < 'https://en.wikipedia.org/w0' LIMIT 5000) RETURNING 1) SELECT count(*) FROM d;")
       DELETED=$(echo "$DELETED" | tr -d '[:space:]')
-      # Use explicit if, not "[ ... ] && cmd": under set -e a false test makes
-      # the && list return non-zero and aborts the script.
-      if [ -z "$DELETED" ]; then
-        DELETED=0
-      fi
+      # A non-numeric value here would loop forever, so fail loudly instead.
+      case "$DELETED" in
+        ''|*[!0-9]*)
+          echo "ERROR: expected a row count, got: '$DELETED'" >&2
+          exit 1
+          ;;
+      esac
       TOTAL=$((TOTAL + DELETED))
       echo "  deleted batch of $DELETED (running total: $TOTAL)"
+      # Explicit if, not "[ ... ] && break": under set -e a false test makes the
+      # && list return non-zero and aborts the script after the first batch.
       if [ "$DELETED" -eq 0 ]; then
         break
       fi
@@ -68,7 +76,7 @@ data:
     # PARALLEL 0 avoids "could not resize shared memory segment" while /dev/shm
     # is still at the 64Mi default.
     echo "Vacuuming to make the space reusable..."
-    $PSQL -c "SET statement_timeout=0; VACUUM (ANALYZE, PARALLEL 0) seenpages;"
+    $PSQL -c "VACUUM (ANALYZE, PARALLEL 0) seenpages;"
     echo "Vacuum complete"
 
     AFTER=$($PSQL -c "SELECT count(*) FROM seenpages WHERE url >= 'https://en.wikipedia.org/w/' AND url < 'https://en.wikipedia.org/w0';")
