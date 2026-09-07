@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 	"webcrawler/cmd/searcher/metrics"
@@ -22,6 +24,25 @@ func NewRPCServer(db *sql.DB) *Handler {
 	return &Handler{
 		db: db,
 	}
+}
+
+// defaultMaxCandidates bounds how many matching rows get ranked. See the
+// comment in SearchPages for the measurements behind this value.
+const defaultMaxCandidates = 5000
+
+// maxCandidates reads SEARCH_MAX_CANDIDATES so the cap can be tuned against a
+// live index without rebuilding the image. Invalid or non-positive values fall
+// back to the default rather than disabling the cap.
+func maxCandidates() int {
+	raw := os.Getenv("SEARCH_MAX_CANDIDATES")
+	if raw == "" {
+		return defaultMaxCandidates
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return defaultMaxCandidates
+	}
+	return n
 }
 func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchRequest) (*searcher.SearchResponse, error) {
 	start := time.Now()
@@ -48,6 +69,21 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 	// Join tokens with & for AND search
 	queryVector := strings.Join(tokens, " & ")
 
+	// Cap the candidate set before ranking. ts_rank has to detoast search_vector
+	// for every matching row, so ranking all matches of a common term touched
+	// ~4GB of buffers and took 85s -- far past the caller's deadline, which
+	// tripped the frontend circuit breaker and took down unrelated queries too.
+	// Capping bounds that work: measured on "python" (51,524 matches),
+	// uncapped 85.5s, 10,000 candidates 6.8s, 2,000 candidates 1.65s.
+	//
+	// The trade-off is that for very broad terms we rank an arbitrary slice of
+	// the matches rather than all of them, so results are approximate. Returning
+	// good-enough results beats timing out and returning none.
+	candidates := maxCandidates()
+	if min := int(limit + offset); candidates < min {
+		candidates = min
+	}
+
 	// Full-text search query combining ts_rank (30%) with PageRank score (70%).
 	// ts_rank is computed once in the subquery to avoid calling it twice per row.
 	query := `
@@ -56,23 +92,28 @@ func (c *Handler) SearchPages(ctx context.Context, request *searcher.SearchReque
 			crawl_time
 		FROM (
 			SELECT
-				sp.url,
-				sp.title,
-				sp.body,
-				sp.description,
+				c.url,
+				c.title,
+				c.body,
+				c.description,
 				COALESCE(pr.score, 0.0) as pagerank_score,
-				ts_rank(sp.search_vector, plainto_tsquery('english', $1)) as text_relevance,
-				sp.crawl_time
-			FROM seenpages sp
-			LEFT JOIN pagerankresults pr ON sp.id = pr.page_id AND pr.is_latest = true
-			WHERE sp.search_vector @@ plainto_tsquery('english', $1)
-			  AND sp.is_indexable = true
+				ts_rank(c.search_vector, plainto_tsquery('english', $1)) as text_relevance,
+				c.crawl_time
+			FROM (
+				SELECT sp.id, sp.url, sp.title, sp.body, sp.description,
+				       sp.search_vector, sp.crawl_time
+				FROM seenpages sp
+				WHERE sp.search_vector @@ plainto_tsquery('english', $1)
+				  AND sp.is_indexable = true
+				LIMIT $4
+			) c
+			LEFT JOIN pagerankresults pr ON c.id = pr.page_id AND pr.is_latest = true
 		) sub
 		ORDER BY combined_score DESC
 		LIMIT $2 OFFSET $3
 	`
 
-	rows, err := c.db.QueryContext(ctx, query, queryVector, limit, offset)
+	rows, err := c.db.QueryContext(ctx, query, queryVector, limit, offset, candidates)
 	if err != nil {
 		metrics.QueryDuration.Observe(time.Since(start).Seconds())
 		metrics.DatabaseErrors.Inc()

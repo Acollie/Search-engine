@@ -192,8 +192,14 @@ data:
         interval: 30s
         rules:
           # Service availability
+          #
+          # Two rules are needed. "up == 0" only matches a target that exists
+          # and is failing; a service that is scaled to zero, deleted, or never
+          # started exports no up series at all, so == 0 matches nothing and
+          # stays silent. Spider and conductor were fully down and this alert
+          # sat inactive. ServiceTargetMissing covers that case via absent().
           - alert: ServiceDown
-            expr: up{job=~"spider|conductor|searcher"} == 0
+            expr: up{job=~"spider|conductor|searcher|frontend|cartographer"} == 0
             for: 2m
             labels:
               severity: critical
@@ -201,6 +207,18 @@ data:
             annotations:
               summary: "{{ $labels.job }} service is down"
               description: "{{ $labels.job }} has been down for more than 2 minutes"
+
+          # absent() keeps the job label from its matcher, so each disjunct
+          # produces a correctly labelled alert.
+          - alert: ServiceTargetMissing
+            expr: absent(up{job="spider"}) or absent(up{job="conductor"}) or absent(up{job="searcher"}) or absent(up{job="frontend"})
+            for: 5m
+            labels:
+              severity: critical
+              service: '{{ $labels.job }}'
+            annotations:
+              summary: "{{ $labels.job }} has no scrape target"
+              description: "Prometheus has no target for {{ $labels.job }}. The service is scaled to zero, deleted, or was never discovered -- it is not merely failing, it is absent."
 
           # Spider-specific alerts
           # Excludes not_found/forbidden/cycle: these are expected outcomes of
@@ -322,25 +340,22 @@ data:
               summary: "Postgres volume is over 90% full"
               description: "Only {{ $value | humanizePercentage }} free. Postgres will crash-loop on checkpoint failure once this reaches zero."
 
-          # ServiceDown covers spider/conductor/searcher but NOT postgres, so a
-          # crash-looping database produced no alert at all for 23 days.
-          - alert: PostgresNotReady
-            expr: kube_statefulset_status_replicas_ready{namespace="search-engine", statefulset="postgres"} < 1
+          # Postgres has no scrape target of its own (no exporter), so its health
+          # is inferred from the services that query it. During the outage the
+          # searcher logged connection-refused on every request while no alert
+          # fired, because nothing watched the database at all.
+          #
+          # Deliberately not using kube_* metrics here: kube-state-metrics is
+          # not deployed on this cluster, so those expressions match no series
+          # and would sit silently inactive forever.
+          - alert: PostgresUnreachable
+            expr: rate(searcher_database_errors_total[5m]) > 0.05
             for: 5m
             labels:
               severity: critical
             annotations:
-              summary: "Postgres is not ready"
-              description: "postgres-0 has been not-ready for 5m. All search and ingestion is down while this holds."
-
-          - alert: PostgresRestartLoop
-            expr: increase(kube_pod_container_status_restarts_total{namespace="search-engine", pod="postgres-0"}[1h]) > 5
-            for: 5m
-            labels:
-              severity: critical
-            annotations:
-              summary: "Postgres is restarting repeatedly"
-              description: "postgres-0 restarted {{ $value | humanize }} times in the last hour."
+              summary: "Searcher cannot reach the database"
+              description: "Database errors at {{ $value | humanize }}/s for 5m. Postgres is down, unreachable, or refusing connections; all search is failing while this holds."
 
 ---
 apiVersion: v1

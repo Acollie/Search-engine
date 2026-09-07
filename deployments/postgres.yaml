@@ -45,6 +45,24 @@ spec:
         - name: postgres
           image: postgres:15-alpine
           imagePullPolicy: IfNotPresent
+          # Postgres ships with defaults sized for a tiny machine (128MB shared
+          # buffers, 4MB work_mem). On an 80GB table that means almost every
+          # query reads from disk: ranking a common search term touched ~4GB of
+          # buffers and took 12s+, tripping the frontend's 15s circuit breaker.
+          # Sized for the 2Gi container limit below.
+          args:
+            - "-c"
+            - "shared_buffers=512MB"          # ~25% of the container limit
+            - "-c"
+            - "effective_cache_size=1280MB"   # planner hint, not an allocation
+            - "-c"
+            - "work_mem=8MB"                  # per sort/hash node, so keep modest
+            - "-c"
+            - "maintenance_work_mem=256MB"    # VACUUM/CREATE INDEX speed
+            - "-c"
+            - "random_page_cost=1.1"          # network SSD, not spinning disk
+            - "-c"
+            - "effective_io_concurrency=200"
           ports:
             - name: postgresql
               containerPort: 5432
@@ -120,7 +138,7 @@ spec:
         - name: dshm
           emptyDir:
             medium: Memory
-            sizeLimit: 512Mi
+            sizeLimit: 256Mi
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
