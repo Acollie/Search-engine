@@ -42,6 +42,10 @@ type GraphHandler struct {
 	cache map[int]cachedGraph
 }
 
+// graphCandidateLimit bounds how many recent pages are considered before
+// ranking by PageRank score, keeping the query off a full table scan.
+const graphCandidateLimit = 20000
+
 func NewGraphHandler(db *sql.DB) *GraphHandler {
 	return &GraphHandler{db: db, cache: make(map[int]cachedGraph)}
 }
@@ -69,16 +73,28 @@ func (h *GraphHandler) Handle(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
 
+	// Ordering the whole table by PageRank score forces a sequential scan over
+	// every indexable page (3M rows, 80GB) and a sort, which blows past the
+	// 25s deadline and returns nothing. Take a bounded, recent candidate set
+	// using the crawl_time index first, then rank those by score. When
+	// PageRank has run the top pages are recent enough to appear here; when it
+	// has not, every score is 0 and this ordering is what the old query
+	// produced anyway.
 	rows, err := h.db.QueryContext(ctx, `
-		SELECT sp.id, sp.url,
-			COALESCE(NULLIF(TRIM(sp.title), ''), sp.url),
+		SELECT c.id, c.url,
+			COALESCE(NULLIF(TRIM(c.title), ''), c.url),
 			COALESCE(pr.score, 0.0) as score
-		FROM seenpages sp
-		LEFT JOIN pagerankresults pr ON sp.id = pr.page_id AND pr.is_latest = true
-		WHERE sp.is_indexable = true AND sp.links != ''
-		ORDER BY COALESCE(pr.score, 0.0) DESC, sp.crawl_time DESC
+		FROM (
+			SELECT sp.id, sp.url, sp.title, sp.crawl_time
+			FROM seenpages sp
+			WHERE sp.is_indexable = true AND sp.links != ''
+			ORDER BY sp.crawl_time DESC
+			LIMIT $2
+		) c
+		LEFT JOIN pagerankresults pr ON c.id = pr.page_id AND pr.is_latest = true
+		ORDER BY COALESCE(pr.score, 0.0) DESC, c.crawl_time DESC
 		LIMIT $1
-	`, n)
+	`, n, graphCandidateLimit)
 	if err != nil {
 		slog.Error("graph: failed to query nodes", slog.Any("error", err))
 		w.WriteHeader(http.StatusInternalServerError)
