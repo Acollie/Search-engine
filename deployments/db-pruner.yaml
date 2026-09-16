@@ -15,6 +15,12 @@ data:
     sleep 15
 
     export PGPASSWORD="$DB_PASSWORD"
+    # Postgres runs with statement_timeout=30s so a runaway query cannot hold
+    # buffers forever. Maintenance here legitimately takes far longer than that:
+    # VACUUM on the 80GB seenpages table, the bulk deletes, and the body trim.
+    # Without this exemption the vacuum is cancelled part-way and space stops
+    # being reclaimed, which is exactly what filled the 100Gi volume before.
+    export PGOPTIONS="-c statement_timeout=0"
     PSQL="psql -h $DB_HOST -U $DB_USER -d $DB_NAME -t -A"
 
     echo "=== DB Purge started at $(date) ==="

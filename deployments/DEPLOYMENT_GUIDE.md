@@ -173,12 +173,28 @@ kubectl exec -it postgres-0 -n search-engine -- \
 
 #### 4. Deploy Core Services
 
+> **Substitute the registry first.** `spider.yaml`, `conductor.yaml`,
+> `cartographer.yaml`, `searcher.yaml` and `frontend.yaml` ship with the literal
+> image `ECR_REGISTRY_PLACEHOLDER/<service>:latest`. Applying them as-is replaces
+> a working Deployment's image with an invalid one: the new pod fails with
+> `InvalidImageName` ("repository name must be lowercase") and the rollout hangs.
+> Pipe them through the substitution instead:
+>
+> ```bash
+> ECR_REGISTRY=967991486854.dkr.ecr.eu-west-1.amazonaws.com
+> sed "s|ECR_REGISTRY_PLACEHOLDER|$ECR_REGISTRY|" deployments/searcher.yaml | kubectl apply -f -
+> ```
+>
+> To recover a Deployment already applied with the placeholder:
+> `kubectl set image deployment/<name> <name>=$ECR_REGISTRY/<name>:latest -n search-engine`
+
 ```bash
-# Deploy all services
-kubectl apply -f deployments/spider.yaml
-kubectl apply -f deployments/conductor.yaml
-kubectl apply -f deployments/cartographer.yaml
-kubectl apply -f deployments/searcher.yaml
+ECR_REGISTRY=967991486854.dkr.ecr.eu-west-1.amazonaws.com
+
+# Deploy all services (registry substituted at apply time)
+for svc in spider conductor cartographer searcher; do
+  sed "s|ECR_REGISTRY_PLACEHOLDER|$ECR_REGISTRY|" "deployments/$svc.yaml" | kubectl apply -f -
+done
 
 # Monitor rollout
 kubectl rollout status deployment/spider -n search-engine --timeout=5m
