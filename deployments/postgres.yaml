@@ -63,6 +63,16 @@ spec:
             - "random_page_cost=1.1"          # network SSD, not spinning disk
             - "-c"
             - "effective_io_concurrency=200"
+            # Nothing on the server side stopped a runaway query: the graph
+            # query ran until the client gave up, holding buffers the whole
+            # time. These cap it server-side and make slow queries visible,
+            # which matters because the searcher logs nothing at all.
+            - "-c"
+            - "statement_timeout=30s"           # longer than any caller deadline
+            - "-c"
+            - "idle_in_transaction_session_timeout=60s"
+            - "-c"
+            - "log_min_duration_statement=5000" # log anything slower than 5s
           ports:
             - name: postgresql
               containerPort: 5432

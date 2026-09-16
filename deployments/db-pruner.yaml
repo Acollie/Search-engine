@@ -39,6 +39,16 @@ data:
     PR_DELETED=$($PSQL -c "WITH d AS (DELETE FROM pagerankresults WHERE is_latest = false RETURNING 1) SELECT COUNT(*) FROM d;")
     echo "PageRank old versions: deleted $PR_DELETED rows"
 
+    # Trim oversized page bodies. TOASTed bodies are 53GB of the 80GB table and
+    # nothing above reclaims them: every row is is_indexable = true, so the
+    # 90-day purge matches 0 rows. Only rows far past a useful snippet length
+    # are touched, oldest first, and the batch is bounded so the job stays
+    # predictable. search_vector is GENERATED from title/description/body, so
+    # trimmed rows rebuild it and the 9GB GIN index shrinks too. This runs
+    # before the VACUUM below, which is what returns the space for reuse.
+    BODIES_TRIMMED=$($PSQL -c "WITH t AS (SELECT id FROM seenpages WHERE length(body) > 32768 ORDER BY crawl_time ASC LIMIT 20000) UPDATE seenpages sp SET body = left(sp.body, 32768) FROM t WHERE sp.id = t.id RETURNING 1;" | wc -l | tr -d ' ')
+    echo "SeenPages: trimmed $BODIES_TRIMMED oversized bodies"
+
     # CRITICAL: DELETE only marks tuples dead, it never returns space for reuse.
     # Without an explicit VACUUM the table keeps growing despite the deletes above
     # -- this is what silently filled the 100Gi volume and took Postgres down.
