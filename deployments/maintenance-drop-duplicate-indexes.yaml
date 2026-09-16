@@ -1,0 +1,57 @@
+# One-shot job: drop the duplicate indexes described in
+# pkg/db/migrations/002_drop_duplicate_indexes.sql (~9.9GB on a 98GB volume).
+# Each dropped index has an identical twin that queries already use.
+#
+#   kubectl apply -f deployments/maintenance-drop-duplicate-indexes.yaml
+#   kubectl logs -n search-engine job/drop-duplicate-indexes -f
+#   kubectl delete job drop-duplicate-indexes -n search-engine   # when done
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: drop-duplicate-indexes
+  namespace: search-engine
+  labels:
+    app: db-pruner
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: db-pruner
+    spec:
+      serviceAccountName: db-pruner
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      containers:
+        - name: psql
+          image: postgres:15-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              sleep 15
+              export PGPASSWORD="$DB_PASSWORD"
+              PSQL="psql -h $DB_HOST -U $DB_USER -d $DB_NAME"
+              $PSQL -c "SELECT pg_size_pretty(pg_database_size('$DB_NAME')) AS before;"
+              $PSQL -c "DROP INDEX CONCURRENTLY IF EXISTS idx_seen_pages_search_vector;"
+              $PSQL -c "DROP INDEX CONCURRENTLY IF EXISTS idx_seen_pages_url;"
+              $PSQL -c "SELECT pg_size_pretty(pg_database_size('$DB_NAME')) AS after;"
+          env:
+            - name: DB_USER
+              valueFrom: { secretKeyRef: { name: search-engine-secrets, key: DB_USER } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: search-engine-secrets, key: DB_PASSWORD } }
+            - name: DB_HOST
+              valueFrom: { configMapKeyRef: { name: search-engine-config, key: DB_HOST } }
+            - name: DB_NAME
+              valueFrom: { configMapKeyRef: { name: search-engine-config, key: DB_NAME } }
+          resources:
+            requests: { cpu: 100m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 128Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 999
+            capabilities: { drop: ["ALL"] }
