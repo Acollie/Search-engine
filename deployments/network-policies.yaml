@@ -271,6 +271,12 @@ spec:
         - podSelector:
             matchLabels:
               app: frontend
+        # One-off maintenance jobs (see wikipedia-cleanup-job.yaml). Without an
+        # entry here the default-deny-all policy refuses their connections even
+        # though their own egress policy permits the traffic.
+        - podSelector:
+            matchLabels:
+              app: wikipedia-cleanup
       ports:
         - port: 5432
 

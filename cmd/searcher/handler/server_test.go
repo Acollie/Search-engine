@@ -40,7 +40,7 @@ func TestHandler_SearchPages(t *testing.T) {
 					AddRow("https://golang.org/doc", "Documentation", "Learn how to use Go...", nil, 0.88, 0.80, 0.87, time.Now())
 
 				mock.ExpectQuery(actualQuery).
-					WithArgs("golang", int32(5), int32(0)).
+					WithArgs("golang", int32(5), int32(0), defaultMaxCandidates).
 					WillReturnRows(rows)
 			},
 			expectedLen:   3,
@@ -58,7 +58,7 @@ func TestHandler_SearchPages(t *testing.T) {
 					AddRow("https://tutorial.golang.org", "Go Tutorial", "Complete guide to learning Go...", nil, 0.90, 0.85, 0.89, time.Now())
 
 				mock.ExpectQuery(actualQuery).
-					WithArgs("golang & tutorial", int32(10), int32(0)).
+					WithArgs("golang & tutorial", int32(10), int32(0), defaultMaxCandidates).
 					WillReturnRows(rows)
 			},
 			expectedLen:   2,
@@ -87,7 +87,7 @@ func TestHandler_SearchPages(t *testing.T) {
 					AddRow("https://test.com", "Test Page", nil, "A test page", 0.85, 0.7, 0.83, time.Now())
 
 				mock.ExpectQuery(actualQuery).
-					WithArgs("test", int32(10), int32(0)).
+					WithArgs("test", int32(10), int32(0), defaultMaxCandidates).
 					WillReturnRows(rows)
 			},
 			expectedLen:   1,
@@ -101,7 +101,7 @@ func TestHandler_SearchPages(t *testing.T) {
 			},
 			mockSetup: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(actualQuery).
-					WithArgs("error", int32(5), int32(0)).
+					WithArgs("error", int32(5), int32(0), defaultMaxCandidates).
 					WillReturnError(sql.ErrConnDone)
 			},
 			expectedLen:   0,
@@ -117,7 +117,7 @@ func TestHandler_SearchPages(t *testing.T) {
 				rows := sqlmock.NewRows(mockCols)
 
 				mock.ExpectQuery(actualQuery).
-					WithArgs("nonexistent", int32(10), int32(0)).
+					WithArgs("nonexistent", int32(10), int32(0), defaultMaxCandidates).
 					WillReturnRows(rows)
 			},
 			expectedLen:   0,
@@ -134,7 +134,7 @@ func TestHandler_SearchPages(t *testing.T) {
 					AddRow("https://test.com", nil, nil, nil, 0.85, 0.7, 0.83, time.Now())
 
 				mock.ExpectQuery(actualQuery).
-					WithArgs("test", int32(5), int32(0)).
+					WithArgs("test", int32(5), int32(0), defaultMaxCandidates).
 					WillReturnRows(rows)
 			},
 			expectedLen:   1,
@@ -184,7 +184,7 @@ func TestHandler_SearchPages_WithOffset(t *testing.T) {
 		AddRow("https://example.com/page2", "Page 2", "Content 2", nil, 0.85, 0.7, 0.83, time.Now())
 
 	mock.ExpectQuery(actualQuery).
-		WithArgs("test", int32(5), int32(10)).
+		WithArgs("test", int32(5), int32(10), defaultMaxCandidates).
 		WillReturnRows(rows)
 
 	resp, err := handler.SearchPages(context.Background(), &searcher.SearchRequest{
@@ -210,7 +210,7 @@ func TestHandler_SearchPages_LongBodyTruncated(t *testing.T) {
 		AddRow("https://example.com", "Title", longBody, nil, 0.9, 0.8, 0.87, time.Now())
 
 	mock.ExpectQuery(actualQuery).
-		WithArgs("test", int32(5), int32(0)).
+		WithArgs("test", int32(5), int32(0), defaultMaxCandidates).
 		WillReturnRows(rows)
 
 	resp, err := handler.SearchPages(context.Background(), &searcher.SearchRequest{
@@ -300,7 +300,7 @@ func TestHandler_SearchPages_Integration(t *testing.T) {
 		AddRow("https://go.dev/learn", "Learn Go", "Interactive Go tutorials and guides...", nil, 0.88, 0.80, 0.87, crawlTime)
 
 	mock.ExpectQuery(actualQuery).
-		WithArgs("go & tutorial", int32(10), int32(0)).
+		WithArgs("go & tutorial", int32(10), int32(0), defaultMaxCandidates).
 		WillReturnRows(rows)
 
 	resp, err := handler.SearchPages(context.Background(), &searcher.SearchRequest{

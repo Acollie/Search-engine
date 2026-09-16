@@ -45,6 +45,34 @@ spec:
         - name: postgres
           image: postgres:15-alpine
           imagePullPolicy: IfNotPresent
+          # Postgres ships with defaults sized for a tiny machine (128MB shared
+          # buffers, 4MB work_mem). On an 80GB table that means almost every
+          # query reads from disk: ranking a common search term touched ~4GB of
+          # buffers and took 12s+, tripping the frontend's 15s circuit breaker.
+          # Sized for the 2Gi container limit below.
+          args:
+            - "-c"
+            - "shared_buffers=512MB"          # ~25% of the container limit
+            - "-c"
+            - "effective_cache_size=1280MB"   # planner hint, not an allocation
+            - "-c"
+            - "work_mem=8MB"                  # per sort/hash node, so keep modest
+            - "-c"
+            - "maintenance_work_mem=256MB"    # VACUUM/CREATE INDEX speed
+            - "-c"
+            - "random_page_cost=1.1"          # network SSD, not spinning disk
+            - "-c"
+            - "effective_io_concurrency=200"
+            # Nothing on the server side stopped a runaway query: the graph
+            # query ran until the client gave up, holding buffers the whole
+            # time. These cap it server-side and make slow queries visible,
+            # which matters because the searcher logs nothing at all.
+            - "-c"
+            - "statement_timeout=30s"           # longer than any caller deadline
+            - "-c"
+            - "idle_in_transaction_session_timeout=60s"
+            - "-c"
+            - "log_min_duration_statement=5000" # log anything slower than 5s
           ports:
             - name: postgresql
               containerPort: 5432
@@ -104,6 +132,11 @@ spec:
               mountPath: /var/lib/postgresql/data
             - name: postgres-init
               mountPath: /docker-entrypoint-initdb.d
+            # Postgres parallel workers allocate shared memory segments here.
+            # Without this, /dev/shm defaults to 64Mi and VACUUM/parallel query
+            # fail with "could not resize shared memory segment".
+            - name: dshm
+              mountPath: /dev/shm
           securityContext:
             allowPrivilegeEscalation: false
       volumes:
@@ -111,6 +144,11 @@ spec:
           configMap:
             name: postgres-init-scripts
             defaultMode: 0755
+        # Memory-backed, so it counts against the container memory limit (2Gi).
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

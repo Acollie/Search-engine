@@ -3,13 +3,32 @@ package robots
 import (
 	"sync"
 	"time"
+
+	"github.com/temoto/robotstxt"
 )
 
-// CacheEntry represents a cached robots.txt entry
+// CacheEntry holds a domain's parsed robots.txt rules.
+//
+// It deliberately stores the parsed rule group rather than a single
+// allow/deny verdict. Caching a verdict is only correct for the exact path it
+// was computed from; reusing it for the rest of the domain lets disallowed
+// paths through as soon as one allowed path has been seen.
 type CacheEntry struct {
-	Allowed   bool
+	// Group is the rule group matching our user agent. A nil Group means no
+	// robots.txt applies (missing or unparseable), i.e. everything is allowed.
+	Group     *robotstxt.Group
 	FetchedAt time.Time
 	Error     error
+}
+
+// Allows reports whether path is crawlable under this entry's rules.
+// path should include the query string when present, since robots.txt rules
+// may match on it (e.g. "Allow: /w/load.php?").
+func (e *CacheEntry) Allows(path string) bool {
+	if e.Group == nil {
+		return true
+	}
+	return e.Group.Test(path)
 }
 
 const maxCacheEntries = 100_000
@@ -59,8 +78,8 @@ func (c *Cache) Get(domain string) (*CacheEntry, bool) {
 	return entry, true
 }
 
-// Set stores a robots.txt entry for a domain
-func (c *Cache) Set(domain string, allowed bool, err error) {
+// Set stores a domain's parsed robots.txt rules.
+func (c *Cache) Set(domain string, group *robotstxt.Group, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -75,7 +94,7 @@ func (c *Cache) Set(domain string, allowed bool, err error) {
 	}
 
 	c.entries[domain] = &CacheEntry{
-		Allowed:   allowed,
+		Group:     group,
 		FetchedAt: time.Now(),
 		Error:     err,
 	}
