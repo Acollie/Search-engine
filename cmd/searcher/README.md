@@ -207,3 +207,19 @@ Metrics to track:
 - Database query time
 - Result count distribution
 
+
+## Tuning
+
+| Variable | Default | Effect |
+|---|---|---|
+| `SEARCH_MAX_CANDIDATES` | `5000` | Max matching rows ranked per query. Lower is faster but ranks a smaller slice of broad terms. |
+| `SEARCH_CACHE_TTL` | `60s` | How long a result page is reused (Go duration). `0` disables the cache. |
+| `SEARCH_CACHE_SIZE` | `1000` | Max cached query pages (least recently used evicted). |
+
+Identical concurrent queries share one database call, and only successful
+results are cached. Because of the TTL, a newly crawled page can take up to
+`SEARCH_CACHE_TTL` to appear for a query that was just served.
+
+The health endpoint reports the indexed page count from Postgres's row
+estimate (refreshed by autovacuum/ANALYZE) and caches the counts for 30s, so
+the figure is approximate on a large table.
