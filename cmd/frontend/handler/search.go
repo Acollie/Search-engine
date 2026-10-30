@@ -154,11 +154,15 @@ func (h *SearchHandler) logSearch(query string, resultCount int, durationMs int6
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		_, _ = h.db.ExecContext(ctx,
+		// The error used to be discarded, which made a broken insert invisible: the
+		// dashboard's query counts silently stayed at 0.
+		if _, err := h.db.ExecContext(ctx,
 			`INSERT INTO SearchSessions (query, result_count, execution_time_ms, ip_address)
 			 VALUES ($1, $2, $3, $4::inet)`,
 			query, resultCount, max(durationMs, 1), ip,
-		)
+		); err != nil {
+			slog.Warn("failed to record search session", slog.Any("error", err))
+		}
 	}()
 }
 

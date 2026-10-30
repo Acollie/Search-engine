@@ -1074,20 +1074,35 @@ html[data-theme="classic"] .ascii-logo,
 html[data-theme="classic"] .subtitle { display: none; }
 html[data-theme="classic"] #root { animation: none; }
 html[data-theme="classic"] .classic-logo {
-  display: block;
-  font-size: 4.5rem;
-  font-weight: 400;
-  letter-spacing: -0.03em;
-  background: linear-gradient(90deg, #4285f4 0 20%, #ea4335 20% 40%, #fbbc05 40% 60%, #4285f4 60% 80%, #34a853 80%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  line-height: 1;
+}
+/* A single sumi-ink colour in a Mincho serif, so the wordmark reads as the
+   engine's own name rather than a multicolour sans-serif logotype. */
+html[data-theme="classic"] .classic-logo-mark {
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Noto Serif CJK JP", serif;
+  font-size: 5rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  padding-left: 0.18em; /* balances the trailing letter-spacing so it stays centred */
+  color: #202124;
+}
+html[data-theme="classic"] .classic-logo-reading {
+  font-size: 0.8rem;
+  letter-spacing: 0.4em;
+  padding-left: 0.4em;
+  text-transform: uppercase;
+  color: #70757a;
 }
 html[data-theme="classic"] .home-hero { min-height: 50vh; }
 html[data-theme="classic"] .glow,
 html[data-theme="classic"] .sys-ok,
 html[data-theme="classic"] .status-dot { text-shadow: none; }
 html[data-theme="classic"] .sys-ok { color: #188038; }
+html[data-theme="classic"] .sys-warn { color: #e37400; text-shadow: none; }
 html[data-theme="classic"] .crt-btn {
   font-family: inherit;
   text-transform: none;

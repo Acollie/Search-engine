@@ -94,7 +94,7 @@ export default function ResultsPage({ params, onNavigate, onHome, onAbout, onGra
       <header className="site-header">
         <div className="header-bar">
           <button className="crt-btn" onClick={onHome} style={{ letterSpacing: '0.22em' }}>
-            {classic ? 'Search' : 'SEARCH//SYS'}
+            {classic ? '道草' : 'SEARCH//SYS'}
           </button>
           <button className="crt-btn" onClick={onGraph} style={{ fontSize: '0.82em' }}>
             GRAPH

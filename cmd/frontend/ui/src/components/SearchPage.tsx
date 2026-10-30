@@ -19,6 +19,7 @@ interface Stats {
   pagesRanked: number
   searchQueriesLast24h: number
   searchQueriesLastHr: number
+  approximate?: string[] // fields that are sampled estimates, shown with a "~"
 }
 
 const LOGO = `
@@ -37,6 +38,12 @@ function fmtNum(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K'
   return n.toLocaleString()
+}
+
+// approx marks a figure with "~" when the server says it is a sampled estimate.
+function approx(stats: Stats, field: keyof Stats): string {
+  const n = stats[field] as number
+  return (stats.approximate?.includes(field) ? '~' : '') + fmtNum(n)
 }
 
 export default function SearchPage({ onSearch, onAbout, onGraph }: Props) {
@@ -77,7 +84,7 @@ export default function SearchPage({ onSearch, onAbout, onGraph }: Props) {
 
       <div className="home-hero">
         <pre className="ascii-logo glow">{LOGO}</pre>
-        <div className="classic-logo" aria-hidden="true">Search</div>
+        <div className="classic-logo" lang="ja" aria-label="道草 (michikusa)"><span className="classic-logo-mark" aria-hidden="true">道草</span><span className="classic-logo-reading" aria-hidden="true">michikusa</span></div>
 
         <p className="subtitle">D I S T R I B U T E D &ensp; W E B &ensp; I N D E X &ensp; v 2 . 4</p>
 
@@ -111,11 +118,15 @@ export default function SearchPage({ onSearch, onAbout, onGraph }: Props) {
           </div>
           <div className="sys-row">
             <span>PAGERANK SCORER</span>
-            <span className="sys-ok">■ ONLINE</span>
+            {stats && stats.pagesRanked === 0
+              ? <span className="sys-warn">■ NO DATA</span>
+              : <span className="sys-ok">■ ONLINE</span>}
           </div>
           <div className="sys-row">
             <span>DISTRIBUTED CRAWLER NET</span>
-            <span className="sys-ok">■ ONLINE</span>
+            {stats && stats.crawledLast24h === 0 && stats.crawlRatePerHr === 0
+              ? <span className="sys-warn">■ IDLE</span>
+              : <span className="sys-ok">■ ONLINE</span>}
           </div>
           <div className="sys-row">
             <span>MICROSERVICE MESH</span>
@@ -145,11 +156,11 @@ export default function SearchPage({ onSearch, onAbout, onGraph }: Props) {
               </div>
               <div className="sys-row">
                 <span>UNIQUE DOMAINS</span>
-                <span className="sys-ok">{fmtNum(stats.uniqueDomains)}</span>
+                <span className="sys-ok">{approx(stats, 'uniqueDomains')}</span>
               </div>
               <div className="sys-row">
                 <span>LINKS MAPPED</span>
-                <span className="sys-ok">{fmtNum(stats.totalLinks)}</span>
+                <span className="sys-ok">{approx(stats, 'totalLinks')}</span>
               </div>
             </div>
 
