@@ -233,9 +233,12 @@ spec:
             requests:
               cpu: 500m
               memory: 512Mi
+            # Observed ~270Mi after weeks of uptime; 1Gi leaves 4x headroom for
+            # compaction. The old 2Gi limit pushed the worker's summed memory
+            # limits past its capacity (125%), which risks OOM-kills elsewhere.
             limits:
               cpu: 2
-              memory: 2Gi
+              memory: 1Gi
           volumeMounts:
             - name: prometheus-config-volume
               mountPath: /etc/prometheus

@@ -233,8 +233,8 @@ func TestHandler_GetHealth_Healthy(t *testing.T) {
 	handler := NewRPCServer(db)
 
 	mock.ExpectPing()
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM SeenPages`).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(1000))
+	mock.ExpectQuery(`SELECT GREATEST\(reltuples, 0\)::bigint FROM pg_class`).
+		WillReturnRows(sqlmock.NewRows([]string{"est"}).AddRow(1000))
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM PageRankResults`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(950))
 
@@ -256,8 +256,8 @@ func TestHandler_GetHealth_DegradedNoPagerank(t *testing.T) {
 	handler := NewRPCServer(db)
 
 	mock.ExpectPing()
-	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM SeenPages`).
-		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(500))
+	mock.ExpectQuery(`SELECT GREATEST\(reltuples, 0\)::bigint FROM pg_class`).
+		WillReturnRows(sqlmock.NewRows([]string{"est"}).AddRow(500))
 	mock.ExpectQuery(`SELECT COUNT\(\*\) FROM PageRankResults`).
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(0))
 
