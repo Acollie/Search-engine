@@ -37,8 +37,13 @@ type StatsHandler struct {
 	// change slowly, so they are refreshed far less often than the 5-minute stats.
 	// They have their own lock so a slow sample never blocks readers of the
 	// cached stats above.
-	estMu sync.Mutex
-	est   estimates
+	estMu         sync.Mutex
+	est           estimates
+	estRefreshing bool
+
+	// async runs the slow sampling off the request path. It is a field so tests
+	// can run it inline.
+	async func(func())
 }
 
 // estimateTTL is how long sampled estimates are reused.
@@ -54,6 +59,7 @@ func NewStatsHandler(db *sql.DB) *StatsHandler {
 	return &StatsHandler{
 		db:       db,
 		cacheTTL: 5 * time.Minute,
+		async:    func(f func()) { go f() },
 	}
 }
 
@@ -150,9 +156,13 @@ func (h *StatsHandler) fetchStats(ctx context.Context) (*StatsResponse, error) {
 // with sampled estimates. SeenPages.domain is never filled and the Links table
 // is empty (links live in the SeenPages.links text column), so the exact counts
 // above read 0. An estimate from a tiny block sample is far closer to the truth
-// than a 0, and is flagged in Approximate. Estimates fail independently and
-// quietly: a slow or failing sample leaves that figure at its old value and
-// never fails the rest of the stats.
+// than a 0, and is flagged in Approximate.
+//
+// The sampling is too slow for a request (on the live 3M-row table it exceeds
+// the 10s the stats query is allowed), so it runs in the background and this
+// uses whatever the last run produced. The first stats response after a start
+// therefore has no estimate; later ones do. A failing sample never fails the
+// rest of the stats.
 func (h *StatsHandler) fillEstimates(ctx context.Context, stats *StatsResponse) {
 	needDomains := stats.UniqueDomains == 0
 	needLinks := stats.TotalLinks == 0
@@ -161,9 +171,16 @@ func (h *StatsHandler) fillEstimates(ctx context.Context, stats *StatsResponse) 
 	}
 
 	h.estMu.Lock()
-	if time.Since(h.est.at) >= estimateTTL {
-		h.refreshEstimatesLocked(ctx, needDomains, needLinks)
+	start := time.Since(h.est.at) >= estimateTTL && !h.estRefreshing
+	if start {
+		h.estRefreshing = true
 	}
+	h.estMu.Unlock()
+	if start {
+		h.async(func() { h.refreshEstimates(needDomains, needLinks) })
+	}
+
+	h.estMu.Lock()
 	est := h.est
 	h.estMu.Unlock()
 
@@ -193,23 +210,31 @@ func chao1(d, f1, f2 int64) int64 {
 	return d + (f1*(f1-1))/(2*(f2+1))
 }
 
-// refreshEstimatesLocked recomputes the estimates. Caller holds h.estMu.
-func (h *StatsHandler) refreshEstimatesLocked(ctx context.Context, needDomains, needLinks bool) {
+// estimateQueryTimeout bounds each sampling query. It is independent of any
+// request: these run in the background, so they can afford to be slow.
+const estimateQueryTimeout = 30 * time.Second
+
+// refreshEstimates recomputes the estimates and publishes them.
+func (h *StatsHandler) refreshEstimates(needDomains, needLinks bool) {
+	h.estMu.Lock()
 	fresh := h.est
+	h.estMu.Unlock()
 	ok := false
 
 	if needDomains {
-		c, cancel := context.WithTimeout(ctx, 4*time.Second)
+		c, cancel := context.WithTimeout(context.Background(), estimateQueryTimeout)
 		// A distinct count over a sample is a lower bound that badly undercounts
 		// the long tail (a 1,634-row sample of this index held 419 hosts, most seen
 		// exactly once). So count how many hosts were seen once (f1) and twice (f2)
 		// and apply the bias-corrected Chao1 estimator, d + f1*(f1-1) / (2*(f2+1)).
-		// The host is the third '/'-separated part of "https://host/path".
+		// The host is the third '/'-separated part of "https://host/path". The
+		// sample is a fraction of heap blocks, so its cost is mostly random disk
+		// reads: 0.5% timed out on the live table, 0.05% was fast.
 		var d, f1, f2 int64
 		err := h.db.QueryRowContext(c, `
 			WITH hosts AS (
 				SELECT split_part(url, '/', 3) AS host, COUNT(*) AS n
-				FROM SeenPages TABLESAMPLE SYSTEM (0.5)
+				FROM SeenPages TABLESAMPLE SYSTEM (0.1)
 				GROUP BY 1
 			)
 			SELECT COUNT(*), COUNT(*) FILTER (WHERE n = 1), COUNT(*) FILTER (WHERE n = 2)
@@ -222,7 +247,7 @@ func (h *StatsHandler) refreshEstimatesLocked(ctx context.Context, needDomains, 
 		}
 	}
 	if needLinks {
-		c, cancel := context.WithTimeout(ctx, 4*time.Second)
+		c, cancel := context.WithTimeout(context.Background(), estimateQueryTimeout)
 		var avg float64
 		// links is '------'-joined and its first entry is the page itself.
 		err := h.db.QueryRowContext(c, `
@@ -239,8 +264,11 @@ func (h *StatsHandler) refreshEstimatesLocked(ctx context.Context, needDomains, 
 
 	// Only start the hour-long reuse window if something succeeded, so a failure
 	// is retried on the next stats refresh rather than hidden for an hour.
+	h.estMu.Lock()
 	if ok {
 		fresh.at = time.Now()
 	}
 	h.est = fresh
+	h.estRefreshing = false
+	h.estMu.Unlock()
 }

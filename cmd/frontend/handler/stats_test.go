@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -13,11 +14,19 @@ import (
 
 const (
 	mainStatsSQL   = `(?s)SELECT.*n_live_tup.*SearchSessions`
-	domainSampling = `(?s)WITH hosts AS.*TABLESAMPLE SYSTEM \(0\.5\).*FROM hosts`
+	domainSampling = `(?s)WITH hosts AS.*TABLESAMPLE SYSTEM \(0\.1\).*FROM hosts`
 	linkSampling   = `AVG\(GREATEST\(cardinality\(string_to_array\(links.*TABLESAMPLE`
 )
 
 var statsCols = []string{"pages", "c24", "queue", "c1h", "domains", "links", "ranked", "q24", "q1h"}
+
+// newSyncStatsHandler runs the background sampling inline so tests can see its
+// effect in the same call.
+func newSyncStatsHandler(db *sql.DB) *StatsHandler {
+	h := NewStatsHandler(db)
+	h.async = func(f func()) { f() }
+	return h
+}
 
 func TestFetchStats_ExactCountsNeedNoEstimates(t *testing.T) {
 	db, mock, err := sqlmock.New()
@@ -26,7 +35,7 @@ func TestFetchStats_ExactCountsNeedNoEstimates(t *testing.T) {
 	// Only the main query is expected; sqlmock fails the test on any sampling query.
 	mock.ExpectQuery(mainStatsSQL).WillReturnRows(sqlmock.NewRows(statsCols).AddRow(1000, 1, 2, 3, 40, 5000, 900, 6, 7))
 
-	s, err := NewStatsHandler(db).fetchStats(context.Background())
+	s, err := newSyncStatsHandler(db).fetchStats(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, int64(40), s.UniqueDomains)
 	assert.Equal(t, int64(5000), s.TotalLinks)
@@ -43,7 +52,7 @@ func TestFetchStats_EstimatesWhenExactCountsAreEmpty(t *testing.T) {
 	mock.ExpectQuery(domainSampling).WillReturnRows(sqlmock.NewRows([]string{"d", "f1", "f2"}).AddRow(419, 330, 50))
 	mock.ExpectQuery(linkSampling).WillReturnRows(sqlmock.NewRows([]string{"avg"}).AddRow(120.5))
 
-	s, err := NewStatsHandler(db).fetchStats(context.Background())
+	s, err := newSyncStatsHandler(db).fetchStats(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, int64(1483), s.UniqueDomains, "Chao1 corrects the sample's undercount of rare hosts")
 	assert.Equal(t, int64(120.5*3000000), s.TotalLinks)
@@ -62,7 +71,7 @@ func TestFetchStats_EstimatesAreReusedWithinTheHour(t *testing.T) {
 	// Second refresh: only the main query, no sampling.
 	mock.ExpectQuery(mainStatsSQL).WillReturnRows(sqlmock.NewRows(statsCols).AddRow(2000, 0, 0, 0, 0, 0, 0, 0, 0))
 
-	h := NewStatsHandler(db)
+	h := newSyncStatsHandler(db)
 	_, err = h.fetchStats(context.Background())
 	require.NoError(t, err)
 	s2, err := h.fetchStats(context.Background())
@@ -80,7 +89,7 @@ func TestFetchStats_FailedEstimateNeverFailsTheStats(t *testing.T) {
 	mock.ExpectQuery(domainSampling).WillReturnError(errors.New("canceling statement due to statement timeout"))
 	mock.ExpectQuery(linkSampling).WillReturnError(errors.New("boom"))
 
-	s, err := NewStatsHandler(db).fetchStats(context.Background())
+	s, err := newSyncStatsHandler(db).fetchStats(context.Background())
 	require.NoError(t, err, "a broken sample must not take the dashboard down")
 	assert.Equal(t, int64(1000), s.PagesIndexed)
 	assert.Equal(t, int64(0), s.UniqueDomains)
@@ -99,7 +108,7 @@ func TestFetchStats_FailedEstimateIsRetriedNextTime(t *testing.T) {
 	mock.ExpectQuery(domainSampling).WillReturnRows(sqlmock.NewRows([]string{"d", "f1", "f2"}).AddRow(9, 0, 9))
 	mock.ExpectQuery(linkSampling).WillReturnRows(sqlmock.NewRows([]string{"avg"}).AddRow(3.0))
 
-	h := NewStatsHandler(db)
+	h := newSyncStatsHandler(db)
 	_, _ = h.fetchStats(context.Background())
 	s, err := h.fetchStats(context.Background())
 	require.NoError(t, err)
@@ -142,7 +151,31 @@ func TestFetchStats_DomainEstimateNeverExceedsPageCount(t *testing.T) {
 	mock.ExpectQuery(domainSampling).WillReturnRows(sqlmock.NewRows([]string{"d", "f1", "f2"}).AddRow(305, 304, 0))
 	mock.ExpectQuery(linkSampling).WillReturnRows(sqlmock.NewRows([]string{"avg"}).AddRow(0.0))
 
-	s, err := NewStatsHandler(db).fetchStats(context.Background())
+	s, err := newSyncStatsHandler(db).fetchStats(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, int64(305), s.UniqueDomains)
+}
+
+func TestFetchStats_SamplingNeverBlocksTheRequest(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	mock.ExpectQuery(mainStatsSQL).WillReturnRows(sqlmock.NewRows(statsCols).AddRow(1000, 0, 0, 0, 0, 0, 0, 0, 0))
+
+	h := NewStatsHandler(db) // real (asynchronous) behaviour
+	var started int
+	h.async = func(f func()) { started++ } // capture instead of running: the sampling is deferred
+
+	s, err := h.fetchStats(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, started, "sampling is started off the request path")
+	assert.Equal(t, int64(0), s.UniqueDomains, "and the first response has no estimate yet")
+	assert.Empty(t, s.Approximate)
+	require.NoError(t, mock.ExpectationsWereMet(), "no sampling query ran during the request")
+
+	// A second stats call while a refresh is still running must not start another.
+	mock.ExpectQuery(mainStatsSQL).WillReturnRows(sqlmock.NewRows(statsCols).AddRow(1000, 0, 0, 0, 0, 0, 0, 0, 0))
+	_, err = h.fetchStats(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, started, "only one refresh in flight at a time")
 }
