@@ -40,10 +40,12 @@ type SearchHandler struct {
 }
 
 type SearchResult struct {
-	URL         string `json:"url"`
-	Title       string `json:"title"`
-	Snippet     string `json:"snippet"`
-	LastCrawled string `json:"lastCrawled"`
+	URL     string `json:"url"`
+	Title   string `json:"title"`
+	Snippet string `json:"snippet"`
+	// Segments is the snippet split into plain/matched runs for safe rendering.
+	Segments    []Segment `json:"segments"`
+	LastCrawled string    `json:"lastCrawled"`
 }
 
 type SearchAPIResponse struct {
@@ -57,6 +59,7 @@ type SearchAPIResponse struct {
 	SearchTime  float64        `json:"searchTime"`
 	Error       string         `json:"error,omitempty"`
 	Query       string         `json:"query"`
+	DidYouMean  string         `json:"didYouMean,omitempty"`
 }
 
 func NewSearchHandler(searcherAddr string, db *sql.DB) (*SearchHandler, error) {
@@ -89,7 +92,8 @@ func (h *SearchHandler) HandleSearchAPI(w http.ResponseWriter, r *http.Request) 
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 
-	resp, err := h.searcherClient.Search(ctx, query, limit, offset)
+	filters := parseFilters(r.URL.Query(), time.Now())
+	resp, err := h.searcherClient.Search(ctx, query, limit, offset, filters)
 	duration := time.Since(startTime).Seconds()
 
 	if err != nil {
@@ -119,7 +123,8 @@ func (h *SearchHandler) HandleSearchAPI(w http.ResponseWriter, r *http.Request) 
 		results = append(results, SearchResult{
 			URL:         pg.Url,
 			Title:       pg.Title,
-			Snippet:     pg.Body,
+			Snippet:     stripMarkers(pg.Body),
+			Segments:    snippetSegments(pg.Body),
 			LastCrawled: lastCrawled,
 		})
 	}
@@ -134,6 +139,7 @@ func (h *SearchHandler) HandleSearchAPI(w http.ResponseWriter, r *http.Request) 
 		HasPrev:     page > 1,
 		SearchTime:  duration,
 		Query:       query,
+		DidYouMean:  resp.DidYouMean,
 	})
 }
 
@@ -159,3 +165,6 @@ func (h *SearchHandler) logSearch(query string, resultCount int, durationMs int6
 func (h *SearchHandler) Close() error {
 	return h.searcherClient.Close()
 }
+
+// Client exposes the underlying searcher client (for sibling handlers).
+func (h *SearchHandler) Client() *grpcClient.SearcherClient { return h.searcherClient }

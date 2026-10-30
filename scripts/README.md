@@ -10,6 +10,7 @@ The scripts are organized to be applied in sequence:
 2. **02-seed-data.sql** - Populates tables with development data
 3. **03-migrations.sql** - Applies additional schema changes and enhancements
 4. **maintenance.sql** - Contains utilities for monitoring and maintenance
+5. **04-search-suggestions.sql** - Builds the `search_suggestions` table that powers autocomplete and "did you mean" (optional; search works without it)
 
 ## Schema Overview
 

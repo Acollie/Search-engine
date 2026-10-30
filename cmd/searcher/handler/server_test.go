@@ -58,7 +58,7 @@ func TestHandler_SearchPages(t *testing.T) {
 					AddRow("https://tutorial.golang.org", "Go Tutorial", "Complete guide to learning Go...", nil, 0.90, 0.85, 0.89, time.Now())
 
 				mock.ExpectQuery(actualQuery).
-					WithArgs("golang & tutorial", int32(10), int32(0), defaultMaxCandidates).
+					WithArgs("golang tutorial", int32(10), int32(0), defaultMaxCandidates).
 					WillReturnRows(rows)
 			},
 			expectedLen:   2,
@@ -300,7 +300,7 @@ func TestHandler_SearchPages_Integration(t *testing.T) {
 		AddRow("https://go.dev/learn", "Learn Go", "Interactive Go tutorials and guides...", nil, 0.88, 0.80, 0.87, crawlTime)
 
 	mock.ExpectQuery(actualQuery).
-		WithArgs("go & tutorial", int32(10), int32(0), defaultMaxCandidates).
+		WithArgs("go tutorial", int32(10), int32(0), defaultMaxCandidates).
 		WillReturnRows(rows)
 
 	resp, err := handler.SearchPages(context.Background(), &searcher.SearchRequest{

@@ -12,6 +12,7 @@ interface RawNode {
 interface RawEdge {
   source: string
   target: string
+  weight?: number
 }
 
 interface Props {
@@ -41,7 +42,7 @@ function makeGlowTexture(color: string): THREE.CanvasTexture {
 
 export default function GraphPage({ onHome }: Props) {
   const mountRef              = useRef<HTMLDivElement>(null)
-  const [mode, setMode]       = useState<'3d' | '2d'>('3d')
+  const [mode, setMode]       = useState<'3d' | '2d' | 'constellation'>('3d')
   const [status, setStatus]   = useState<'loading' | 'ok' | 'error'>('loading')
   const [info, setInfo]       = useState({ nodes: 0, edges: 0 })
   const [tooltip, setTooltip] = useState<{ title: string; x: number; y: number } | null>(null)
@@ -473,7 +474,293 @@ export default function GraphPage({ onHome }: Props) {
     }
   }, [n, mode])
 
+  // ── Constellation effect ──────────────────────────────────────────────────
+  // Star-chart of the top hubs. Links are co-citation (shared out-links) from
+  // /api/graph?mode=constellation. Canvas 2D, pan (drag) + zoom (wheel).
+  useEffect(() => {
+    if (mode !== 'constellation') return
+    const mount = mountRef.current
+    if (!mount) return
+
+    setStatus('loading')
+    setInfo({ nodes: 0, edges: 0 })
+    setTooltip(null)
+
+    const dpr    = window.devicePixelRatio || 1
+    const canvas = document.createElement('canvas')
+    canvas.style.display = 'block'
+    canvas.style.width   = '100%'
+    canvas.style.height  = '100%'
+    canvas.style.cursor  = 'grab'
+    mount.appendChild(canvas)
+    const ctx = canvas.getContext('2d')!
+
+    interface Star extends RawNode {
+      x: number; y: number; vx: number; vy: number
+      b: number      // brightness / size factor 0..1
+      phase: number  // twinkle phase
+      nb: number[]   // neighbour indices
+    }
+
+    // Pre-rendered soft glow sprite (white; tinted by globalAlpha only).
+    const GLOW = 128
+    const glow = document.createElement('canvas')
+    glow.width = glow.height = GLOW
+    {
+      const g = glow.getContext('2d')!
+      const gr = g.createRadialGradient(GLOW/2, GLOW/2, 0, GLOW/2, GLOW/2, GLOW/2)
+      gr.addColorStop(0,    'rgba(190,255,190,1)')
+      gr.addColorStop(0.12, 'rgba(120,255,120,0.55)')
+      gr.addColorStop(0.4,  'rgba(51,255,51,0.14)')
+      gr.addColorStop(1,    'rgba(51,255,51,0)')
+      g.fillStyle = gr; g.fillRect(0, 0, GLOW, GLOW)
+    }
+
+    let stars: Star[] = []
+    let links: { a: number; b: number; w: number }[] = []
+    let W = 0, H = 0
+    let k = 1, tx = 0, ty = 0          // view transform (CSS px)
+    let hover: Star | null = null
+    let dragging = false, moved = 0, lastX = 0, lastY = 0
+    let animId = 0
+    let cancelled = false
+
+    const resize = () => {
+      W = mount.clientWidth; H = mount.clientHeight
+      canvas.width  = Math.max(1, Math.round(W * dpr))
+      canvas.height = Math.max(1, Math.round(H * dpr))
+    }
+    resize()
+    window.addEventListener('resize', resize)
+
+    const fit = () => {
+      if (!stars.length) return
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+      for (const s of stars) { x0 = Math.min(x0, s.x); x1 = Math.max(x1, s.x); y0 = Math.min(y0, s.y); y1 = Math.max(y1, s.y) }
+      const bw = Math.max(x1 - x0, 1), bh = Math.max(y1 - y0, 1)
+      k  = Math.min((W * 0.86) / bw, (H * 0.78) / bh)
+      tx = W / 2 - ((x0 + x1) / 2) * k
+      ty = H / 2 + 20 - ((y0 + y1) / 2) * k
+    }
+
+    fetch(`/api/graph?n=${n}&mode=constellation`)
+      .then(r => r.json())
+      .then((data: { nodes: RawNode[]; edges: RawEdge[] }) => {
+        if (cancelled) return
+        const raw = data.nodes || []
+        const idx = new Map(raw.map((nd, i) => [nd.id, i]))
+        const maxScore = Math.max(...raw.map(nd => nd.score), 1e-9)
+        const deg = new Array(raw.length).fill(0)
+        links = []
+        for (const e of data.edges || []) {
+          const a = idx.get(e.source), b = idx.get(e.target)
+          if (a === undefined || b === undefined) continue
+          links.push({ a, b, w: e.weight ?? 1 })
+          deg[a]++; deg[b]++
+        }
+        const maxDeg = Math.max(...deg, 1)
+        const maxW   = Math.max(...links.map(l => l.w), 1)
+        stars = raw.map((nd, i) => {
+          // Golden-angle spiral by rank as the layout seed (hubs near centre).
+          const ang = i * 2.399963, rad = 30 * Math.sqrt(i + 1)
+          return {
+            ...nd,
+            x: Math.cos(ang) * rad, y: Math.sin(ang) * rad, vx: 0, vy: 0,
+            b: Math.min(1, 0.75 * Math.sqrt(nd.score / maxScore) + 0.25 * (deg[i] / maxDeg)),
+            phase: Math.random() * Math.PI * 2,
+            nb: [],
+          }
+        })
+        for (const l of links) { stars[l.a].nb.push(l.b); stars[l.b].nb.push(l.a) }
+
+        // Settle the layout up front (bounded: ≤500 nodes × 250 steps), then draw statically.
+        const N = stars.length
+        for (let it = 0; it < 250; it++) {
+          const cool = 1 - it / 250
+          for (let i = 0; i < N; i++) {
+            const a = stars[i]
+            a.vx -= a.x * 0.0015; a.vy -= a.y * 0.0015
+            for (let j = i + 1; j < N; j++) {
+              const b = stars[j]
+              const dx = a.x - b.x, dy = a.y - b.y
+              const d2 = Math.max(dx*dx + dy*dy, 25), d = Math.sqrt(d2), f = 900 / d2
+              a.vx += (dx/d)*f; a.vy += (dy/d)*f; b.vx -= (dx/d)*f; b.vy -= (dy/d)*f
+            }
+          }
+          for (const l of links) {
+            const s = stars[l.a], t = stars[l.b]
+            const dx = t.x - s.x, dy = t.y - s.y, d = Math.sqrt(dx*dx + dy*dy) || 1
+            const f = (d - 60) * 0.01 * (0.5 + l.w / maxW)
+            s.vx += (dx/d)*f; s.vy += (dy/d)*f; t.vx -= (dx/d)*f; t.vy -= (dy/d)*f
+          }
+          for (const s of stars) {
+            s.vx *= 0.75; s.vy *= 0.75
+            const sp = Math.hypot(s.vx, s.vy), mx = 8 * cool + 0.5
+            if (sp > mx) { s.vx = s.vx / sp * mx; s.vy = s.vy / sp * mx }
+            s.x += s.vx; s.y += s.vy
+          }
+        }
+        fit()
+        setInfo({ nodes: stars.length, edges: links.length })
+        setStatus('ok')
+      })
+      .catch(() => { if (!cancelled) setStatus('error') })
+
+    const starR = (s: Star) => 1.2 + 4.2 * Math.pow(s.b, 1.3)
+
+    const draw = (time: number) => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      ctx.fillStyle = BG; ctx.fillRect(0, 0, W, H)
+      if (!stars.length) return
+
+      const inView = (s: Star, m: number) => {
+        const x = s.x * k + tx, y = s.y * k + ty
+        return x > -m && x < W + m && y > -m && y < H + m
+      }
+      const hl = new Set<number>()
+      if (hover) { hl.add(stars.indexOf(hover)); for (const i of hover.nb) hl.add(i) }
+      const hi = hover ? stars.indexOf(hover) : -1
+
+      // faint chart rings around the centroid of the layout
+      ctx.strokeStyle = 'rgba(51,255,51,0.05)'; ctx.lineWidth = 1
+      ctx.setLineDash([1, 6])
+      for (const rr of [150, 320, 520]) {
+        ctx.beginPath(); ctx.arc(tx, ty, rr * k, 0, Math.PI * 2); ctx.stroke()
+      }
+      ctx.setLineDash([])
+
+      // links: thin and faint, stronger with co-citation weight
+      let maxW = 1
+      for (const l of links) if (l.w > maxW) maxW = l.w
+      ctx.lineWidth = 0.7
+      for (const l of links) {
+        const a = stars[l.a], b = stars[l.b]
+        const active = hi >= 0 && (l.a === hi || l.b === hi)
+        const al = hi >= 0 ? (active ? 0.6 : 0.03) : 0.07 + 0.28 * (l.w / maxW)
+        ctx.strokeStyle = `rgba(120,255,120,${al})`
+        ctx.beginPath(); ctx.moveTo(a.x * k + tx, a.y * k + ty); ctx.lineTo(b.x * k + tx, b.y * k + ty); ctx.stroke()
+      }
+
+      // stars: additive glow + core
+      ctx.globalCompositeOperation = 'lighter'
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i]
+        if (!inView(s, 80)) continue
+        const x = s.x * k + tx, y = s.y * k + ty
+        const tw = 0.88 + 0.12 * Math.sin(time * 0.0012 + s.phase)
+        const dim = hi >= 0 && !hl.has(i) ? 0.3 : 1
+        const r = starR(s) * (i === hi ? 1.4 : 1) * Math.min(1.8, Math.max(0.7, Math.sqrt(k)))
+        const gs = r * (7 + 10 * s.b)
+        ctx.globalAlpha = (0.35 + 0.65 * s.b) * tw * dim
+        ctx.drawImage(glow, x - gs, y - gs, gs * 2, gs * 2)
+        ctx.globalAlpha = dim
+        ctx.fillStyle = s.b > 0.5 ? '#f2fff0' : '#b8ffb8'
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill()
+      }
+      // diffraction glints on the brightest stars
+      ctx.lineCap = 'round'
+      for (let i = 0; i < stars.length; i++) {
+        const s = stars[i]
+        if (s.b < 0.3 || !inView(s, 120)) continue
+        const x = s.x * k + tx, y = s.y * k + ty
+        const dim = hi >= 0 && !hl.has(i) ? 0.3 : 1
+        const L = (8 + 46 * Math.pow(s.b, 0.8)) * Math.min(1.8, Math.max(0.7, Math.sqrt(k)))
+        const tw = 0.85 + 0.15 * Math.sin(time * 0.0012 + s.phase)
+        const arms: [number, number, number][] = [[1, 0, L], [0, 1, L * 0.62]]
+        if (s.b > 0.6) arms.push([0.7071, 0.7071, L * 0.4], [0.7071, -0.7071, L * 0.4])
+        for (const [dx, dy, len] of arms) {
+          const g = ctx.createLinearGradient(x - dx*len, y - dy*len, x + dx*len, y + dy*len)
+          const c = `rgba(190,255,190,${0.55 * s.b * tw * dim})`
+          g.addColorStop(0, 'rgba(190,255,190,0)'); g.addColorStop(0.5, c); g.addColorStop(1, 'rgba(190,255,190,0)')
+          ctx.strokeStyle = g; ctx.lineWidth = 0.8
+          ctx.beginPath(); ctx.moveTo(x - dx*len, y - dy*len); ctx.lineTo(x + dx*len, y + dy*len); ctx.stroke()
+        }
+      }
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.globalAlpha = 1
+
+      if (hover) {
+        const x = hover.x * k + tx, y = hover.y * k + ty
+        const label = hover.title.length > 52 ? hover.title.slice(0, 52) + '…' : hover.title
+        const px = Math.min(Math.max(x, 190), W - 190)
+        const py = y - starR(hover) * 1.4 - 14
+        ctx.font = '13px "Share Tech Mono","Courier New",monospace'
+        ctx.textAlign = 'center'
+        ctx.fillStyle = 'rgba(3,12,3,0.8)'
+        const tw = ctx.measureText(label).width
+        ctx.fillRect(px - tw/2 - 6, py - 13, tw + 12, 19)
+        ctx.fillStyle = '#66ff66'; ctx.shadowColor = GREEN; ctx.shadowBlur = 8
+        ctx.fillText(label, px, py); ctx.shadowBlur = 0
+      }
+    }
+
+    const hitTest = (mx: number, my: number) => {
+      let best: Star | null = null, bd = Infinity
+      for (const s of stars) {
+        const d = Math.hypot(s.x * k + tx - mx, s.y * k + ty - my)
+        if (d <= starR(s) + 8 && d < bd) { best = s; bd = d }
+      }
+      return best
+    }
+
+    const onMove = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top
+      if (dragging) {
+        tx += mx - lastX; ty += my - lastY; moved += Math.abs(mx - lastX) + Math.abs(my - lastY)
+        lastX = mx; lastY = my
+        return
+      }
+      hover = hitTest(mx, my)
+      canvas.style.cursor = hover ? 'pointer' : 'grab'
+    }
+    const onDown = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      dragging = true; moved = 0
+      lastX = e.clientX - rect.left; lastY = e.clientY - rect.top
+      canvas.style.cursor = 'grabbing'
+    }
+    const onUp = () => { dragging = false; canvas.style.cursor = hover ? 'pointer' : 'grab' }
+    const onLeave = () => { dragging = false; hover = null }
+    const onClick = (e: MouseEvent) => {
+      if (moved > 4) return
+      const rect = canvas.getBoundingClientRect()
+      const s = hitTest(e.clientX - rect.left, e.clientY - rect.top)
+      if (s) window.open(s.url, '_blank', 'noopener,noreferrer')
+    }
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top
+      const nk = Math.min(40, Math.max(0.05, k * Math.exp(-e.deltaY * 0.0015)))
+      tx = mx - (mx - tx) * (nk / k); ty = my - (my - ty) * (nk / k); k = nk
+    }
+    canvas.addEventListener('mousemove', onMove)
+    canvas.addEventListener('mousedown', onDown)
+    window.addEventListener('mouseup', onUp)
+    canvas.addEventListener('mouseleave', onLeave)
+    canvas.addEventListener('click', onClick)
+    canvas.addEventListener('wheel', onWheel, { passive: false })
+
+    const loop = (t: number) => { draw(t); animId = requestAnimationFrame(loop) }
+    animId = requestAnimationFrame(loop)
+
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(animId)
+      window.removeEventListener('resize', resize)
+      window.removeEventListener('mouseup', onUp)
+      canvas.removeEventListener('mousemove', onMove)
+      canvas.removeEventListener('mousedown', onDown)
+      canvas.removeEventListener('mouseleave', onLeave)
+      canvas.removeEventListener('click', onClick)
+      canvas.removeEventListener('wheel', onWheel)
+      if (mount.contains(canvas)) mount.removeChild(canvas)
+    }
+  }, [n, mode])
+
   const commitN = (val: number) => { setN(val); setDisplayN(val) }
+  const sliderMax = mode === 'constellation' ? 500 : 300
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: BG, overflow: 'hidden' }}>
@@ -490,23 +777,23 @@ export default function GraphPage({ onHome }: Props) {
         {/* Title + stats */}
         <div style={{ color: GREEN_DIM, fontSize: '0.72em', letterSpacing: '0.2em', textTransform: 'uppercase', flexShrink: 0 }}>
           <span style={{ color: GREEN, textShadow: `0 0 6px ${GREEN}` }}>■</span>
-          &ensp;LINK GRAPH&ensp;//&ensp;{info.nodes} NODES&ensp;{info.edges} EDGES
+          &ensp;LINK GRAPH&ensp;//&ensp;{info.nodes} {mode === 'constellation' ? 'STARS' : 'NODES'}&ensp;{info.edges} {mode === 'constellation' ? 'LINKS' : 'EDGES'}
         </div>
 
         {/* 2D / 3D toggle */}
         <div style={{ display: 'flex', gap: '4px', pointerEvents: 'all', flexShrink: 0 }}>
-          {(['3d', '2d'] as const).map(m => (
+          {(['3d', '2d', 'constellation'] as const).map(m => (
             <button
               key={m}
               className="crt-btn"
-              onClick={() => setMode(m)}
+              onClick={() => { setMode(m); const cap = m === 'constellation' ? 500 : 300; if (displayN > cap) commitN(cap) }}
               style={{
                 fontSize: '0.68em',
                 opacity: mode === m ? 1 : 0.38,
                 boxShadow: mode === m ? `0 0 6px ${GREEN}` : 'none',
               }}
             >
-              {m.toUpperCase()}
+              {m === 'constellation' ? 'STARS' : m.toUpperCase()}
             </button>
           ))}
         </div>
@@ -515,7 +802,7 @@ export default function GraphPage({ onHome }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', pointerEvents: 'all', flex: 1, maxWidth: 260 }}>
           <span style={{ color: GREEN_DIM, fontSize: '0.65em', letterSpacing: '0.15em', flexShrink: 0 }}>N:</span>
           <input
-            type="range" min={2} max={300} step={1}
+            type="range" min={2} max={sliderMax} step={1}
             value={displayN}
             onChange={e  => setDisplayN(Number(e.target.value))}
             onMouseUp={e  => commitN(Number((e.target as HTMLInputElement).value))}
@@ -523,7 +810,7 @@ export default function GraphPage({ onHome }: Props) {
             style={{
               flex: 1, WebkitAppearance: 'none', appearance: 'none',
               height: '2px', outline: 'none', border: 'none', cursor: 'pointer',
-              background: `linear-gradient(to right, ${GREEN} 0%, ${GREEN} ${((displayN-2)/298)*100}%, rgba(51,255,51,0.2) ${((displayN-2)/298)*100}%, rgba(51,255,51,0.2) 100%)`,
+              background: `linear-gradient(to right, ${GREEN} 0%, ${GREEN} ${((displayN-2)/(sliderMax-2))*100}%, rgba(51,255,51,0.2) ${((displayN-2)/(sliderMax-2))*100}%, rgba(51,255,51,0.2) 100%)`,
             }}
           />
           <span style={{ color: GREEN, fontSize: '0.68em', letterSpacing: '0.1em', minWidth: '3ch', textAlign: 'right', textShadow: `0 0 4px ${GREEN}` }}>
@@ -551,6 +838,8 @@ export default function GraphPage({ onHome }: Props) {
         }}>
           {mode === '3d'
             ? 'DRAG TO ROTATE · SCROLL TO ZOOM · CLICK NODE TO OPEN'
+            : mode === 'constellation'
+            ? 'DRAG TO PAN · SCROLL TO ZOOM · CLICK STAR TO OPEN · LINKS = SHARED CITATIONS'
             : 'DRAG NODES · CLICK TO OPEN URL · NODE SIZE = PAGERANK'}
         </div>
       )}

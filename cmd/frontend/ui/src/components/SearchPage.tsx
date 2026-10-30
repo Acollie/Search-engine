@@ -1,4 +1,7 @@
 import { useState, useEffect, FormEvent } from 'react'
+import SearchInput from './SearchInput'
+import ThemeToggle from './ThemeToggle'
+import { useClassicTheme } from '../hooks/useClassicTheme'
 
 interface Props {
   onSearch: (query: string) => void
@@ -37,6 +40,7 @@ function fmtNum(n: number): string {
 }
 
 export default function SearchPage({ onSearch, onAbout, onGraph }: Props) {
+  const [classic] = useClassicTheme()
   const [query, setQuery] = useState('')
   const [stats, setStats] = useState<Stats | null>(null)
 
@@ -60,6 +64,7 @@ export default function SearchPage({ onSearch, onAbout, onGraph }: Props) {
           <span>{now()}</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginBottom: '6px' }}>
+          <ThemeToggle />
           <button className="crt-btn" onClick={onGraph} style={{ fontSize: '0.78em' }}>GRAPH</button>
           <button className="crt-btn" onClick={onAbout} style={{ fontSize: '0.78em' }}>ABOUT</button>
         </div>
@@ -72,27 +77,26 @@ export default function SearchPage({ onSearch, onAbout, onGraph }: Props) {
 
       <div className="home-hero">
         <pre className="ascii-logo glow">{LOGO}</pre>
+        <div className="classic-logo" aria-hidden="true">Search</div>
 
         <p className="subtitle">D I S T R I B U T E D &ensp; W E B &ensp; I N D E X &ensp; v 2 . 4</p>
 
         <form className="search-form-home" onSubmit={handleSubmit}>
           <div className="search-row">
             <span className="prompt-label">QUERY&gt;</span>
-            <input
-              className="search-input"
-              type="text"
+            <SearchInput
               value={query}
-              onChange={e => setQuery(e.target.value)}
+              onChange={setQuery}
+              onPick={q => onSearch(q.trim())}
               placeholder="enter search terms..."
               autoFocus
-              spellCheck={false}
-              autoComplete="off"
             />
             <span className="cursor" />
           </div>
           <div className="search-submit-row">
-            <button type="submit" className="crt-btn">[ EXECUTE SEARCH ]</button>
+            <button type="submit" className="crt-btn">{classic ? 'Search' : '[ EXECUTE SEARCH ]'}</button>
           </div>
+          <div className="syntax-hint">Tips: "exact phrase" &ensp; -exclude &ensp; word OR word</div>
         </form>
 
         <div className="sys-panel">

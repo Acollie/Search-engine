@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	Searcher_SearchPages_FullMethodName = "/service.Searcher/SearchPages"
 	Searcher_GetHealth_FullMethodName   = "/service.Searcher/GetHealth"
+	Searcher_Suggest_FullMethodName     = "/service.Searcher/Suggest"
 )
 
 // SearcherClient is the client API for Searcher service.
@@ -29,6 +30,7 @@ const (
 type SearcherClient interface {
 	SearchPages(ctx context.Context, in *SearchRequest, opts ...grpc.CallOption) (*SearchResponse, error)
 	GetHealth(ctx context.Context, in *HealthRequest, opts ...grpc.CallOption) (*HealthResponse, error)
+	Suggest(ctx context.Context, in *SuggestRequest, opts ...grpc.CallOption) (*SuggestResponse, error)
 }
 
 type searcherClient struct {
@@ -59,12 +61,23 @@ func (c *searcherClient) GetHealth(ctx context.Context, in *HealthRequest, opts 
 	return out, nil
 }
 
+func (c *searcherClient) Suggest(ctx context.Context, in *SuggestRequest, opts ...grpc.CallOption) (*SuggestResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SuggestResponse)
+	err := c.cc.Invoke(ctx, Searcher_Suggest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SearcherServer is the server API for Searcher service.
 // All implementations must embed UnimplementedSearcherServer
 // for forward compatibility.
 type SearcherServer interface {
 	SearchPages(context.Context, *SearchRequest) (*SearchResponse, error)
 	GetHealth(context.Context, *HealthRequest) (*HealthResponse, error)
+	Suggest(context.Context, *SuggestRequest) (*SuggestResponse, error)
 	mustEmbedUnimplementedSearcherServer()
 }
 
@@ -80,6 +93,9 @@ func (UnimplementedSearcherServer) SearchPages(context.Context, *SearchRequest) 
 }
 func (UnimplementedSearcherServer) GetHealth(context.Context, *HealthRequest) (*HealthResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetHealth not implemented")
+}
+func (UnimplementedSearcherServer) Suggest(context.Context, *SuggestRequest) (*SuggestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Suggest not implemented")
 }
 func (UnimplementedSearcherServer) mustEmbedUnimplementedSearcherServer() {}
 func (UnimplementedSearcherServer) testEmbeddedByValue()                  {}
@@ -138,6 +154,24 @@ func _Searcher_GetHealth_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Searcher_Suggest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SuggestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SearcherServer).Suggest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Searcher_Suggest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SearcherServer).Suggest(ctx, req.(*SuggestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Searcher_ServiceDesc is the grpc.ServiceDesc for Searcher service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -152,6 +186,10 @@ var Searcher_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetHealth",
 			Handler:    _Searcher_GetHealth_Handler,
+		},
+		{
+			MethodName: "Suggest",
+			Handler:    _Searcher_Suggest_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -215,6 +215,7 @@ Metrics to track:
 | `SEARCH_MAX_CANDIDATES` | `5000` | Max matching rows ranked per query. Lower is faster but ranks a smaller slice of broad terms. |
 | `SEARCH_CACHE_TTL` | `60s` | How long a result page is reused (Go duration). `0` disables the cache. |
 | `SEARCH_CACHE_SIZE` | `1000` | Max cached query pages (least recently used evicted). |
+| `SEARCH_CANDIDATE_ORDER` | unset | Set to `pagerank` to rank the highest-PageRank matches instead of an arbitrary slice of them. Opt-in: compare with `EXPLAIN ANALYZE` on the live index first, since the plan depends on how common the term is. Pages with no PageRank row are excluded in this mode. |
 
 Identical concurrent queries share one database call, and only successful
 results are cached. Because of the TTL, a newly crawled page can take up to
@@ -223,3 +224,32 @@ results are cached. Because of the TTL, a newly crawled page can take up to
 The health endpoint reports the indexed page count from Postgres's row
 estimate (refreshed by autovacuum/ANALYZE) and caches the counts for 30s, so
 the figure is approximate on a large table.
+
+## Query syntax, filters and highlighting
+
+`SearchRequest.query` uses web-search syntax (Postgres `websearch_to_tsquery`):
+`"quoted phrase"`, `-excluded`, and `OR`. Malformed input never errors; it is
+simply interpreted leniently. Optional filters on the request:
+
+| Field | Meaning |
+|---|---|
+| `language` | `en`, `fr`, ... Uses the stored language if present, otherwise the Wikipedia subdomain. |
+| `domain` | Host name such as `en.wikipedia.org`, taken from the page URL. |
+| `since_unix` | Only pages crawled at or after this unix time. |
+
+(`SeenPages.domain` and `.language` are not populated by the current crawler
+write path, which is why the filters read the URL.)
+
+Each result's `body` is a snippet with matched terms wrapped in U+E000 (start)
+and U+E001 (end), built by `ts_headline` for the returned rows only. These are
+private-use characters, not HTML: clients must convert them to markup
+themselves.
+
+## Autocomplete and "did you mean"
+
+`Suggest` (prefix completion) and `SearchResponse.did_you_mean` (shown only
+when a first-page search matches nothing) read the small `search_suggestions`
+table, built from the titles of the highest-PageRank pages by
+`scripts/04-search-suggestions.sql`. Until that script has been run both
+degrade silently to "no suggestions"; search itself is unaffected. Re-run the
+script after a PageRank refresh to update the weights.

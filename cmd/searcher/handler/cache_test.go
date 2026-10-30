@@ -20,7 +20,7 @@ func resp(url string) *searcher.SearchResponse {
 }
 
 func TestResultCache_HitAvoidsSecondCall(t *testing.T) {
-	c := newResultCache(10, time.Minute)
+	c := newResultCache[*searcher.SearchResponse](10, time.Minute)
 	var calls int
 	fn := func() (*searcher.SearchResponse, error) { calls++; return resp("a"), nil }
 
@@ -36,7 +36,7 @@ func TestResultCache_HitAvoidsSecondCall(t *testing.T) {
 }
 
 func TestResultCache_ExpiresAfterTTL(t *testing.T) {
-	c := newResultCache(10, time.Minute)
+	c := newResultCache[*searcher.SearchResponse](10, time.Minute)
 	now := time.Now()
 	c.now = func() time.Time { return now }
 	var calls int
@@ -54,7 +54,7 @@ func TestResultCache_ExpiresAfterTTL(t *testing.T) {
 }
 
 func TestResultCache_ErrorsAreNotCached(t *testing.T) {
-	c := newResultCache(10, time.Minute)
+	c := newResultCache[*searcher.SearchResponse](10, time.Minute)
 	var calls int
 	_, _, err := c.do(context.Background(), "k", func() (*searcher.SearchResponse, error) {
 		calls++
@@ -72,7 +72,7 @@ func TestResultCache_ErrorsAreNotCached(t *testing.T) {
 }
 
 func TestResultCache_EvictsLeastRecentlyUsed(t *testing.T) {
-	c := newResultCache(2, time.Minute)
+	c := newResultCache[*searcher.SearchResponse](2, time.Minute)
 	var calls int
 	fn := func() (*searcher.SearchResponse, error) { calls++; return resp("x"), nil }
 
@@ -89,7 +89,7 @@ func TestResultCache_EvictsLeastRecentlyUsed(t *testing.T) {
 }
 
 func TestResultCache_ConcurrentIdenticalQueriesShareOneCall(t *testing.T) {
-	c := newResultCache(10, time.Minute)
+	c := newResultCache[*searcher.SearchResponse](10, time.Minute)
 	var calls atomic.Int32
 	release := make(chan struct{})
 	fn := func() (*searcher.SearchResponse, error) {
@@ -118,7 +118,7 @@ func TestResultCache_ConcurrentIdenticalQueriesShareOneCall(t *testing.T) {
 }
 
 func TestResultCache_FollowerHonoursItsOwnContext(t *testing.T) {
-	c := newResultCache(10, time.Minute)
+	c := newResultCache[*searcher.SearchResponse](10, time.Minute)
 	release := make(chan struct{})
 	defer close(release)
 	go c.do(context.Background(), "k", func() (*searcher.SearchResponse, error) { <-release; return resp("a"), nil }) //nolint:errcheck
@@ -132,7 +132,7 @@ func TestResultCache_FollowerHonoursItsOwnContext(t *testing.T) {
 }
 
 func TestResultCache_DisabledRunsEveryTime(t *testing.T) {
-	for name, c := range map[string]*resultCache{"zero ttl": newResultCache(10, 0), "zero size": newResultCache(0, time.Minute), "nil": nil} {
+	for name, c := range map[string]*resultCache[*searcher.SearchResponse]{"zero ttl": newResultCache[*searcher.SearchResponse](10, 0), "zero size": newResultCache[*searcher.SearchResponse](0, time.Minute), "nil": nil} {
 		t.Run(name, func(t *testing.T) {
 			var calls int
 			fn := func() (*searcher.SearchResponse, error) { calls++; return resp("a"), nil }

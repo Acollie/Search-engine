@@ -26,6 +26,8 @@ type config struct {
 	UIDistPath     string  `env:"UI_DIST_PATH"     envDefault:"cmd/frontend/ui/dist"`
 	RateLimitRPS   float64 `env:"RATE_LIMIT_RPS"   envDefault:"10"`
 	RateLimitBurst int     `env:"RATE_LIMIT_BURST" envDefault:"20"`
+	SuggestRPS     float64 `env:"SUGGEST_RATE_LIMIT_RPS"   envDefault:"30"`
+	SuggestBurst   int     `env:"SUGGEST_RATE_LIMIT_BURST" envDefault:"60"`
 	DBUser         string  `env:"DB_USER"          envDefault:"postgres"`
 	DBPassword     string  `env:"DB_PASSWORD"      envDefault:""`
 	DBHost         string  `env:"DB_HOST"          envDefault:"localhost"`
@@ -67,6 +69,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/search", searchHandler.HandleSearchAPI)
+	mux.Handle("/api/suggest", handler.NewSuggestHandler(searchHandler.Client()))
 	mux.HandleFunc("/api/stats", statsHandler.Handle)
 	mux.HandleFunc("/api/graph", graphHandler.Handle)
 
@@ -74,9 +77,20 @@ func main() {
 
 	rateLimited := handler.RateLimitMiddleware(cfg.RateLimitRPS, cfg.RateLimitBurst, mux)
 
+	// Autocomplete fires many small requests while typing, so it gets its own
+	// more generous per-client bucket and does not drain the general one.
+	suggestLimited := handler.RateLimitMiddleware(cfg.SuggestRPS, cfg.SuggestBurst, mux)
+	root := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/suggest" {
+			suggestLimited.ServeHTTP(w, r)
+			return
+		}
+		rateLimited.ServeHTTP(w, r)
+	})
+
 	server := &http.Server{
 		Addr:         ":" + cfg.Port,
-		Handler:      rateLimited,
+		Handler:      root,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -88,9 +102,9 @@ func main() {
 	healthMux.Handle("/metrics", promhttp.Handler())
 
 	healthServer := &http.Server{
-		Addr:        ":" + cfg.HealthPort,
-		Handler:     healthMux,
-		ReadTimeout: 5 * time.Second,
+		Addr:         ":" + cfg.HealthPort,
+		Handler:      healthMux,
+		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
 

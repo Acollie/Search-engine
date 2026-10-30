@@ -8,17 +8,38 @@ import "types/site.proto";
 service Searcher {
   rpc SearchPages(SearchRequest) returns (SearchResponse);
   rpc GetHealth(HealthRequest) returns (HealthResponse);
+  rpc Suggest(SuggestRequest) returns (SuggestResponse);
 }
 
+// SearchRequest.query accepts web-search syntax: "quoted phrases", -excluded
+// words and OR. The filters below are all optional; empty/zero means no filter.
 message SearchRequest {
   string query = 1;
   int32 limit = 2;
   int32 offset = 3;
+  string language = 4;   // exact match on the page language code, e.g. "en"
+  string domain = 5;     // exact match on the page domain, e.g. "en.wikipedia.org"
+  int64 since_unix = 6;  // only pages crawled at or after this unix time
 }
 
+// SearchResponse.pages[].body is a snippet in which matched terms are wrapped
+// in U+E000 (start) and U+E001 (end), private-use characters that never occur
+// in real text. Clients must turn these into markup themselves rather than
+// treating the snippet as HTML.
 message SearchResponse {
   repeated types.Page pages = 1;
   repeated types.Error errors = 2;
+  // Set only when the query matched nothing and a close known title exists.
+  string did_you_mean = 3;
+}
+
+message SuggestRequest {
+  string prefix = 1;
+  int32 limit = 2;  // defaults to 8, capped at 20
+}
+
+message SuggestResponse {
+  repeated string suggestions = 1;
 }
 
 message HealthRequest {}

@@ -1,4 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react'
+import SearchInput from './SearchInput'
+import ThemeToggle from './ThemeToggle'
 import { useTextScramble } from '../hooks/useTextScramble'
 
 interface Props {
@@ -59,6 +61,7 @@ export default function AboutPage({ onSearch, onGraph }: Props) {
         <div className="about-nav-links">
           <span className="about-nav-link about-nav-active">ABOUT</span>
           <button className="about-nav-link" onClick={onGraph}>GRAPH</button>
+          <ThemeToggle variant="about" />
           <a className="about-nav-link" href="https://metrics.collie.codes" target="_blank" rel="noopener noreferrer">METRICS</a>
         </div>
       </nav>
@@ -78,17 +81,16 @@ export default function AboutPage({ onSearch, onGraph }: Props) {
         <form className="about-search-form" onSubmit={handleSubmit}>
           <div className="about-search-row">
             <span className="about-search-prompt">›</span>
-            <input
-              className="about-search-input"
-              type="text"
+            <SearchInput
               value={query}
-              onChange={e => setQuery(e.target.value)}
+              onChange={setQuery}
+              onPick={q => onSearch(q.trim())}
               placeholder="search the index..."
-              spellCheck={false}
-              autoComplete="off"
+              inputClassName="about-search-input"
             />
             <button type="submit" className="about-search-btn">SEARCH</button>
           </div>
+          <div className="about-hint">Tips: "exact phrase" &ensp; -exclude &ensp; word OR word</div>
         </form>
 
         <p className="about-scroll-hint">↓ scroll</p>

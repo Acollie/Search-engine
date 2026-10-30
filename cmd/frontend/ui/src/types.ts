@@ -3,6 +3,7 @@ export interface SearchResult {
   title: string
   snippet: string
   lastCrawled: string
+  segments?: Segment[]
 }
 
 export interface SearchResponse {
@@ -16,4 +17,10 @@ export interface SearchResponse {
   searchTime: number
   error?: string
   query: string
+  didYouMean?: string
+}
+
+export interface Segment {
+  text: string
+  match: boolean
 }

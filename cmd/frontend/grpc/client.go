@@ -18,6 +18,15 @@ type SearcherClient struct {
 	conn    *grpc.ClientConn
 	client  pb.SearcherClient
 	breaker *gobreaker.CircuitBreaker
+	// suggestBreaker is separate so autocomplete failures never trip search.
+	suggestBreaker *gobreaker.CircuitBreaker
+}
+
+// SearchFilters are optional filters; zero values mean "no filter".
+type SearchFilters struct {
+	Language  string
+	Domain    string
+	SinceUnix int64
 }
 
 // NewSearcherClient creates a new Searcher gRPC client
@@ -32,8 +41,19 @@ func NewSearcherClient(address string) (*SearcherClient, error) {
 		return nil, fmt.Errorf("failed to create searcher client at %s: %w", address, err)
 	}
 
-	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
-		Name:        "searcher",
+	slog.Info("Searcher gRPC client initialized", slog.String("address", address))
+	return &SearcherClient{
+		conn:           conn,
+		client:         pb.NewSearcherClient(conn),
+		breaker:        newBreaker("searcher"),
+		suggestBreaker: newBreaker("searcher-suggest"),
+	}, nil
+}
+
+// newBreaker builds a circuit breaker with the standard frontend settings.
+func newBreaker(name string) *gobreaker.CircuitBreaker {
+	return gobreaker.NewCircuitBreaker(gobreaker.Settings{
+		Name:        name,
 		MaxRequests: 1,
 		Timeout:     60 * time.Second,
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
@@ -46,22 +66,23 @@ func NewSearcherClient(address string) (*SearcherClient, error) {
 				slog.String("to", to.String()))
 		},
 	})
+}
 
-	slog.Info("Searcher gRPC client initialized", slog.String("address", address))
-	return &SearcherClient{
-		conn:    conn,
-		client:  pb.NewSearcherClient(conn),
-		breaker: cb,
-	}, nil
+// NewSearcherClientFromPB wraps an existing pb.SearcherClient (used by tests).
+func NewSearcherClientFromPB(c pb.SearcherClient) *SearcherClient {
+	return &SearcherClient{client: c, breaker: newBreaker("searcher"), suggestBreaker: newBreaker("searcher-suggest")}
 }
 
 // Search performs a search query
-func (c *SearcherClient) Search(ctx context.Context, query string, limit, offset int32) (*pb.SearchResponse, error) {
+func (c *SearcherClient) Search(ctx context.Context, query string, limit, offset int32, f SearchFilters) (*pb.SearchResponse, error) {
 	result, err := c.breaker.Execute(func() (interface{}, error) {
 		return c.client.SearchPages(ctx, &pb.SearchRequest{
-			Query:  query,
-			Limit:  limit,
-			Offset: offset,
+			Query:     query,
+			Limit:     limit,
+			Offset:    offset,
+			Language:  f.Language,
+			Domain:    f.Domain,
+			SinceUnix: f.SinceUnix,
 		})
 	})
 	if err != nil {
@@ -71,6 +92,17 @@ func (c *SearcherClient) Search(ctx context.Context, query string, limit, offset
 	resp := result.(*pb.SearchResponse)
 	slog.Info("Search request completed", slog.String("query", query), slog.Int("results", len(resp.Pages)))
 	return resp, nil
+}
+
+// Suggest returns autocomplete suggestions for a prefix.
+func (c *SearcherClient) Suggest(ctx context.Context, prefix string, limit int32) ([]string, error) {
+	result, err := c.suggestBreaker.Execute(func() (interface{}, error) {
+		return c.client.Suggest(ctx, &pb.SuggestRequest{Prefix: prefix, Limit: limit})
+	})
+	if err != nil {
+		return nil, fmt.Errorf("suggest failed: %w", err)
+	}
+	return result.(*pb.SuggestResponse).Suggestions, nil
 }
 
 // CheckHealth checks if the Searcher service is healthy

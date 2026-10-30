@@ -17,7 +17,12 @@
     <link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
     <style>
       html, body { background: #000; margin: 0; }
+      html[data-theme="classic"], html[data-theme="classic"] body { background: #fff; }
     </style>
+    <script>
+      // Apply the saved theme before first paint to avoid a flash.
+      try { if (localStorage.getItem('search-theme') === 'classic') document.documentElement.setAttribute('data-theme', 'classic'); } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
