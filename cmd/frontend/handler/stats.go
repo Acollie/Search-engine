@@ -168,13 +168,29 @@ func (h *StatsHandler) fillEstimates(ctx context.Context, stats *StatsResponse) 
 	h.estMu.Unlock()
 
 	if needDomains && est.domains > 0 {
+		// Chao1 grows quickly when few hosts were seen exactly twice, so never
+		// report more domains than there are pages.
 		stats.UniqueDomains = est.domains
+		if stats.PagesIndexed > 0 && stats.UniqueDomains > stats.PagesIndexed {
+			stats.UniqueDomains = stats.PagesIndexed
+		}
 		stats.Approximate = append(stats.Approximate, "uniqueDomains")
 	}
 	if needLinks && est.linkAvg > 0 {
 		stats.TotalLinks = int64(est.linkAvg * float64(stats.PagesIndexed))
 		stats.Approximate = append(stats.Approximate, "totalLinks")
 	}
+}
+
+// chao1 estimates the number of distinct items in a population from a sample,
+// given d distinct items seen, f1 seen exactly once and f2 seen exactly twice
+// (bias-corrected Chao1). It is still a rough lower-bound-leaning figure, which
+// is why the UI shows it with a "~".
+func chao1(d, f1, f2 int64) int64 {
+	if d == 0 {
+		return 0
+	}
+	return d + (f1*(f1-1))/(2*(f2+1))
 }
 
 // refreshEstimatesLocked recomputes the estimates. Caller holds h.estMu.
@@ -184,16 +200,25 @@ func (h *StatsHandler) refreshEstimatesLocked(ctx context.Context, needDomains, 
 
 	if needDomains {
 		c, cancel := context.WithTimeout(ctx, 4*time.Second)
-		var n int64
+		// A distinct count over a sample is a lower bound that badly undercounts
+		// the long tail (a 1,634-row sample of this index held 419 hosts, most seen
+		// exactly once). So count how many hosts were seen once (f1) and twice (f2)
+		// and apply the bias-corrected Chao1 estimator, d + f1*(f1-1) / (2*(f2+1)).
 		// The host is the third '/'-separated part of "https://host/path".
+		var d, f1, f2 int64
 		err := h.db.QueryRowContext(c, `
-			SELECT COUNT(DISTINCT split_part(url, '/', 3))
-			FROM SeenPages TABLESAMPLE SYSTEM (0.05)`).Scan(&n)
+			WITH hosts AS (
+				SELECT split_part(url, '/', 3) AS host, COUNT(*) AS n
+				FROM SeenPages TABLESAMPLE SYSTEM (0.5)
+				GROUP BY 1
+			)
+			SELECT COUNT(*), COUNT(*) FILTER (WHERE n = 1), COUNT(*) FILTER (WHERE n = 2)
+			FROM hosts`).Scan(&d, &f1, &f2)
 		cancel()
 		if err != nil {
 			slog.Warn("stats: domain estimate failed", slog.Any("error", err))
 		} else {
-			fresh.domains, ok = n, true
+			fresh.domains, ok = chao1(d, f1, f2), true
 		}
 	}
 	if needLinks {

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"log/slog"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -112,7 +111,7 @@ func (h *SearchHandler) HandleSearchAPI(w http.ResponseWriter, r *http.Request) 
 	searchRequests.WithLabelValues("success").Inc()
 	searchDuration.WithLabelValues("success").Observe(duration)
 
-	h.logSearch(query, len(resp.Pages), int64(duration*1000), r.RemoteAddr)
+	h.logSearch(query, len(resp.Pages), int64(duration*1000))
 
 	results := make([]SearchResult, 0, len(resp.Pages))
 	for _, pg := range resp.Pages {
@@ -143,23 +142,22 @@ func (h *SearchHandler) HandleSearchAPI(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-func (h *SearchHandler) logSearch(query string, resultCount int, durationMs int64, remoteAddr string) {
+func (h *SearchHandler) logSearch(query string, resultCount int, durationMs int64) {
 	if h.db == nil {
 		return
-	}
-	ip, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		ip = remoteAddr
 	}
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		// The error used to be discarded, which made a broken insert invisible: the
-		// dashboard's query counts silently stayed at 0.
+		// Only columns that exist in the live table are written. This insert used to
+		// include an ip_address column that SearchSessions does not have, so every
+		// insert failed -- silently, because the error was discarded -- and the
+		// dashboard's query counts stayed at 0. No IP is recorded: nothing reads it,
+		// and a search log is better off without it.
 		if _, err := h.db.ExecContext(ctx,
-			`INSERT INTO SearchSessions (query, result_count, execution_time_ms, ip_address)
-			 VALUES ($1, $2, $3, $4::inet)`,
-			query, resultCount, max(durationMs, 1), ip,
+			`INSERT INTO SearchSessions (query, result_count, execution_time_ms)
+			 VALUES ($1, $2, $3)`,
+			query, resultCount, max(durationMs, 1),
 		); err != nil {
 			slog.Warn("failed to record search session", slog.Any("error", err))
 		}

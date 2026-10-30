@@ -13,7 +13,7 @@ import (
 
 const (
 	mainStatsSQL   = `(?s)SELECT.*n_live_tup.*SearchSessions`
-	domainSampling = `SELECT COUNT\(DISTINCT split_part\(url, '/', 3\)\)\s+FROM SeenPages TABLESAMPLE`
+	domainSampling = `(?s)WITH hosts AS.*TABLESAMPLE SYSTEM \(0\.5\).*FROM hosts`
 	linkSampling   = `AVG\(GREATEST\(cardinality\(string_to_array\(links.*TABLESAMPLE`
 )
 
@@ -39,12 +39,13 @@ func TestFetchStats_EstimatesWhenExactCountsAreEmpty(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 	mock.ExpectQuery(mainStatsSQL).WillReturnRows(sqlmock.NewRows(statsCols).AddRow(3000000, 0, 0, 0, 0, 0, 0, 0, 0))
-	mock.ExpectQuery(domainSampling).WillReturnRows(sqlmock.NewRows([]string{"n"}).AddRow(37))
+	// d=419 hosts seen, 330 once, 50 twice: 419 + 330*329/(2*51) = 1483.
+	mock.ExpectQuery(domainSampling).WillReturnRows(sqlmock.NewRows([]string{"d", "f1", "f2"}).AddRow(419, 330, 50))
 	mock.ExpectQuery(linkSampling).WillReturnRows(sqlmock.NewRows([]string{"avg"}).AddRow(120.5))
 
 	s, err := NewStatsHandler(db).fetchStats(context.Background())
 	require.NoError(t, err)
-	assert.Equal(t, int64(37), s.UniqueDomains)
+	assert.Equal(t, int64(1483), s.UniqueDomains, "Chao1 corrects the sample's undercount of rare hosts")
 	assert.Equal(t, int64(120.5*3000000), s.TotalLinks)
 	assert.ElementsMatch(t, []string{"uniqueDomains", "totalLinks"}, s.Approximate)
 	assert.Equal(t, int64(0), s.PagesRanked, "a genuine zero stays zero")
@@ -56,7 +57,7 @@ func TestFetchStats_EstimatesAreReusedWithinTheHour(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 	mock.ExpectQuery(mainStatsSQL).WillReturnRows(sqlmock.NewRows(statsCols).AddRow(1000, 0, 0, 0, 0, 0, 0, 0, 0))
-	mock.ExpectQuery(domainSampling).WillReturnRows(sqlmock.NewRows([]string{"n"}).AddRow(5))
+	mock.ExpectQuery(domainSampling).WillReturnRows(sqlmock.NewRows([]string{"d", "f1", "f2"}).AddRow(5, 0, 5))
 	mock.ExpectQuery(linkSampling).WillReturnRows(sqlmock.NewRows([]string{"avg"}).AddRow(10.0))
 	// Second refresh: only the main query, no sampling.
 	mock.ExpectQuery(mainStatsSQL).WillReturnRows(sqlmock.NewRows(statsCols).AddRow(2000, 0, 0, 0, 0, 0, 0, 0, 0))
@@ -95,7 +96,7 @@ func TestFetchStats_FailedEstimateIsRetriedNextTime(t *testing.T) {
 	mock.ExpectQuery(linkSampling).WillReturnError(errors.New("timeout"))
 	// A failure must not start the one-hour reuse window.
 	mock.ExpectQuery(mainStatsSQL).WillReturnRows(sqlmock.NewRows(statsCols).AddRow(1000, 0, 0, 0, 0, 0, 0, 0, 0))
-	mock.ExpectQuery(domainSampling).WillReturnRows(sqlmock.NewRows([]string{"n"}).AddRow(9))
+	mock.ExpectQuery(domainSampling).WillReturnRows(sqlmock.NewRows([]string{"d", "f1", "f2"}).AddRow(9, 0, 9))
 	mock.ExpectQuery(linkSampling).WillReturnRows(sqlmock.NewRows([]string{"avg"}).AddRow(3.0))
 
 	h := NewStatsHandler(db)
@@ -108,4 +109,40 @@ func TestFetchStats_FailedEstimateIsRetriedNextTime(t *testing.T) {
 
 func TestEstimates_StaleAfterTTL(t *testing.T) {
 	assert.True(t, time.Since(time.Time{}) >= estimateTTL, "a zero-valued estimate must count as stale")
+}
+
+func TestChao1(t *testing.T) {
+	assert.Equal(t, int64(0), chao1(0, 0, 0), "empty sample")
+	assert.Equal(t, int64(10), chao1(10, 0, 4), "no singletons means the sample saw everything")
+	assert.Equal(t, int64(1483), chao1(419, 330, 50))
+	assert.Equal(t, int64(10), chao1(10, 1, 0), "one singleton adds nothing: f1*(f1-1) is 0")
+}
+
+func TestLogSearch_WritesOnlyColumnsThatExist(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	// The live SearchSessions table has no ip_address column; an insert that
+	// mentions one fails every time.
+	mock.ExpectExec(`INSERT INTO SearchSessions \(query, result_count, execution_time_ms\)\s+VALUES \(\$1, \$2, \$3\)`).
+		WithArgs("golang", 10, int64(1)).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	(&SearchHandler{db: db}).logSearch("golang", 10, 0) // 0ms is clamped to 1 (CHECK > 0)
+
+	require.Eventually(t, func() bool { return mock.ExpectationsWereMet() == nil }, time.Second, 5*time.Millisecond)
+}
+
+func TestFetchStats_DomainEstimateNeverExceedsPageCount(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+	mock.ExpectQuery(mainStatsSQL).WillReturnRows(sqlmock.NewRows(statsCols).AddRow(305, 0, 0, 0, 0, 0, 0, 0, 0))
+	// d=305, all singletons, no doubletons: Chao1 = 305 + 304*303/2 = 46361.
+	mock.ExpectQuery(domainSampling).WillReturnRows(sqlmock.NewRows([]string{"d", "f1", "f2"}).AddRow(305, 304, 0))
+	mock.ExpectQuery(linkSampling).WillReturnRows(sqlmock.NewRows([]string{"avg"}).AddRow(0.0))
+
+	s, err := NewStatsHandler(db).fetchStats(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, int64(305), s.UniqueDomains)
 }
